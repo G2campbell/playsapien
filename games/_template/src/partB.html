@@ -1,0 +1,59 @@
+<div id="app">
+  <header class="topbar">
+    <a class="homelink" href="/">&#8249;&nbsp;PlaySapien</a>
+    <span class="spacer"></span>
+    <!-- The corner bar. Same five glyphs, same ids, in every game, so a player
+         learns them once. Add or drop buttons; keep the ids you keep. -->
+    <nav class="corner" aria-label="Game">
+      <button class="iconbtn" type="button" id="aboutBtn" data-sheet="aboutSheet" aria-label="About">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.2 9.2a2.9 2.9 0 1 1 4 2.7c-.8.35-1.2 1-1.2 1.8v.4"/><line x1="12" y1="17.4" x2="12" y2="17.4"/></svg>
+      </button>
+      <button class="iconbtn" type="button" id="settingsBtn" data-sheet="settingsSheet" aria-label="Settings">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </nav>
+  </header>
+
+  <main>
+    <h1 id="title">New Game</h1>
+    <p class="tagline" id="tagline">One line that says what the player does.</p>
+    <div class="board" id="board">Your game goes here.</div>
+    <button class="btn" type="button" id="playBtn">Play today</button>
+  </main>
+
+  <footer><span id="daystamp"></span></footer>
+</div>
+
+<!-- Platform furniture. The scrim and the toast are single elements the whole
+     page shares; PSUI wires them. -->
+<div class="scrim" id="scrim"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<section class="sheet" id="aboutSheet" role="dialog" aria-modal="true" aria-labelledby="aboutTitle" hidden>
+  <div class="sh-head"><h2 id="aboutTitle">About</h2>
+    <button class="donebtn" type="button" data-sheet-close>Done</button></div>
+  <p>What the game is, in a sentence or two.</p>
+  <p class="hint">How it is scored, and when the next one appears.</p>
+</section>
+
+<section class="sheet" id="settingsSheet" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
+  <div class="sh-head"><h2 id="settingsTitle">Settings</h2>
+    <button class="donebtn" type="button" data-sheet-close>Done</button></div>
+
+  <!-- Theme is platform-wide: one control, one shared key, every surface. -->
+  <div class="setrow">
+    <div class="col"><span class="setlabel">Theme</span>
+      <p class="sethint">Applies to PlaySapien and every game.</p></div>
+  </div>
+  <div class="seg" id="themeSeg" role="group" aria-label="Theme">
+    <button type="button" data-theme="light"  aria-pressed="false">Light</button>
+    <button type="button" data-theme="dark"   aria-pressed="false">Dark</button>
+    <button type="button" data-theme="system" aria-pressed="true">System</button>
+  </div>
+
+  <div class="setrow">
+    <div class="col"><span class="setlabel">Sound</span>
+      <p class="sethint">An example of a game's own setting.</p></div>
+    <button class="toggle" type="button" id="soundToggle" aria-pressed="false" aria-label="Sound"></button>
+  </div>
+</section>

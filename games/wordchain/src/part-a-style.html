@@ -361,58 +361,475 @@
 }
 
 /* ===========================================================================
+   TEMPLATE — the palette games/_template/ ships with.
+
+   It is here, in the real token file, on purpose. A new game's palette belongs
+   in this file so `check-contrast.mjs` covers it from its first commit, and
+   having one live example is what makes the shape obvious. Copy this block,
+   rename the class, change the twelve values, run the checker.
+
+   Sage, chosen only to be clearly none of the other three.
+   =========================================================================== */
+
+.tp-game {
+  --bg:        #DCE3D9;
+  --bg-raise:  #EAEFE7;
+  --bg-sink:   #C7D0C3;
+  --bg-edge:   #BFC9BB;
+  --fg:        #24352C;
+  --fg-2:      #3D5647;
+  --fg-3:      #546754;
+  --fg-on-accent: #F5FAF7;
+  --line:      #C2CCBE;
+  --line-2:    #A7B4A4;
+  --accent:    #296D5F;
+  --accent-soft: #6FA394;        /* fill only */
+  --good:      #356E46;
+  --warn:      #9F4833;
+  --shadow:    0 18px 50px rgba(36,53,44,.20);
+  --scrim:     rgba(36,53,44,.42);
+  --texture-ink:   #4A5C50;
+  --texture-alpha: .10;
+}
+
+.tp-game[data-theme="dark"] {
+  --bg:        #2F3A33;
+  --bg-raise:  #3B473F;
+  --bg-sink:   #242D27;
+  --bg-edge:   #1C231E;
+  --fg:        #E6EFE8;
+  --fg-2:      #BFD0C5;
+  --fg-3:      #96BCA2;
+  --fg-on-accent: #10201B;
+  --line:      #47554C;
+  --line-2:    #5A6A60;
+  --accent:    #69C3B1;
+  --accent-soft: #3F8476;
+  --good:      #6EC588;
+  --warn:      #FA9B78;
+  --shadow:    0 18px 50px rgba(0,0,0,.46);
+  --scrim:     rgba(12,18,14,.60);
+  --texture-ink:   #0C120E;
+  --texture-alpha: .10;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tp-game:not([data-theme="light"]) {
+    --bg:        #2F3A33;
+    --bg-raise:  #3B473F;
+    --bg-sink:   #242D27;
+    --bg-edge:   #1C231E;
+    --fg:        #E6EFE8;
+    --fg-2:      #BFD0C5;
+    --fg-3:      #96BCA2;
+    --fg-on-accent: #10201B;
+    --line:      #47554C;
+    --line-2:    #5A6A60;
+    --accent:    #69C3B1;
+    --accent-soft: #3F8476;
+    --good:      #6EC588;
+    --warn:      #FA9B78;
+    --shadow:    0 18px 50px rgba(0,0,0,.46);
+    --scrim:     rgba(12,18,14,.60);
+    --texture-ink:   #0C120E;
+    --texture-alpha: .10;
+  }
+}
+
+/* ===========================================================================
    color-scheme — so the browser paints native controls, scrollbars, range
    thumbs and focus rings to match. Cheap, and its absence is what made
    Sojourner's sliders render in light chrome on a black page.
    =========================================================================== */
-.ps-shell, .sj-game, .wc-game { color-scheme: light }
-.ps-shell[data-theme="dark"], .sj-game[data-theme="dark"], .wc-game[data-theme="dark"] { color-scheme: dark }
+.ps-shell, .sj-game, .wc-game, .tp-game { color-scheme: light }
+.ps-shell[data-theme="dark"], .sj-game[data-theme="dark"],
+.wc-game[data-theme="dark"], .tp-game[data-theme="dark"] { color-scheme: dark }
 @media (prefers-color-scheme: dark) {
   .ps-shell:not([data-theme="light"]),
   .sj-game:not([data-theme="light"]),
-  .wc-game:not([data-theme="light"]) { color-scheme: dark }
+  .wc-game:not([data-theme="light"]),
+  .tp-game:not([data-theme="light"]) { color-scheme: dark }
 }
 /* ===== END packages/tokens/tokens.css ===== */
 
+/* The shared UI layer, inlined. packages/ui/ui.css is the CANONICAL source for
+   the chrome every surface repeats — sheet, scrim, toast, corner bar, button,
+   field, settings row, toggle, segmented control. It must come AFTER tokens.css
+   because every colour in it is a role token, and BEFORE Word Chain's own block
+   below, so that this game's dials and its few character overrides win. It is
+   byte-identical and CI diffs it against the original — edit packages/ui/ui.css
+   and re-inline, never edit here. */
+/* ===== BEGIN packages/ui/ui.css (inlined verbatim — do not edit here) ===== */
 /* ===========================================================================
-   WORD CHAIN — the local layer on top of the shared tokens.
+   PlaySapien UI — the chrome every game repeats.
 
-   Two things live here and nothing else:
-     1. Word Chain's LEGACY NAMES, aliased onto the platform roles. There are
-        several hundred `var(--ink)` / `var(--paper)` call sites below, so the
-        names stay and the values come from the roles.
-     2. Word Chain's OWN ramp — --clay*, --key*, --tile*, --seg*, --sheet.
-        Local, never shared, but derived from the same anchors so the game does
-        not look like two palettes fighting.
+   Before this file existed, 715 CSS declarations lived in triplicate: the
+   bottom sheet, the scrim, the toast, the corner bar, settings rows, the
+   segmented control, buttons, fields. A quarter of every game's stylesheet was
+   platform furniture copied by hand, and every copy drifted. That drift is why
+   the About icon was stroke-width 2 in one game and 1.9 in another, why the
+   corner gap was 9px here and 2px there, and why two of Word Chain's dark
+   rules were broken on exactly the "system" setting.
 
-   *** READ THIS BEFORE TOUCHING THE ALIASES ***
-   In WORD CHAIN, --ink is the TEXT and --paper is the BACKGROUND:
+   WHAT THIS FILE IS, AND IS NOT
 
-       --ink   -> --fg   (text)
-       --paper -> --bg   (background)
+   It owns STRUCTURE and BEHAVIOUR: geometry, motion, focus, states, and the
+   anatomy of each control. It owns no character. Every colour comes from a
+   role token, and everything a game might legitimately want to differ on is a
+   DIAL — a component token with a default, which a game overrides in its own
+   :root.
 
-   In SOJOURNER those two names mean the OPPOSITE — there --ink is the
-   background and --paper is the text. That inversion is the entire reason the
-   shared token file uses role names at all, and copying an alias line between
-   the two games silently inverts one of them. If you are reading this because
-   something went inside-out: check the direction here first.
+   So Sojourner's amber full-width buttons and Word Chain's ink pills are both
+   this one `.btn`, set differently. They are not two implementations.
 
-   The aliases are declared ONCE, not per theme. A custom property substitutes
-   the COMPUTED value of --fg / --bg on the same element, so they follow the
-   three .wc-game blocks above automatically and light and dark cannot drift.
+   THE DIALS, all optional, all defaulted:
+
+     Sheet     --sheet-pos --sheet-z --sheet-bg --sheet-max-h --sheet-pad
+               --sh-title-weight --sh-title-size
+     Scrim     --scrim-z
+     Toast     --toast-bottom --toast-z --toast-ms
+     Icon bar  --icon-btn --icon-stroke --corner-gap --icon-fg --icon-fg-on
+               --icon-wash
+     Button    --btn-radius --btn-pad --btn-size --btn-fill --btn-fg
+               --btn-width --btn-display --btn-ghost-border
+     Seg       --seg-radius --seg-track --seg-on
+     Settings  --setlabel-font --setlabel-size --setlabel-weight
+               --setlabel-tracking --setlabel-case
+     Field     --fld-radius
+
+   HOW A GAME USES IT
+
+   Inline this file verbatim after tokens.css, set whatever dials you want in
+   your own :root, and write the markup the components expect. That markup is
+   documented per component below and in games/_template/.
+
+   Inlined verbatim into every surface; `packages/tokens/check-inline.mjs`
+   fails the build if any copy drifts.
+   =========================================================================== */
+
+/* ---------------------------------------------------------------- sheet ----
+   A bottom sheet on a phone, a centred dialog on a wide screen. Markup:
+
+     <div class="scrim" id="scrim"></div>
+     <section class="sheet" id="fooSheet" role="dialog" aria-modal="true"
+              aria-labelledby="fooTitle" hidden>
+       <div class="sh-head"><h2 id="fooTitle">Foo</h2></div>
+       ...
+     </section>
+
+   `.on` opens it. ui.js does the rest, including the focus trap that neither
+   game had — a keyboard user could tab straight past the scrim into the page
+   behind it.
+   -------------------------------------------------------------------------- */
+.sheet {
+  position: var(--sheet-pos, fixed);
+  left: 0; right: 0; bottom: 0;
+  z-index: var(--sheet-z, 31);
+  max-height: var(--sheet-max-h, 86%);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  background: var(--sheet-bg, var(--bg-raise));
+  color: var(--fg);
+  border-top: 1px solid var(--line-2);
+  border-radius: var(--sheet-radius, 20px) var(--sheet-radius, 20px) 0 0;
+  box-shadow: var(--shadow);
+  padding: var(--sheet-pad, 20px) var(--sheet-pad, 20px)
+           calc(var(--sheet-pad, 20px) + env(safe-area-inset-bottom));
+  transform: translateY(102%);
+  visibility: hidden;
+  pointer-events: none;
+  transition: var(--sheet-ease, transform .42s cubic-bezier(.22,.9,.3,1)),
+              visibility 0s linear .42s;
+}
+.sheet.on {
+  transform: none;
+  visibility: visible;
+  pointer-events: auto;
+  transition: var(--sheet-ease, transform .42s cubic-bezier(.22,.9,.3,1)),
+              visibility 0s;
+}
+/* the grab handle: 38x4, which all three surfaces had already agreed on */
+.sheet::before {
+  content: ""; display: block;
+  width: 38px; height: 4px; border-radius: 99px;
+  background: var(--line-2);
+  margin: -6px auto 14px;
+}
+@media (min-width: 680px) {
+  /* On a wide screen a bottom sheet is a strip along the bottom edge with the
+     content miles from the pointer. Same element, centred. */
+  .sheet {
+    left: 50%; right: auto; bottom: auto; top: 50%;
+    width: min(560px, 92vw);
+    max-height: 84vh;
+    border: 1px solid var(--line-2);
+    border-radius: var(--sheet-radius, 20px);
+    transform: translate(-50%, -46%) scale(.98);
+    opacity: 0;
+  }
+  .sheet.on { transform: translate(-50%, -50%) scale(1); opacity: 1 }
+  .sheet::before { display: none }
+}
+.sh-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 18px }
+.sh-head h2 {
+  font-family: var(--f-disp); font-weight: var(--sh-title-weight, 900); font-size: var(--sh-title-size, 23px);
+  letter-spacing: -.02em; margin: 0; color: var(--fg);
+}
+.sh-head .sh-sub, .sh-head .donebtn { margin-left: auto }
+.sh-head .sh-sub {
+  font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--fg-3);
+}
+/* :where() so this contributes ZERO specificity. As `.sheet p` (0-1-1) it beat
+   .sethint, .sh-sub and every single-class paragraph rule in both games --
+   the documented stylesheet defeating the documented markup. */
+:where(.sheet) p { font-size: 14.5px; line-height: 1.62; color: var(--fg-2); margin: 0 0 12px; max-width: 56ch }
+:where(.sheet) p.hint { font-size: 13px; line-height: 1.55; color: var(--fg-3) }
+.sheet a { color: var(--fg); text-decoration-color: var(--accent); text-underline-offset: 2px }
+
+.scrim {
+  position: var(--sheet-pos, fixed); inset: 0;
+  z-index: var(--scrim-z, 30);
+  background: var(--scrim);
+  opacity: 0; pointer-events: none;
+  transition: opacity .3s;
+}
+.scrim.on { opacity: 1; pointer-events: auto }
+
+/* ---------------------------------------------------------------- toast ----
+   <div class="toast" id="toast"></div> — ui.js's toast() fills and flashes it.
+   -------------------------------------------------------------------------- */
+.toast {
+  position: var(--sheet-pos, fixed);
+  left: 50%; transform: translate(-50%, 8px);
+  bottom: calc(var(--toast-bottom, 26px) + env(safe-area-inset-bottom));
+  z-index: var(--toast-z, 60);
+  max-width: min(84vw, 420px);
+  padding: 10px 16px; border-radius: 999px;
+  background: var(--fg); color: var(--bg);
+  font-size: 13.5px; line-height: 1.4; text-align: center;
+  box-shadow: var(--shadow);
+  opacity: 0; pointer-events: none;
+  transition: opacity .25s, transform .25s;
+}
+.toast.on { opacity: 1; transform: translate(-50%, 0) }
+
+/* ------------------------------------------------------------ icon bar ----
+   The row of round icon buttons. Its POSITION is the game's business — it
+   floats over Sojourner's globe and sits in the shell's fixed bar — so this
+   file sets only the anatomy.
+   -------------------------------------------------------------------------- */
+.corner { display: flex; align-items: center; gap: var(--corner-gap, 4px) }
+.iconbtn {
+  width: var(--icon-btn, 38px); height: var(--icon-btn, 38px);
+  flex: none; border: none; padding: 0;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; background: transparent;
+  color: var(--icon-fg, var(--fg-2));
+  transition: color .16s, background .16s;
+}
+.iconbtn:hover { color: var(--icon-fg-on, var(--fg)); background: var(--icon-wash, transparent) }
+.iconbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; color: var(--icon-fg-on, var(--fg)) }
+/* One stroke weight for every corner glyph, set once. Per-glyph attributes
+   are what let About drift to 1.9 in one game and 2 in another. */
+.corner .iconbtn svg { stroke-width: var(--icon-stroke, 1.8) }
+
+/* --------------------------------------------------------------- button ----
+   One anatomy, dialled per game. Sojourner's amber block and Word Chain's ink
+   pill are this rule with --btn-radius and --btn-width set differently.
+   -------------------------------------------------------------------------- */
+.btn {
+  display: var(--btn-display, inline-block);
+  width: var(--btn-width, auto);
+  font-family: var(--f-body); font-size: var(--btn-size, 15px); font-weight: 600;
+  line-height: 1.2;
+  padding: var(--btn-pad, 12px 20px);
+  border: 1px solid transparent;
+  border-radius: var(--btn-radius, 999px);
+  background: var(--btn-fill, var(--accent));
+  color: var(--btn-fg, var(--fg-on-accent));
+  cursor: pointer;
+  transition: filter .16s, opacity .16s, transform .08s;
+}
+.btn:hover { filter: brightness(1.06) }
+.btn:active { transform: translateY(1px) }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.btn:disabled { opacity: .45; cursor: default; transform: none; filter: none }
+.btn.ghost { background: transparent; color: var(--fg); border-color: var(--btn-ghost-border, var(--line-2)) }
+.btn.ghost:hover { background: var(--icon-wash, transparent); filter: none }
+.btnrow { display: flex; gap: 9px; flex-wrap: wrap }
+
+/* ---------------------------------------------------------------- field ---- */
+.fld {
+  width: 100%; box-sizing: border-box;
+  font: inherit;
+  font-size: 16px;            /* below 16px iOS zooms the page on focus */
+  padding: 11px 13px;
+  border-radius: var(--fld-radius, 10px);
+  border: 1px solid var(--line-2);
+  background: var(--bg-raise); color: var(--fg);
+  margin: 0 0 10px;
+}
+.fld::placeholder { color: var(--fg-3) }
+.fld:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent }
+.fld.code {
+  font-family: var(--f-mono); font-size: 23px; letter-spacing: .34em;
+  text-align: center; padding: 12px 13px;
+}
+
+/* ------------------------------------------------------------- settings ----
+   <div class="setrow">
+     <div class="col"><span class="setlabel">Thing</span>
+       <p class="sethint">What it does.</p></div>
+     <button class="toggle" aria-pressed="false"></button>
+   </div>
+   -------------------------------------------------------------------------- */
+.setrow {
+  display: flex; align-items: center; gap: 14px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--line);
+}
+.setrow:last-of-type { border-bottom: 0 }
+.setrow .col { flex: 1; min-width: 0 }
+.setlabel {
+  display: block; color: var(--fg);
+  font-family: var(--setlabel-font, var(--f-body));
+  font-size: var(--setlabel-size, 15px);
+  font-weight: var(--setlabel-weight, 500);
+  letter-spacing: var(--setlabel-tracking, normal);
+  text-transform: var(--setlabel-case, none);
+}
+.sethint { margin: 3px 0 0; font-size: 13px; line-height: 1.5; color: var(--fg-3); max-width: 52ch }
+
+.toggle {
+  width: 51px; height: 30px; flex: none;
+  border: none; border-radius: 999px; cursor: pointer;
+  background: var(--bg-sink);
+  position: relative; transition: background .22s;
+}
+.toggle::after {
+  content: ""; position: absolute; top: 3px; left: 3px;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--bg-raise); box-shadow: 0 1px 3px rgba(0,0,0,.28);
+  transition: transform .22s;
+}
+.toggle[aria-pressed="true"] { background: var(--accent) }
+.toggle[aria-pressed="true"]::after { transform: translateX(21px) }
+.toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+
+.donebtn {
+  background: none; border: none; cursor: pointer;
+  font-family: var(--f-mono); font-size: 12.5px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--accent); padding: 6px 2px;
+}
+.donebtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+
+/* ------------------------------------------------------------------ seg ----
+   A segmented control. Buttons carry aria-pressed and whatever data attribute
+   the caller switches on:
+
+     <div class="seg" id="themeSeg" role="group" aria-label="Theme">
+       <button type="button" data-theme="light"  aria-pressed="false">Light</button>
+       ...
+
+   This is the iOS-style track both Word Chain and the shell had converged on.
+   Sojourner's outlined-buttons version is gone; one control, one look.
+   -------------------------------------------------------------------------- */
+.seg {
+  display: flex; gap: 3px; padding: 3px;
+  background: var(--seg-track, var(--bg-sink));
+  border-radius: var(--seg-radius, 999px);
+}
+.seg button {
+  flex: 1; font: inherit; font-size: 13.5px; font-weight: 600;
+  padding: 9px 10px; border: none; cursor: pointer;
+  border-radius: calc(var(--seg-radius, 999px) - 3px);
+  background: transparent; color: var(--fg-2);
+  transition: background .18s, color .18s;
+}
+.seg button[aria-pressed="true"] {
+  background: var(--seg-on, var(--bg-raise));
+  color: var(--fg);
+  box-shadow: 0 1px 2px rgba(0,0,0,.12);
+}
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px }
+.seg.grid { display: grid; grid-template-columns: repeat(3, 1fr) }
+
+/* -------------------------------------------------------------- utility ---- */
+.ui-note {
+  margin: 10px 0 0; padding: 10px 12px; border-radius: 9px;
+  font-size: 13px; line-height: 1.5;
+  background: var(--bg-sink); color: var(--fg);
+}
+.ui-note.bad { background: color-mix(in srgb, var(--warn) 16%, transparent) }
+.empty {
+  text-align: center; padding: 26px 10px; margin: 0 auto;
+  font-size: 14px; line-height: 1.6; color: var(--fg-2); max-width: 40ch;
+}
+
+/* Both games already zeroed every transition under reduced motion; the shell
+   only covered three selectors. One blanket rule, so a new game cannot forget. */
+@media (prefers-reduced-motion: reduce) {
+  .sheet, .scrim, .toast, .iconbtn, .btn, .toggle, .toggle::after, .seg button {
+    transition-duration: .01ms !important;
+  }
+}
+/* ===== END packages/ui/ui.css ===== */
+
+/* ===========================================================================
+   WORD CHAIN — the local layer, on top of the shared tokens and the shared UI.
+
+   Three things live here and nothing else:
+
+     1. The DIALS. packages/ui/ui.css above owns the ANATOMY of every platform
+        control — sheet, scrim, toast, corner bar, button, field, settings row,
+        toggle, segmented control. What it deliberately does not own is
+        character, and character is set by turning its component tokens here.
+        Word Chain's ink pill buttons and its rounded-rect seg track are the
+        shared `.btn` and `.seg` with the dials turned, not a second copy.
+
+     2. Word Chain's OWN ramp — --clay*, --key*, --tile*. Local, never shared,
+        and used by surfaces the platform has no component for: the home
+        ground, the keycaps, the results tile.
+
+     3. Word Chain's OWN components: the bar, the board, the keyboard, the
+        composer, the pause and results cards. Nothing platform-shaped.
+
+   ui.css is inlined ABOVE this block, so a rule here at equal specificity
+   wins. Every such override carries a comment saying why it is character and
+   not drift. If a rule here has no such comment, it should not be here.
    =========================================================================== */
 .wc-game {
-  /* legacy names -> roles. Right way round for THIS game. See the warning. */
-  --ink:var(--fg); --ink-2:var(--fg-2); --ink-3:var(--fg-3);
-  --paper:var(--bg); --paper-2:var(--bg-raise);
-  /* --line-2, --accent, --good, --shadow and --scrim are already role names in
-     tokens.css and already carry the values this game wants, so they need no
-     alias. (`--scrim:var(--scrim)` would be a self-reference — a cycle, and
-     therefore invalid at computed-value time — so do not add one.) */
+  /* ---- dials into packages/ui/ui.css -----------------------------------
+     --sheet-bg, --seg-track and --seg-on were the local --sheet, --segtrack
+     and --segon: the same values, now feeding the shared components instead
+     of duplicating them.
+     --btn-radius is NOT set — 999px is already the shared default, and a pill
+     is what this game wanted.
+     --icon-btn, --icon-stroke, --corner-gap, --sheet-radius and --sheet-ease
+     are set platform-wide in tokens.css's :root and are right as they are.
+     --toast-bottom (26px) and --toast-z are the shared defaults; the local
+     toast's 2.6s and z-index 50 were drift, not character. */
+  --sheet-bg:var(--bg-raise);  /* sheets, the pause card, the results card    */
+  --seg-track:var(--bg-sink);  /* a segmented control's track is a well       */
+  --seg-radius:11px;           /* character: WC's seg is a panel control, a
+                                  rounded rect rather than a pill. The shared
+                                  file derives the button radius as
+                                  calc(track - 3px) = 8px, which is exactly
+                                  the radius this game already drew.          */
+  --btn-size:16px;             /* character: a big, confident home button     */
+  --btn-pad:15px 30px;
+  --btn-fill:var(--fg);        /* THE INK PILL. Sojourner's button is an amber
+                                  block, the shell's is steel; Word Chain's is
+                                  the text colour itself, reversed out.       */
+  --btn-fg:var(--bg);
+  --icon-wash:var(--bg-raise); /* the top bar's icon buttons wash to the
+                                  raised ground (the corner bar differs — see
+                                  the home screen below)                      */
 
-  /* local ramp, the parts that are the same shape in both themes */
-  --sheet:var(--bg-raise);   /* sheets, the pause card, the results card       */
-  --segtrack:var(--bg-sink); /* a segmented control's track is a well           */
+  /* ---- Word Chain's own ramp, the parts that are the same in both themes -- */
   --key:var(--bg-sink);      /* a keycap is a sunk ground — tokens.css says so */
   --tilebg:var(--accent);    /* the signature block on the results card        */
   --tilefg:var(--fg-on-accent);
@@ -428,25 +845,25 @@
      still clears 4.5:1 on it; see the note in the report. */
   --clay:#EFCBDA; --clay-deep:#D9A3B9; --clay-soft:#F7E3EB;
   --key-press:#C6A5B3;
-  --segon:#FBF2F6;           /* the selected pill lifts out of the track        */
+  --seg-on:#FBF2F6;          /* the selected pill lifts out of the track        */
 }
 .wc-game[data-theme="dark"], .wc-game.t-dark {
   --clay:var(--bg-raise); --clay-deep:var(--bg); --clay-soft:#574349;
   --key-press:#574349;
-  --segon:#5C4A52;
+  --seg-on:#5C4A52;
 }
 @media (prefers-color-scheme:dark) {
   .wc-game:not([data-theme="light"]) {
     --clay:var(--bg-raise); --clay-deep:var(--bg); --clay-soft:#574349;
     --key-press:#574349;
-    --segon:#5C4A52;
+    --seg-on:#5C4A52;
   }
 }
 *{box-sizing:border-box}
 [hidden]{display:none !important}
 html,body{height:100%; overflow:hidden}
 body{
-  margin:0; background:var(--paper); color:var(--ink);
+  margin:0; background:var(--bg); color:var(--fg);
   font-family:var(--f-body); font-size:16px; line-height:1.5;
   -webkit-font-smoothing:antialiased; overscroll-behavior:none;
   -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none;
@@ -463,23 +880,29 @@ body{
   padding:calc(env(safe-area-inset-top) + 28px) 22px calc(env(safe-area-inset-bottom) + 28px);
   text-align:center; overflow-y:auto;
 }
-.corner{
-  position:absolute; top:calc(env(safe-area-inset-top) + 8px); right:10px;
-  /* audit S7: the three surfaces had 9px / 2px / 1px. 4px is the agreed middle,
-     and is --corner-gap in packages/tokens/tokens.css. */
-  display:flex; gap:4px; z-index:2;
-}
-.corner .iconbtn{color:var(--ink); opacity:.72}
-.corner .iconbtn:hover{opacity:1; background:rgba(51,38,44,.09)}
-:root[data-theme="dark"] .corner .iconbtn:hover{background:rgba(242,230,235,.09)}
-/* Not in the audit, found while doing S7: the dark hover wash above was scoped to
-   the EXPLICIT dark choice only, so a player on theme "system" with a dark OS —
-   the one path where [data-theme] is absent — got the light wash (a dark ink
-   scrim) on a dark ground. Same rule, same value, under the media query. */
+/* ui.css owns .corner's anatomy (a flex row at --corner-gap). Where it sits is
+   this game's business, and ui.css says so: on the home screen it floats in the
+   top-right safe area. */
+.corner{position:absolute; top:calc(env(safe-area-inset-top) + 8px); right:10px; z-index:2}
+/* character: the corner controls and the way out sit on --clay, the home
+   screen's own ground, not on --bg. So they take the primary ink at 72% and a
+   neutral ink/paper wash, rather than the bar's --bg-raise. These are the
+   shared icon-bar dials, scoped to the two controls that need them — the wash
+   is a WC surface colour and must not leak to .btn.ghost. */
+.corner, .platform-link{--icon-fg:var(--fg); --icon-fg-on:var(--fg); --icon-wash:rgba(51,38,44,.09)}
+:root[data-theme="dark"] .corner,
+:root[data-theme="dark"] .platform-link{--icon-wash:rgba(242,230,235,.09)}
+/* Not in the audit, found while doing S7: the dark wash above was scoped to the
+   EXPLICIT dark choice only, so a player on theme "system" with a dark OS — the
+   one path where [data-theme] is absent — got the light wash (a dark ink scrim)
+   on a dark ground. Same rule, same value, under the media query. */
 @media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]) .corner .iconbtn:hover{background:rgba(242,230,235,.09)}
+  :root:not([data-theme="light"]) .corner,
+  :root:not([data-theme="light"]) .platform-link{--icon-wash:rgba(242,230,235,.09)}
 }
-.brand-mark{color:var(--ink); margin-bottom:14px}
+.corner .iconbtn{opacity:.72}
+.corner .iconbtn:hover,.corner .iconbtn:focus-visible{opacity:1}
+.brand-mark{color:var(--fg); margin-bottom:14px}
 .brand-mark svg{display:block}
 
 /* Audit S7: neither game offered a way back to the platform — #homeBtn goes to
@@ -487,47 +910,46 @@ body{
    .corner on the opposite top edge, and lives on the home screen because that is
    the only screen with a corner bar; during play the bar is #bar and leaving
    mid-round is what the pause dialog is for.
-   Quiet on purpose: it is an exit, not a call to action. */
+   Quiet on purpose: it is an exit, not a call to action. It is a link, not an
+   .iconbtn — it carries a label — so it is not part of the shared icon bar. */
 .platform-link{
   position:absolute; top:calc(env(safe-area-inset-top) + 8px); left:10px; z-index:2;
   display:flex; align-items:center; gap:5px; height:38px; padding:0 10px;
   border-radius:999px; text-decoration:none;
   font-family:var(--f-body); font-size:12.5px; font-weight:600;
-  letter-spacing:.02em; color:var(--ink); opacity:.52;
+  letter-spacing:.02em; color:var(--fg); opacity:.52;
   transition:opacity .16s, background .16s;
 }
 .platform-link svg{display:block; flex:none}
-.platform-link:hover{opacity:1; background:rgba(51,38,44,.09)}
-:root[data-theme="dark"] .platform-link:hover{background:rgba(242,230,235,.09)}
-@media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]) .platform-link:hover{background:rgba(242,230,235,.09)}
-}
+.platform-link:hover{opacity:1; background:var(--icon-wash)}
 .platform-link:focus-visible{outline:2px solid var(--accent); outline-offset:1px; opacity:1}
 @media (max-width:359px){ .platform-link .plabel{display:none} }
 #home h1{
   font-family:var(--f-disp); font-weight:900; font-size:clamp(42px,13vw,60px);
-  letter-spacing:-.022em; margin:0 0 6px; line-height:1; color:var(--ink);
+  letter-spacing:-.022em; margin:0 0 6px; line-height:1; color:var(--fg);
 }
 .tagline{
   font-family:var(--f-disp); font-weight:400; font-size:clamp(19px,5.2vw,24px);
-  line-height:1.28; margin:0 0 32px; max-width:16ch; color:var(--ink); text-wrap:balance;
+  line-height:1.28; margin:0 0 32px; max-width:16ch; color:var(--fg); text-wrap:balance;
 }
 .homebtns{display:flex; flex-direction:column; gap:11px; width:min(320px,100%)}
-.btn{
-  font-family:var(--f-body); font-size:16px; font-weight:600; cursor:pointer;
-  border-radius:999px; padding:15px 30px; border:1.5px solid transparent;
-  background:var(--ink); color:var(--paper); transition:transform .12s, opacity .16s;
-}
-.btn:active{transform:scale(.975)}
-.btn.ghost{background:transparent; color:var(--ink); border-color:var(--ink)}
-.btn:disabled{opacity:.45; cursor:default}
-/* greyed but still live: a button that refuses a press should be able to say why */
+/* The buttons themselves are ui.css's .btn, dialled to ink pills at the top of
+   this file. What is left below is what the shared layer has no dial for. */
+/* character: Word Chain's ghost button is a FULL-INK outline that pairs with the
+   filled ink pill beside it — the two read as one control in two states. The
+   shared default is a muted --line-2 hairline, which is right for a surface
+   whose buttons are accent-filled but disappears next to an ink pill.
+   There is no --btn-ghost-border dial. */
+.btn.ghost{border-color:var(--fg)}
+/* greyed but still live: a button that refuses a press should be able to say why.
+   Distinct from :disabled, which the shared layer already dims to .45. */
 .btn.off{opacity:.4}
 .iconbtn.off{opacity:.32}
-.btn:disabled:active{transform:none}
-.btn .sub{display:block; font-size:12.5px; font-weight:500; opacity:.72; margin-top:2px}
+/* the composer's Save sits in a toolbar, not under a heading, so it is smaller
+   than a home button. Same anatomy, tighter. */
+.btn.small{padding:9px 20px; font-size:14px; flex:none}
 .home-foot{
-  margin-top:26px; font-family:var(--f-disp); font-size:14.5px; line-height:1.6; color:var(--ink);
+  margin-top:26px; font-family:var(--f-disp); font-size:14.5px; line-height:1.6; color:var(--fg);
 }
 .home-foot .d1{font-weight:600}
 .home-foot .d2{opacity:.72}
@@ -537,13 +959,13 @@ body{
   max-width:320px; margin-left:auto; margin-right:auto;
 }
 :root[data-theme="dark"] #homeSolution{border-top-color:rgba(242,230,235,.16)}
-/* same omission as .corner .iconbtn:hover above — see the note there */
+/* same omission as the corner wash above — see the note there */
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]) #homeSolution{border-top-color:rgba(242,230,235,.16)}
 }
 .solword{
   font-family:var(--f-disp); font-weight:600; font-size:14.5px; letter-spacing:.055em;
-  color:var(--ink); display:inline-flex; white-space:nowrap;
+  color:var(--fg); display:inline-flex; white-space:nowrap;
 }
 /* the separator hangs off the word BEFORE it, so a wrap leaves the dot trailing at the
    end of a line rather than orphaned at the start of the next one */
@@ -552,25 +974,18 @@ body{
 
 /* ======================= BAR ======================= */
 #bar{
-  flex:none; background:var(--paper); border-bottom:1px solid var(--line);
+  flex:none; background:var(--bg); border-bottom:1px solid var(--line);
   padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;
   display:flex; align-items:center; gap:10px; min-height:56px;
 }
 .spacer{flex:1}
-.iconbtn{
-  width:38px; height:38px; border-radius:50%; display:flex; align-items:center;
-  justify-content:center; cursor:pointer; color:var(--ink-2);
-  background:transparent; border:none; flex:none; transition:background .16s, color .16s;
-}
-.iconbtn:hover{background:var(--paper-2); color:var(--ink)}
-.iconbtn:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
 #clock{
   font-family:var(--f-mono); font-size:19px; font-variant-numeric:tabular-nums;
-  color:var(--ink); flex:none;
+  color:var(--fg); flex:none;
 }
 #mode{
   font-family:var(--f-mono); font-size:9.5px; letter-spacing:.14em; text-transform:uppercase;
-  color:var(--ink-3); border:1px solid var(--line); border-radius:999px;
+  color:var(--fg-3); border:1px solid var(--line); border-radius:999px;
   padding:3px 8px; flex:none;
 }
 #bankwrap{
@@ -580,13 +995,15 @@ body{
 #bankicons{display:flex; gap:2px}
 #bankicons svg{display:block}
 .hintwrap{position:relative; display:flex; align-items:center; flex:none}
+/* not a .btn: it is a metered action with a price on it, and its outline, its
+   cost slot and its disabled state are all its own. */
 .hintbtn{
   display:flex; align-items:center; gap:7px; cursor:pointer; border-radius:999px;
-  border:1.5px solid var(--line-2); background:transparent; color:var(--ink);
+  border:1.5px solid var(--line-2); background:transparent; color:var(--fg);
   font-family:var(--f-body); font-size:13px; font-weight:600; padding:8px 13px 8px 10px;
   transition:background .16s, border-color .16s, opacity .16s;
 }
-.hintbtn:hover:not(:disabled){background:var(--paper-2); border-color:var(--ink-3)}
+.hintbtn:hover:not(:disabled){background:var(--bg-raise); border-color:var(--fg-3)}
 .hintbtn:disabled{opacity:.34; cursor:default}
 .hintbtn .cost{font-family:var(--f-mono); font-size:12px; color:var(--accent)}
 .flash{
@@ -601,7 +1018,7 @@ body{
 }
 
 /* ======================= BOARD ======================= */
-#play{flex:1; min-height:0; display:flex; flex-direction:column; background:var(--paper)}
+#play{flex:1; min-height:0; display:flex; flex-direction:column; background:var(--bg)}
 #chainwrap{
   flex:1; min-height:0; overflow-y:auto; padding:12px 16px 16px;
   -webkit-overflow-scrolling:touch; display:flex; flex-direction:column; justify-content:center;
@@ -609,27 +1026,27 @@ body{
 #chain{max-width:460px; width:100%; margin:0 auto; display:flex; flex-direction:column; gap:4px; flex:none}
 .row{display:flex; align-items:center; gap:0; padding:8px 12px; border-radius:10px; transition:background .2s}
 .row .num{
-  font-family:var(--f-mono); font-size:11px; color:var(--ink-3); width:15px;
+  font-family:var(--f-mono); font-size:11px; color:var(--fg-3); width:15px;
   flex:none; text-align:right; opacity:.6; margin-right:10px;
 }
 .word,#typed{
   font-family:var(--f-disp); font-weight:600; font-size:clamp(20px,5.6vw,26px);
   letter-spacing:.055em; line-height:1.15; display:flex; gap:.055em;
-  color:var(--ink); flex:0 0 auto; flex-wrap:nowrap; white-space:nowrap;
+  color:var(--fg); flex:0 0 auto; flex-wrap:nowrap; white-space:nowrap;
 }
 .ch{display:inline-block}
 .ch.hinted{color:var(--accent)}
 /* a letter bought with a Lifeline stays marked for the life of the chain, not just
    while its word is the active one */
 .solutionline .ch.hinted{color:var(--accent)}
-.row.solved,.row.given{background:var(--paper-2)}
-.row.current{box-shadow:inset 0 0 0 2px var(--ink)}
+.row.solved,.row.given{background:var(--bg-raise)}
+.row.current{box-shadow:inset 0 0 0 2px var(--fg)}
 .row.pending .word{color:var(--line-2)}
-.row.pending .word .ch:first-child{color:var(--ink-3)}
+.row.pending .word .ch:first-child{color:var(--fg-3)}
 .tickmark{margin-left:auto; color:var(--good); flex:none; display:flex}
 .givenlab{
   margin-left:auto; font-family:var(--f-mono); font-size:9.5px; letter-spacing:.14em;
-  text-transform:uppercase; color:var(--ink-3); flex:none;
+  text-transform:uppercase; color:var(--fg-3); flex:none;
 }
 
 /* the caret and the submit arrow ride the active row */
@@ -644,7 +1061,7 @@ body{
 @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
 #go{
   flex:none; margin-left:auto; width:34px; height:34px; border-radius:9px; border:none;
-  cursor:pointer; background:var(--ink); color:var(--paper);
+  cursor:pointer; background:var(--fg); color:var(--bg);
   display:flex; align-items:center; justify-content:center; transition:opacity .16s, transform .12s;
 }
 #go:active{transform:scale(.94)}
@@ -656,22 +1073,25 @@ body{
 }
 #msg.good{color:var(--good); font-weight:600}
 .thinking{display:inline-flex; gap:4px; align-items:center; height:20px}
-.thinking i{width:5px; height:5px; border-radius:50%; background:var(--ink-3); display:block;
+.thinking i{width:5px; height:5px; border-radius:50%; background:var(--fg-3); display:block;
   animation:pulse 1.1s infinite ease-in-out}
 .thinking i:nth-child(2){animation-delay:.16s}
 .thinking i:nth-child(3){animation-delay:.32s}
 @keyframes pulse{0%,80%,100%{opacity:.25}40%{opacity:1}}
 
 /* ======================= KEYBOARD ======================= */
+/* Word Chain's own, and NOT part of the shared layer: no other surface carries a
+   keyboard, and this one is sized against --vh (the visual viewport) so device
+   chrome can never crop it. Nothing here is platform furniture. */
 #kb{
-  flex:none; background:var(--paper-2); border-top:1px solid var(--line);
+  flex:none; background:var(--bg-raise); border-top:1px solid var(--line);
   padding:7px 4px calc(env(safe-area-inset-bottom) + 7px);
   display:flex; flex-direction:column; gap:6px; touch-action:manipulation;
 }
 .kbrow{display:flex; gap:5px; justify-content:center}
 .key{
   flex:1 1 0; max-width:46px; height:46px; border:none; border-radius:6px; cursor:pointer;
-  background:var(--key); color:var(--ink); font-family:var(--f-body); font-size:16px;
+  background:var(--key); color:var(--fg); font-family:var(--f-body); font-size:16px;
   font-weight:600; display:flex; align-items:center; justify-content:center; padding:0;
   transition:background .1s, transform .06s; min-width:0;
 }
@@ -694,19 +1114,16 @@ body{
    zones and the same keyboard rather than a sheet that floats over the home screen. */
 #compose{
   position:fixed; top:0; left:0; right:0; height:var(--vh); z-index:22;
-  background:var(--paper); display:flex; flex-direction:column; overflow:hidden;
+  background:var(--bg); display:flex; flex-direction:column; overflow:hidden;
 }
 #cbar{
-  flex:none; background:var(--paper); border-bottom:1px solid var(--line);
+  flex:none; background:var(--bg); border-bottom:1px solid var(--line);
   padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;
   display:flex; align-items:center; gap:6px; min-height:56px;
 }
 #cTitle{
   font-family:var(--f-mono); font-size:9.5px; letter-spacing:.14em; text-transform:uppercase;
-  color:var(--ink-3); margin-left:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-}
-.btn.small{
-  padding:9px 20px; font-size:14px; border-radius:999px; flex:none;
+  color:var(--fg-3); margin-left:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 #cbody{
   flex:1; min-height:0; overflow-y:auto; padding:12px 16px 8px;
@@ -715,18 +1132,18 @@ body{
 #cRows{max-width:460px; width:100%; margin:0 auto; display:flex; flex-direction:column; gap:4px; flex:none}
 .crow{
   display:flex; align-items:center; gap:0; padding:8px 12px; border-radius:10px;
-  cursor:pointer; background:var(--paper-2); transition:background .16s, box-shadow .16s;
+  cursor:pointer; background:var(--bg-raise); transition:background .16s, box-shadow .16s;
 }
-.crow.on{background:transparent; box-shadow:inset 0 0 0 2px var(--ink)}
+.crow.on{background:transparent; box-shadow:inset 0 0 0 2px var(--fg)}
 .crow.short{box-shadow:inset 0 0 0 1px var(--accent)}
 .crow.on.short{box-shadow:inset 0 0 0 2px var(--accent)}
 .crow .num{
-  font-family:var(--f-mono); font-size:11px; color:var(--ink-3); width:15px;
+  font-family:var(--f-mono); font-size:11px; color:var(--fg-3); width:15px;
   flex:none; text-align:right; opacity:.6; margin-right:10px;
 }
 .cword{
   font-family:var(--f-disp); font-weight:600; font-size:clamp(20px,5.6vw,26px);
-  letter-spacing:.055em; line-height:1.15; color:var(--ink); display:flex; gap:.055em;
+  letter-spacing:.055em; line-height:1.15; color:var(--fg); display:flex; gap:.055em;
   white-space:nowrap; min-height:1.15em;
 }
 .ccaret{
@@ -735,7 +1152,7 @@ body{
 }
 #cHint{
   flex:none; padding:0 16px 10px; max-width:460px; margin:0 auto; width:100%;
-  font-family:var(--f-disp); font-size:13.5px; line-height:1.35; color:var(--ink-3);
+  font-family:var(--f-disp); font-size:13.5px; line-height:1.35; color:var(--fg-3);
   text-wrap:balance; min-height:19px;
 }
 #cHint.warn{color:var(--accent)}
@@ -747,52 +1164,58 @@ body{
 }
 .mine-txt{flex:1; min-width:0}
 .mine-first{
-  font-family:var(--f-disp); font-weight:600; font-size:15px; letter-spacing:.05em; color:var(--ink);
+  font-family:var(--f-disp); font-weight:600; font-size:15px; letter-spacing:.05em; color:var(--fg);
 }
 .mine-rest{
-  font-family:var(--f-mono); font-size:11.5px; letter-spacing:.08em; color:var(--ink-3);
+  font-family:var(--f-mono); font-size:11.5px; letter-spacing:.08em; color:var(--fg-3);
   margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
-.mine-acts{display:flex; gap:0; flex:none}
-.mine-acts .iconbtn{width:34px; height:34px}
+/* a row action is a smaller icon button than a corner one: --icon-btn is the
+   shared dial for exactly that, so this is a size, not a second .iconbtn. */
+.mine-acts{display:flex; gap:0; flex:none; --icon-btn:34px}
 .mine-acts .iconbtn.danger:hover{color:var(--accent)}
 .mine-tag{
   font-family:var(--f-mono); font-size:9px; letter-spacing:.12em; text-transform:uppercase;
-  color:var(--ink-3); border:1px solid var(--line); border-radius:999px; padding:2px 7px;
+  color:var(--fg-3); border:1px solid var(--line); border-radius:999px; padding:2px 7px;
   flex:none; margin-left:6px;
 }
+/* the mono eyebrow that heads a section inside a sheet — My chains, and the two
+   in Profile. Not a .setlabel: that is the label of a settings ROW and the
+   shared layer sets it at 15px body weight. */
 .mine-head{
   font-family:var(--f-mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
-  color:var(--ink-3); margin:20px 0 4px;
+  color:var(--fg-3); margin:20px 0 4px;
 }
 
 /* send to friends */
 .findrow{display:flex; align-items:center; gap:6px; margin-bottom:6px}
+/* not a .fld: it is a search box in a toolbar row beside an add button, and it
+   has to re-enable text selection that body turns off. */
 #friendFind{
   flex:1; min-width:0; font-family:var(--f-body); font-size:15px; padding:11px 14px;
-  border-radius:10px; border:1.5px solid var(--line-2); background:var(--paper);
-  color:var(--ink); outline:none; user-select:text; -webkit-user-select:text;
+  border-radius:10px; border:1.5px solid var(--line-2); background:var(--bg);
+  color:var(--fg); outline:none; user-select:text; -webkit-user-select:text;
 }
-#friendFind:focus{border-color:var(--ink)}
+#friendFind:focus{border-color:var(--fg)}
 .fr-row{
   display:flex; align-items:center; gap:11px; padding:11px 0;
   border-bottom:1px solid var(--line); cursor:pointer;
 }
 .fr-box{
   width:21px; height:21px; border-radius:6px; border:1.5px solid var(--line-2); flex:none;
-  display:flex; align-items:center; justify-content:center; color:var(--paper);
+  display:flex; align-items:center; justify-content:center; color:var(--bg);
 }
 .fr-row[aria-checked="true"] .fr-box{background:var(--accent); border-color:var(--accent)}
 .fr-row[aria-checked="true"] .fr-box svg{display:block}
 .fr-box svg{display:none}
-.fr-name{font-size:14.5px; color:var(--ink); flex:1; min-width:0}
+.fr-name{font-size:14.5px; color:var(--fg); flex:1; min-width:0}
 .fr-kind{
   font-family:var(--f-mono); font-size:9px; letter-spacing:.12em; text-transform:uppercase;
-  color:var(--ink-3); flex:none;
+  color:var(--fg-3); flex:none;
 }
 .fr-empty{
   border:1px dashed var(--line-2); border-radius:12px; padding:22px 16px; text-align:center;
-  color:var(--ink-3); font-size:13.5px; line-height:1.5; margin-top:8px;
+  color:var(--fg-3); font-size:13.5px; line-height:1.5; margin-top:8px;
 }
 
 #confirm{
@@ -801,88 +1224,53 @@ body{
 }
 
 /* ======================= SHEETS ======================= */
-#scrim{
-  position:fixed; inset:0; background:var(--scrim); z-index:30; opacity:0;
-  pointer-events:none; transition:opacity .3s;
-}
-#scrim.on{opacity:1; pointer-events:auto}
-.sheet{
-  position:fixed; left:0; right:0; bottom:0; z-index:31; background:var(--sheet);
-  border-top:1px solid var(--line); border-radius:20px 20px 0 0; box-shadow:var(--shadow);
-  padding:18px 20px calc(env(safe-area-inset-bottom) + 22px);
-  max-height:86%; overflow-y:auto; overscroll-behavior:contain;
-  transform:translateY(102%); transition:transform .42s cubic-bezier(.22,.9,.3,1);
-  visibility:hidden; pointer-events:none; user-select:text; -webkit-user-select:text;
-}
-.sheet.up{transform:translateY(0); visibility:visible; pointer-events:auto}
-.sheet::before{
-  content:""; display:block; width:38px; height:4px; border-radius:99px;
-  background:var(--line-2); margin:-4px auto 16px;
-}
+/* The sheet, the scrim and everything inside the settings sheet are
+   packages/ui/ui.css's now — anatomy, motion, focus and all. `.sheet.on` is the
+   shared open class (it was `.sheet.up` here). What survives below is the
+   handful of things the shared layer has no dial for. */
+
+/* necessity: body sets user-select:none so the game's letters cannot be dragged
+   off the board. A sheet is prose — About is six paragraphs — and has to be
+   selectable again. No other surface disables selection globally, so ui.css has
+   no dial for it. */
+.sheet{user-select:text; -webkit-user-select:text}
+/* character: WC's sheets hold running prose, so they cap their measure at 520px
+   and centre it. The shared sheet is already <=560px as a centred dialog on a
+   wide screen, but as a bottom sheet on a tablet it is full-bleed. */
 .sheet-in{max-width:520px; margin:0 auto}
-.sh-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:16px}
-.sh-head h2{font-family:var(--f-disp); font-weight:600; font-size:23px; margin:0}
-.donebtn{
-  background:none; border:none; cursor:pointer; font-family:var(--f-mono);
-  font-size:12px; letter-spacing:.13em; text-transform:uppercase; color:var(--accent); padding:4px;
-}
-.setrow{padding:15px 0; border-top:1px solid var(--line)}
-.setrow:last-child{border-bottom:1px solid var(--line)}
-.setrow.flex{display:flex; align-items:center; justify-content:space-between; gap:16px}
-.setlabel{
-  font-family:var(--f-mono); font-size:11px; letter-spacing:.14em;
-  text-transform:uppercase; color:var(--ink-3); margin-bottom:9px;
-}
-.setrow.flex .setlabel{margin-bottom:2px}
-.sethint{font-size:13.5px; color:var(--ink-3); line-height:1.5; margin:8px 0 0; max-width:54ch}
-.seg{display:flex; background:var(--segtrack); border-radius:11px; padding:4px; gap:3px}
-/* An unpressed label is --ink-2, the SECONDARY TEXT ROLE — not --ink dimmed with
-   opacity. The old opacity:.72 worked only because the sheet under it was almost
-   white (light) or almost black (dark); over the new mid-tone --bg-raise it fell to
-   4.48:1 in dark. --ink-2 is contrast-checked by packages/tokens/check-contrast.mjs,
-   so this cannot drift back under AA when a value changes. */
-.seg button{
-  flex:1; cursor:pointer; border:none; background:transparent; border-radius:8px;
-  font-family:var(--f-body); font-size:13px; font-weight:500; color:var(--ink-2);
-  padding:8px 14px; transition:background .16s, color .16s;
-}
-.seg button[aria-pressed="true"]{
-  background:var(--segon); color:var(--ink); font-weight:600;
-  box-shadow:0 1px 3px rgba(51,38,44,.18);
-}
-.toggle{
-  width:50px; height:29px; border-radius:99px; background:var(--line);
-  border:1px solid var(--line-2); cursor:pointer; padding:0; position:relative; flex:none;
-  transition:background .22s, border-color .22s;
-}
-.toggle i{
-  position:absolute; top:3px; left:3px; width:21px; height:21px; border-radius:50%;
-  background:var(--paper); transition:transform .22s;
-}
-.toggle[aria-checked="true"]{background:var(--accent); border-color:var(--accent)}
-.toggle[aria-checked="true"] i{transform:translateX(21px)}
-.sheet p{font-size:14.5px; line-height:1.62; color:var(--ink-2)}
+/* WC puts a Close/Done button in the sheet head. The shared anatomy documents an
+   optional .sh-sub there (which carries the margin-left:auto) but not a button,
+   so the button needs its own push to the right edge. */
+.sh-head .donebtn{margin-left:auto}
+/* character: Word Chain's display scale is two steps — hero at 900 (#home h1,
+   the results card) and every secondary heading at 600 (sheet titles, .soon,
+   .pauseq, .exchain, the about-sheet h3s). The shared .sh-head h2 is 900, which
+   is right for the platform's own sheets but collapses this game's hierarchy
+   into one step. There is no dial for the heading weight. */
+.sh-head h2{font-weight:600}
+/* the about sheet's sub-headings; the shared layer styles sheet <p> and the head
+   <h2>, but has no h3. */
 .sheet h3{font-family:var(--f-disp); font-weight:600; font-size:16px; margin:20px 0 6px}
 .soon{font-family:var(--f-disp); font-weight:600; font-size:20px; margin:0 0 6px}
 .emptybox{border:1px dashed var(--line-2); border-radius:12px; padding:26px 18px; text-align:center; margin-top:6px}
 .emptybox svg{color:var(--line-2); margin-bottom:10px}
 .exchain{font-family:var(--f-disp); font-weight:600; letter-spacing:.05em; font-size:15px;
-  color:var(--ink); line-height:1.7; margin:6px 0 0}
+  color:var(--fg); line-height:1.7; margin:6px 0 0}
 .exchain .sep{color:var(--line-2); font-weight:400}
 .bests{display:flex; gap:8px}
 .best{flex:1; border:1px solid var(--line); border-radius:11px; padding:11px 8px; text-align:center}
 .best .bl{display:block; font-family:var(--f-mono); font-size:9.5px; letter-spacing:.14em;
-  text-transform:uppercase; color:var(--ink-3); margin-bottom:5px}
-.best .bt{display:block; font-family:var(--f-mono); font-size:18px; color:var(--ink);
+  text-transform:uppercase; color:var(--fg-3); margin-bottom:5px}
+.best .bt{display:block; font-family:var(--f-mono); font-size:18px; color:var(--fg);
   font-variant-numeric:tabular-nums}
 .hist{display:flex; flex-direction:column}
 .hrow{display:flex; align-items:baseline; gap:10px; padding:9px 0;
   border-bottom:1px solid var(--line); font-size:13.5px}
 .hrow .hl{font-family:var(--f-mono); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase;
-  color:var(--ink-3); width:62px; flex:none}
-.hrow .hc{font-family:var(--f-disp); font-weight:600; letter-spacing:.04em; color:var(--ink-2);
+  color:var(--fg-3); width:62px; flex:none}
+.hrow .hc{font-family:var(--f-disp); font-weight:600; letter-spacing:.04em; color:var(--fg-2);
   flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.hrow .ht{font-family:var(--f-mono); font-size:12.5px; color:var(--ink); flex:none;
+.hrow .ht{font-family:var(--f-mono); font-size:12.5px; color:var(--fg); flex:none;
   font-variant-numeric:tabular-nums}
 
 /* ======================= PAUSE ======================= */
@@ -891,12 +1279,14 @@ body{
   position:fixed; inset:0; z-index:45; display:flex; align-items:center; justify-content:center;
   padding:24px; background:var(--scrim);
 }
+/* a centred card, not a bottom sheet: it interrupts a running clock and must not
+   read as somewhere you can browse. It borrows the sheet's ground via the dial. */
 .pausecard{
-  background:var(--sheet); border-radius:18px; box-shadow:var(--shadow);
+  background:var(--sheet-bg); border-radius:18px; box-shadow:var(--shadow);
   padding:28px 24px 22px; max-width:360px; width:100%; text-align:center;
 }
 .pauseq{font-family:var(--f-disp); font-weight:600; font-size:21px; line-height:1.3;
-  margin:0 0 20px; color:var(--ink); text-wrap:balance}
+  margin:0 0 20px; color:var(--fg); text-wrap:balance}
 .pausebtns{display:flex; flex-direction:column; gap:9px}
 .pausebtns .btn{width:100%; padding:14px 18px; font-size:15px}
 
@@ -907,7 +1297,7 @@ body{
 }
 #results.on{opacity:1; pointer-events:auto}
 .rescard{
-  background:var(--sheet); border-radius:18px; box-shadow:var(--shadow);
+  background:var(--sheet-bg); border-radius:18px; box-shadow:var(--shadow);
   padding:30px 26px 26px; max-width:400px; width:100%; text-align:center;
   transform:translateY(14px) scale(.98); transition:transform .34s cubic-bezier(.22,.9,.3,1);
   max-height:100%; overflow-y:auto;
@@ -918,23 +1308,20 @@ body{
   display:flex; align-items:center; justify-content:center; margin:0 auto 16px; color:var(--tilefg);
 }
 .rescard h2{font-family:var(--f-disp); font-weight:900; font-size:32px; margin:0 0 10px; letter-spacing:-.015em}
-.resline{font-family:var(--f-disp); font-size:17.5px; line-height:1.45; margin:0; color:var(--ink)}
+.resline{font-family:var(--f-disp); font-size:17.5px; line-height:1.45; margin:0; color:var(--fg)}
 .resline b{font-weight:600}
-.resbreak{font-family:var(--f-mono); font-size:12.5px; color:var(--ink-3); margin:8px 0 0;
+.resbreak{font-family:var(--f-mono); font-size:12.5px; color:var(--fg-3); margin:8px 0 0;
   font-variant-numeric:tabular-nums}
 .reschain{font-family:var(--f-disp); font-weight:600; font-size:13.5px; letter-spacing:.05em;
-  line-height:1.75; color:var(--ink-2); margin:18px 0 4px; text-wrap:balance}
+  line-height:1.75; color:var(--fg-2); margin:18px 0 4px; text-wrap:balance}
 .reschain .sep{color:var(--line-2); font-weight:400}
 .resbtns{display:flex; flex-direction:column; gap:9px; margin-top:20px}
 .resbtns .btn{width:100%; padding:14px 20px; font-size:15px}
-.toast{
-  position:fixed; left:50%; transform:translateX(-50%); bottom:calc(env(safe-area-inset-bottom) + 26px);
-  z-index:50; background:var(--ink); color:var(--paper); font-family:var(--f-body);
-  font-size:13.5px; font-weight:500; padding:11px 20px; border-radius:999px;
-  opacity:0; pointer-events:none; transition:opacity .25s; box-shadow:var(--shadow);
-  max-width:88vw; text-align:center;
-}
-.toast.on{opacity:1}
+
+/* Broader than ui.css's reduced-motion block, and kept for that reason: this game
+   also animates a blinking caret, a rising +15s flash, the thinking dots and the
+   key-press scale, none of which are platform components. The blanket rule covers
+   the shared components too, so the two do not disagree. */
 @media (prefers-reduced-motion:reduce){
   *{transition-duration:.01ms !important; animation-duration:.01ms !important}
 }
@@ -1123,6 +1510,233 @@ body{
 })(typeof window !== 'undefined' ? window : this);
 /* ===== END packages/tokens/theme.js ===== */
 PSTheme.init('wc-game');
+</script>
+<script>
+/* The shared UI behaviour, inlined. packages/ui/ui.js is the CANONICAL source for
+   sheets and toasts: one open sheet at a time, Escape and a scrim click to close,
+   and the focus trap this game did not have. It defines window.PSUI; part-c-app.js
+   calls PSUI.init() once the body exists. Byte-identical; CI diffs it. */
+/* ===== BEGIN packages/ui/ui.js (inlined verbatim — do not edit here) ===== */
+/* ===========================================================================
+   PlaySapien UI behaviour — the half of the chrome that is not CSS.
+
+   Sheets and toasts, which every game reimplemented. Sojourner had TWO
+   parallel sheet systems (closeSheets for in-game sheets, openPanel/closePanels
+   for the corner panels); Word Chain had one; the shell had a third. All three
+   did the same thing, and none of them trapped focus, so a keyboard user could
+   tab straight past the scrim into the page behind.
+
+   ES5, dependency-free, no build step, ~120 lines. Inlined verbatim into every
+   surface after ui.css; check-inline.mjs fails the build if a copy drifts.
+
+   USAGE
+
+     PSUI.init({ sheets: ['aboutSheet','settingsSheet'], scrim: 'scrim',
+                 toast: 'toast' });
+     PSUI.open('aboutSheet');
+     PSUI.open('confirmSheet', { stack: true });   // over the one already open
+     PSUI.open('revealSheet',  { scrim: false });  // do not dim what is behind
+     PSUI.close();        // closes the topmost only
+     PSUI.closeAll();
+     PSUI.toast('Copied');
+
+   Escape and a scrim click close the TOPMOST sheet. Focus moves into it on
+   open and returns to whatever opened it on close.
+
+   Two options exist because both games needed them the moment they adopted
+   this file:
+
+     stack   Word Chain asks "Delete this chain?" from inside an open sheet.
+             Without a stack, the confirm and the sheet fight over Escape and
+             the focus trap drags Tab back into the sheet underneath.
+     scrim   Sojourner's round reveal flies the globe to the answer. Dimming
+             and blocking the globe at exactly the moment the player is looking
+             at it is the wrong behaviour, and it was a regression the first
+             time this file did not offer the choice.
+   =========================================================================== */
+
+(function (global) {
+  'use strict';
+
+  var sheetIds = [];
+  var scrimEl = null;
+  var toastEl = null;
+  var toastTimer = null;
+  var closers = [];
+  /* Open sheets, innermost last. Each entry: {id, scrim, focus} where `focus`
+     is whatever had focus when it opened, so closing restores in reverse. */
+  var stack = [];
+
+  function $(id) { return document.getElementById(id); }
+
+  /* The topmost open sheet -- what Escape closes and what traps focus. */
+  function openId() { return stack.length ? stack[stack.length - 1].id : null; }
+  function isOpen(id) {
+    for (var i = 0; i < stack.length; i++) if (stack[i].id === id) return true;
+    return false;
+  }
+  function wantsScrim() {
+    for (var i = 0; i < stack.length; i++) if (stack[i].scrim) return true;
+    return false;
+  }
+
+  /* Everything in the sheet a keyboard can reach, in document order, skipping
+     anything currently hidden. Recomputed on each Tab because a sheet's
+     contents change -- the sign-in sheet swaps an email form for a code form. */
+  function focusables(el) {
+    var all = el.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([type="hidden"]):not([disabled]),' +
+      'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
+    var out = [];
+    for (var i = 0; i < all.length; i++) {
+      var n = all[i];
+      if (n.offsetWidth || n.offsetHeight || n.getClientRects().length) out.push(n);
+    }
+    return out;
+  }
+
+  function open(id, opts) {
+    var target = $(id);
+    if (!target) return;
+    opts = opts || {};
+    if (isOpen(id)) return;
+
+    /* Without {stack:true} this replaces whatever is open, which is what a
+       plain sheet switch wants. With it, the new sheet sits on top. */
+    if (!opts.stack) hideAll();
+
+    stack.push({ id: id, scrim: opts.scrim !== false, focus: document.activeElement });
+    target.hidden = false;
+    /* Raise each stacked layer above the one below, from the same base the
+       stylesheet uses, so a game does not have to hand-manage z-index. */
+    if (stack.length > 1) target.style.zIndex = String(baseZ() + stack.length * 2);
+    else target.style.removeProperty('z-index');
+    /* One frame between unhiding and adding .on, or the browser has nothing to
+       transition from and the sheet simply appears. */
+    if (global.requestAnimationFrame) global.requestAnimationFrame(function () { target.classList.add('on'); });
+    else target.classList.add('on');
+
+    if (scrimEl) {
+      if (wantsScrim()) {
+        scrimEl.classList.add('on');
+        scrimEl.style.zIndex = stack.length > 1 ? String(baseZ() + stack.length * 2 - 1) : '';
+      } else {
+        scrimEl.classList.remove('on');
+      }
+    }
+    /* Focus the first real control rather than the dialog itself: a screen
+       reader then reads the heading and lands somewhere useful. */
+    setTimeout(function () {
+      var f = focusables(target);
+      if (f.length) f[0].focus();
+      else { target.setAttribute('tabindex', '-1'); target.focus(); }
+    }, 60);
+  }
+
+  function baseZ() {
+    var v = parseInt(getVar('--sheet-z'), 10);
+    return isNaN(v) ? 31 : v;
+  }
+
+  function lower(el) {
+    if (!el) return;
+    el.classList.remove('on');
+    /* Wait for the slide-out before hiding, or it vanishes mid-animation.
+       Guarded, because it may have been reopened in the meantime. */
+    setTimeout(function () {
+      if (!el.classList.contains('on')) { el.hidden = true; el.style.removeProperty('z-index'); }
+    }, 440);
+  }
+
+  function hideAll() {
+    while (stack.length) {
+      var top = stack.pop();
+      lower($(top.id));
+    }
+  }
+
+  /* Closes the TOPMOST sheet only, which is what Escape and a scrim tap mean
+     when a confirm is sitting over a sheet. */
+  function close() {
+    var top = stack.pop();
+    if (!top) return;
+    var el = $(top.id), was = top.id;
+    lower(el);
+    if (scrimEl) {
+      if (wantsScrim()) scrimEl.style.zIndex = stack.length > 1 ? String(baseZ() + stack.length * 2 - 1) : '';
+      else { scrimEl.classList.remove('on'); scrimEl.style.removeProperty('z-index'); }
+    }
+    if (top.focus && top.focus.focus) top.focus.focus();
+    for (var j = 0; j < closers.length; j++) { try { closers[j](was); } catch (e) {} }
+  }
+
+  function closeAll() { while (stack.length) close(); }
+
+  function toast(msg, ms) {
+    if (!toastEl) return;
+    toastEl.textContent = msg;
+    toastEl.classList.add('on');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('on'); },
+                            ms || Number(getVar('--toast-ms')) || 2200);
+  }
+
+  function getVar(name) {
+    try { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+    catch (e) { return ''; }
+  }
+
+  var UI = {
+    init: function (opts) {
+      opts = opts || {};
+      sheetIds = opts.sheets || [];
+      scrimEl = opts.scrim ? $(opts.scrim) : null;
+      toastEl = opts.toast ? $(opts.toast) : null;
+
+      if (scrimEl) scrimEl.addEventListener('click', close);
+
+      document.addEventListener('keydown', function (e) {
+        var id = openId();
+        if (!id) return;
+        if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+        if (e.key !== 'Tab') return;
+        var f = focusables($(id));
+        if (!f.length) return;
+        var first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      });
+
+      /* Anything with data-sheet="fooSheet" opens that sheet; anything with
+         data-sheet-close closes. Saves a listener per button in every game. */
+      document.addEventListener('click', function (e) {
+        var t = e.target.closest ? e.target.closest('[data-sheet],[data-sheet-close]') : null;
+        if (!t) return;
+        if (t.hasAttribute('data-sheet-close')) { e.preventDefault(); close(); }
+        else {
+          e.preventDefault();
+          open(t.getAttribute('data-sheet'), {
+            stack: t.hasAttribute('data-sheet-stack'),
+            scrim: !t.hasAttribute('data-sheet-noscrim')
+          });
+        }
+      });
+      return UI;
+    },
+    open: open,
+    close: close,
+    closeAll: closeAll,
+    openId: openId,
+    isOpen: isOpen,
+    depth: function () { return stack.length; },
+    toast: toast,
+    /* Called after each close with the id that closed, so a game can resync. */
+    onClose: function (fn) { if (typeof fn === 'function') closers.push(fn); }
+  };
+
+  global.PSUI = UI;
+})(typeof window !== 'undefined' ? window : this);
+/* ===== END packages/ui/ui.js ===== */
 </script>
 <script>
 /* Unrelated to the theme, and load-bearing: size the app to the VISUAL viewport so

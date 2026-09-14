@@ -1,8 +1,10 @@
 name: test
 
-# Only the backend and the SDK run here. The two game builds still hard-code
-# /tmp paths and Word Chain's needs a dict.txt that is not in the repo
-# (docs/INTEGRATION-AUDIT.md, S8). They join once that is fixed.
+# Audit S8 is closed, so the game builds run here too. Word Chain builds a
+# complete dist/ from a checkout. Sojourner's baked globe (~40 MB) and three.js
+# are deliberately not in git, so it runs with --allow-missing: that still builds
+# and validates index.html, the legal pages and the deploy fragments, which is
+# where every regression this job is meant to catch would show up.
 on:
   push:
     branches: [main]
@@ -43,3 +45,20 @@ jobs:
         run: node packages/tokens/check-contrast.mjs
       - name: the inlined copies have not drifted from the canonical files
         run: node packages/tokens/check-inline.mjs
+      - name: the template still builds
+        run: python3 games/_template/src/build.py --check
+
+  games:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - name: word chain builds from a clean checkout
+        run: python3 games/wordchain/src/build.py
+      - name: word chain's page is well-formed
+        run: python3 games/wordchain/src/build.py --check
+      - name: sojourner builds everything that is not the 40 MB globe
+        run: python3 games/sojourner/src/build.py --check --allow-missing
+      - name: and writes it
+        run: python3 games/sojourner/src/build.py --allow-missing

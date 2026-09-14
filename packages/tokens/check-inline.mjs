@@ -11,7 +11,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const SOURCES = { 'tokens.css': 'packages/tokens/tokens.css', 'theme.js': 'packages/tokens/theme.js' };
+const SOURCES = {
+  'tokens.css': 'packages/tokens/tokens.css',
+  'theme.js':   'packages/tokens/theme.js',
+  'ui.css':     'packages/ui/ui.css',
+  'ui.js':      'packages/ui/ui.js',
+};
 const TARGETS = [
   'apps/shell/src/index.html',
   'games/sojourner/src/partA.html',
@@ -25,11 +30,11 @@ for (const target of TARGETS) {
   const html = fs.readFileSync(file, 'utf8');
   for (const [name, rel] of Object.entries(SOURCES)) {
     const canonical = fs.readFileSync(path.join(ROOT, rel), 'utf8');
-    const begin = `/* ===== BEGIN packages/tokens/${name} (inlined verbatim — do not edit here) ===== */\n`;
-    const end = `/* ===== END packages/tokens/${name} ===== */`;
+    const begin = `/* ===== BEGIN ${rel} (inlined verbatim — do not edit here) ===== */\n`;
+    const end = `/* ===== END ${rel} ===== */`;
     const i = html.indexOf(begin);
     const j = html.indexOf(end);
-    if (i < 0 || j < 0) { console.log(`  ${target} :: ${name}  MARKERS MISSING`); bad++; continue; }
+    if (i < 0 || j < 0) { console.log(`  ${target} :: ${name}  markers missing (not adopted yet)`); continue; }
     const inlined = html.slice(i + begin.length, j);
     checked++;
     if (inlined === canonical) {

@@ -26,7 +26,7 @@ function composeOpen(src) {
 
 function composeClose() {
   $('compose').hidden = true; $('home').hidden = false;
-  C = null; closeSheets(); mountKeyboard($('app')); paintHome();
+  C = null; PSUI.close(); mountKeyboard($('app')); paintHome();
 }
 
 function cValid() { return C.words.every(function (w) { return w.length >= 3; }); }
@@ -136,7 +136,7 @@ var sendTarget = null, checked = {};
 function openSend(id) {
   sendTarget = id; checked = {};
   $('friendFind').value = '';
-  paintFriends(); openSheet('shareSheet');
+  paintFriends(); PSUI.open('shareSheet');
 }
 function paintFriends() {
   var q = ($('friendFind').value || '').trim().toLowerCase();
@@ -168,8 +168,8 @@ function doSend() {
     ids.forEach(function (i) { if (hit.shared.indexOf(i) < 0) hit.shared.push(i); });
     store('puzzles', all);
   }
-  closeSheets(); paintMine();
-  toast('Sent to ' + ids.length + (ids.length > 1 ? ' people' : ''));
+  PSUI.close(); paintMine();
+  PSUI.toast('Sent to ' + ids.length + (ids.length > 1 ? ' people' : ''));
 }
 
 /* ------------------------------------------------------------------ confirm */
@@ -188,7 +188,7 @@ $('cHomeBtn').addEventListener('click', function () {
   if (!unsaved) { composeClose(); return; }
   ask('Leave without saving this chain?', 'Yes, discard it', composeClose);
 });
-$('cListBtn').addEventListener('click', function () { paintMine(); openSheet('mineSheet'); });
+$('cListBtn').addEventListener('click', function () { paintMine(); PSUI.open('mineSheet'); });
 $('cSaveBtn').addEventListener('click', cSave);
 $('cShareBtn').addEventListener('click', function () {
   if (!C.shareId) { cHint('Save the chain before sending it.', true); return; }
@@ -203,7 +203,7 @@ $('mineBody').addEventListener('click', function (e) {
   var id = btn.closest('.mine-row').dataset.id, p = null;
   puzzles().forEach(function (q) { if (q.id === id) p = q; });
   if (!p) return;
-  if (btn.dataset.act === 'edit') { closeSheets(); composeOpen(p); }
+  if (btn.dataset.act === 'edit') { PSUI.close(); composeOpen(p); }
   else if (btn.dataset.act === 'send') openSend(id);
   else ask('Delete this chain?', 'Yes, delete it', function () { closeConfirm(); deletePuzzle(id); });
 });

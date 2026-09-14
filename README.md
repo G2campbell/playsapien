@@ -31,6 +31,10 @@ is the list of everywhere they disagreed and what was done about it.
 | `games/wordchain/` | Link every word to the next. Python build inlines everything into one `index.html`. |
 | `backend/` | Cloudflare Worker + D1. Auth, players, friends, results, the chain queue. 70 tests. |
 | `packages/sdk/` | The dependency-free client both games and the shell call. Offline-first. 36 tests. |
+| `packages/tokens/` | Every colour, and the theme mechanism. Two checkers gate it in CI. |
+| `packages/ui/` | The chrome every game repeats: sheets, the corner bar, settings, controls. Structure only — each game keeps its character through dials. |
+| `packages/build/` | The part of the game builds that is genuinely shared: the `<head>`, and where a build reads from and writes to. |
+| `games/_template/` | **Start a new game here.** A working game with all of the above already wired. |
 | `deploy/` | Root `_headers` / `_redirects` and the bundled `sdk.js`. |
 | `docs/` | The audit and the backend spec. Read these before changing anything cross-cutting. |
 
@@ -58,9 +62,25 @@ npx esbuild src/index.js --bundle --format=esm --minify --outfile=../../deploy/s
 # alongside deploy/sdk.js and a Worker on /api to exercise the account layer.
 ```
 
-Both game builds still hard-code `/tmp` paths and Word Chain's needs a `dict.txt`
-that is not in the repo — see audit §S8. That is the next thing to fix, and the
-reason there is no CI for them yet.
+```sh
+# a new game
+cp -r games/_template games/yourgame && python3 games/yourgame/src/build.py
+# see games/_template/README.md — six things to change, and the rules
+
+# the games — all build from a clean checkout (audit S8)
+python3 games/wordchain/src/build.py            # -> games/wordchain/dist/
+python3 games/sojourner/src/build.py            # -> games/sojourner/dist/
+python3 games/wordchain/src/build.py --check    # validate, write nothing; CI runs this
+```
+
+Sojourner's baked globe (~40 MB of textures, the region id map, the flag SVGs)
+and three.js are deliberately not in git. Without them its build still emits
+`index.html`, the legal pages and the deploy fragments, and names exactly which
+input is missing and where it comes from; `--allow-missing` makes that a warning
+rather than exit 2, which is how CI runs it. See `games/sojourner/README.md`.
+
+Both builds take `--src` / `--build` / `--dist` (and `$SRC` / `$BUILD` / `$DIST`);
+the `<head>` both emit comes from `packages/build/head.py`.
 
 ## Deploying
 
@@ -88,5 +108,11 @@ Every game keeps its own release cadence.
 - **The backend is additive.** Both games must still play, score and keep a
   streak with the Worker switched off entirely. The SDK never throws into game
   code and never blocks a render.
+- **One vocabulary.** Role names only: `--bg`, `--fg`, `--accent`. There is no
+  `--ink` or `--paper` any more — they meant opposite things in the two games,
+  which is exactly why they are gone.
+- **Shared code is inlined, never copied.** Each surface is a standalone file, so
+  `tokens.css`, `theme.js`, `ui.css` and `ui.js` are inlined at build time from
+  one canonical copy. `check-inline.mjs` fails the build if any copy drifts.
 - Specs are versioned rather than edited, so a critique always points at a fixed
   target. A new version means the previous critique's open questions were answered.

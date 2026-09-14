@@ -13,16 +13,19 @@
 # the platform rules in deploy/_headers and deploy/_redirects, because
 # Cloudflare Pages honours exactly one of each and only at the root.
 #
-# NOTE (audit S8): neither game build runs from the repo yet — Sojourner's
-# build.py hard-codes /tmp paths and Word Chain's build.py reads a dict.txt that
-# is not checked in. Point SOJOURNER_DIST / WORDCHAIN_DIST at wherever they
-# actually produced their dist until that is fixed.
+# Audit S8 is closed: both builds run from the checkout and write into
+# games/<game>/dist. Build them first --
+#
+#   python3 games/wordchain/src/build.py
+#   python3 games/sojourner/src/build.py        # needs the baked globe; see its README
+#
+# SOJOURNER_DIST / WORDCHAIN_DIST still override, for a dist built elsewhere.
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT=${OUT:-"$ROOT/dist"}
-SOJOURNER_DIST=${SOJOURNER_DIST:-/tmp/out/dist}
-WORDCHAIN_DIST=${WORDCHAIN_DIST:-"$ROOT/games/wordchain/src/dist"}
+SOJOURNER_DIST=${SOJOURNER_DIST:-"$ROOT/games/sojourner/dist"}
+WORDCHAIN_DIST=${WORDCHAIN_DIST:-"$ROOT/games/wordchain/dist"}
 
 rm -rf "$OUT"; mkdir -p "$OUT"
 

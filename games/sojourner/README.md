@@ -54,11 +54,33 @@ build (`dist/`) and the single-file version.
 
 ## Rebuilding
 
-    python3 src/build.py
+    python3 games/sojourner/src/build.py          # -> games/sojourner/dist/
+    python3 games/sojourner/src/build.py --check  # validate, write nothing
+
+Run it from anywhere; every path has a repo-relative default and each can be
+overridden with a flag or an environment variable (`--src`/`$SRC`,
+`--build`/`$BUILD`, `--dist`/`$DIST`, `--single`/`$SINGLE`, `--flags`/`$FLAGS`,
+`--three`/`$THREE`).
+
+**What is not in git.** `--build` defaults to `games/sojourner/data/`, which is
+gitignored: the baked globe is about 40 MB of generated binary. Neither is
+three.js. Without them the build still emits `index.html`, `privacy.html`,
+`terms.html` and the two deploy fragments — everything that depends only on
+checked-in sources — prints which input is missing and where to get it, and
+exits 2. `--allow-missing` turns that into a warning, which is how CI runs it.
+
+To make a playable build you need, in `games/sojourner/data/`:
+
+| Input | Where from |
+|---|---|
+| `gamedata.json`, `terrain.b64`, `idmap.b64`, `detail.b64`, `styles/*-z1.jpg`, `usflags/*.webp`, `emblem.png`, `select.mp3`, `flagmap.json`, `adm2cc.json`, plus `dist/assets/` from `pack.py` | the pipeline in `src/` — `terrain.py`, `raster.py`, `geo.py`, `assemble.py`, `pack.py` |
+| `flags/4x3/*.svg` | github.com/hjnilsson/country-flags |
+| `three/build/three.min.js` | three.js **r128**, the version the page is pinned to |
 
 Regenerating the geometry needs Natural Earth's `ne_10m_admin_1_states_provinces.geojson`
 (github.com/nvkelso/natural-earth-vector) and the elevation/water textures from
-github.com/vasturiano/three-globe.
+github.com/vasturiano/three-globe. The rest of the pipeline still writes to
+`/tmp`; only `build.py` has been parameterised so far.
 
 ## Rules as built
 

@@ -1,63 +1,64 @@
-import json, io, os
-os.makedirs('dist', exist_ok=True)
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Build Word Chain: one self-contained index.html, plus the artifact preview.
 
-# Where the hosted copy will live. Open Graph needs an ABSOLUTE url for the preview
-# image, so this has to match the real address. One line to change if it moves.
-SITE = 'https://playsapien.com/wordchain'
-# The artifact build is reachable at its own address, so it shares that one instead.
+    python3 games/wordchain/src/build.py            # -> games/wordchain/dist/
+    python3 games/wordchain/src/build.py --check    # validate, write nothing
+
+Audit S8. This used to be cwd-relative and to read a dict.txt that was not in
+the repo, so it built only in the directory it was written in and only for
+whoever had that file. Every path now has a repo-relative default and every
+input is either checked in or named in the failure. Run it from anywhere.
+
+    --src DIR / $SRC       the hand-written sources (default: beside this file)
+    --dist DIR / $DIST     hosted output           (default: games/wordchain/dist)
+    --single DIR / $SINGLE the one-file builds     (default: games/wordchain/preview)
+    --site URL / $SITE     where the hosted copy lives; Open Graph needs it absolute
+
+The head comes from packages/build/head.py, which both games share -- see the
+note by HEAD below for what that gains this build and what it deliberately
+leaves alone.
+"""
+
+import argparse
+import io
+import json
+import re
+import os
+import shutil
+import sys
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def _find_repo(d):
+    while True:
+        if os.path.exists(os.path.join(d, 'packages', 'tokens', 'tokens.css')):
+            return d
+        p = os.path.dirname(d)
+        if p == d:
+            sys.exit('build.py: not inside a PlaySapien checkout (looked up from %s)' % _HERE)
+        d = p
+
+
+REPO = _find_repo(_HERE)
+sys.path.insert(0, os.path.join(REPO, 'packages'))
+from build import head as psh          # noqa: E402
+from build import paths as pspaths     # noqa: E402
+
+
+# --------------------------------------------------------------------------- #
+# what the page says about itself
+
+SITE_DEFAULT = 'https://playsapien.com/wordchain'
+# The artifact build is reachable at its own address, so it shares that one.
 ARTIFACT = 'https://claude.ai/code/artifact/f46ebfe8-425c-4f1a-be86-a722137cd265'
-
-data = json.load(open('gamedata.json'))
-# trim chain payload to what the page needs
-slim = {"lex": data["lex"], "chains": [
-    {"level": c["level"], "words": c["words"],
-     "links": [{"numberStrict": l["numberStrict"], "alt": l["alt"]} for l in c["links"]]}
-    for c in data["chains"]]}
-words = open('dict.txt').read().split('\n')
-words = [w for w in words if 2 <= len(w) <= 18]
-
-style = io.open('part-a-style.html', encoding='utf-8').read()
-body  = io.open('part-b-body.html',  encoding='utf-8').read()
-app   = io.open('part-c-app.js',     encoding='utf-8').read()
-app  += io.open('composer.js',       encoding='utf-8').read()
-
-# Audit B7. Unwrapped, these two files put ~107 declarations on `window` --
-# `$`, `S`, `SET`, `DATA`, `SITE`, `store`, `drop`, `toast`, `save`, `finish`,
-# `pick`, `hit` and ninety more -- which collide the moment anything else shares
-# the document. They are already concatenated here, so ONE wrapper around the
-# concatenation closes the whole category; wrapping each file separately would
-# instead break composer.js, which reads part-c-app.js's scope and vice versa.
-#
-# Two things this wrapper is careful about:
-#   * `var C` in composer.js still hoists to the top of the shared closure, so
-#     part-c-app.js's `typeof C !== 'undefined'` guards (lines 468, 760) keep
-#     working exactly as they did against the global object.
-#   * No 'use strict'. The point is the namespace, not a semantics change, and
-#     strict mode would turn any latent implicit-global assignment into a throw.
-# Nothing in the HTML uses an inline on* handler, so nothing outside this
-# closure needs to reach in. Checked before wrapping.
-app = '(function(){\n' + app + '\n})();\n'
-
-def boot_for(site):
-  return (
- '<script id="wcdict" type="text/plain">' + "\n".join(words) + '</script>\n'
- '<script>\n'
- 'window.__WC_SITE__=' + json.dumps(site) + ';\n'
- 'window.__WC_DATA__=' + json.dumps(slim, separators=(",", ":")) + ';\n'
- 'window.__WC_DICT__=new Set(document.getElementById("wcdict").textContent.split("\\n").map(function(w){return w.toUpperCase();}));\n'
- '</script>\n'
-)
-
-_unused = (
- '<script id="wcdict" type="text/plain">' + "\n".join(words) + '</script>\n'
- '<script>\n'
- 'window.__WC_DATA__=' + json.dumps(slim, separators=(",", ":")) + ';\n'
- 'window.__WC_DICT__=new Set(document.getElementById("wcdict").textContent.split("\\n").map(function(w){return w.toUpperCase();}));\n'
- '</script>\n'
-)
-inner = style + "\n" + body + "\n" + boot_for(ARTIFACT) + "<script>\n" + app + "\n</script>\n"
-
-io.open('artifact.html', 'w', encoding='utf-8').write(inner)
+TITLE = 'Word Chain'
+BLURB = ('Eight words, every neighbouring pair a compound. '
+         'First letters only. The clock is the score.')
+# The light .wc-game ground, which is what "system + light" resolves to.
+# PSTheme rewrites the tag on every theme change; see head.py.
+THEME_COLOR = '#E8D1DA'
 
 # The favicon is FIXED in the light rose in both themes, like the share card and
 # og.png: it is a public mark, and the browser gives it no theme to follow.
@@ -70,46 +71,236 @@ ICON = ("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0
         "%3Cpath d='M13.6 10.4a4.6 4.6 0 0 0-6.94-.5L3.9 12.66a4.6 4.6 0 0 0 6.5 6.5l1.57-1.57'/%3E"
         "%3C/g%3E%3C/svg%3E")
 
-head = (
-  # class="wc-game" selects the Word Chain palette in the inlined tokens.css.
-  # PSTheme.init('wc-game') adds it too, but having it in the markup means the
-  # page is never unstyled for the one frame before script runs, and stays
-  # correct if localStorage throws. (The artifact build has no <html> of its
-  # own, so there the class comes from PSTheme.init alone.)
-  '<!doctype html><html lang="en" class="wc-game"><head><meta charset="utf-8">'
-  '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
-  '<meta name="description" content="Eight words, every neighbouring pair a compound. '
-  'First letters only. The clock is the score.">'
-  # ONE theme-color, no media variants: PSTheme (packages/tokens/theme.js) rewrites
-  # this tag's content on every theme change, and it takes the first match. Two
-  # media-scoped tags would leave the other one stale and fighting it. The value
-  # here is the light .wc-game ground, which is what "system + light" resolves to.
-  '<meta name="theme-color" content="#E8D1DA">'
-  '<meta property="og:type" content="website">'
-  '<meta property="og:url" content="' + SITE + '/">'
-  '<meta property="og:image" content="' + SITE + '/og.png">'
-  '<meta property="og:image:width" content="1200">'
-  '<meta property="og:image:height" content="630">'
-  '<meta property="og:image:alt" content="Word Chain">'
-  '<meta property="og:site_name" content="Word Chain">'
-  '<meta name="twitter:card" content="summary_large_image">'
-  '<meta name="twitter:title" content="Word Chain">'
-  '<meta name="twitter:description" content="Eight words, every neighbouring pair a compound. '
-  'First letters only. The clock is the score.">'
-  '<meta name="twitter:image" content="' + SITE + '/og.png">'
-  '<meta property="og:title" content="Word Chain">'
-  '<meta property="og:description" content="Eight words, every neighbouring pair a compound. '
-  'First letters only. The clock is the score.">'
-  '<meta name="apple-mobile-web-app-capable" content="yes">'
-  '<link rel="icon" href="' + ICON + '">'
-  '<link rel="apple-touch-icon" href="icon-512.png">'
-  + style + '</head><body style="margin:0">')
+# Copied into dist/ beside index.html. deploy/_headers already has the two
+# cache rules for them; before this they were referenced and never emitted.
+ASSETS = ('og.png', 'icon-512.png')
 
-full = head + body + "\n" + boot_for(SITE) + "<script>\n" + app + "\n</script></body></html>"
+DICT_HINT = (
+    'dict.txt is the 66k-word list that tells a typo from an invented word '
+    '(part-c-app.js:394,398). It IS checked in -- 543 KB of plain text -- so a '
+    'clean checkout builds. Regenerate it with `pip install wordfreq` and '
+    '`python3 finalize.py`, which writes it beside gamedata.json.')
 
-io.open('wordchain.html', 'w', encoding='utf-8').write(full)
 
-io.open('dist/index.html', 'w', encoding='utf-8').write(full)
+# --------------------------------------------------------------------------- #
 
-for f in ('artifact.html', 'wordchain.html', 'dist/index.html'):
-    print(f, round(os.path.getsize(f)/1024, 1), 'KB')
+def read(path, what, hint=None):
+    pspaths.require(path, what, hint)
+    return io.open(path, encoding='utf-8').read()
+
+
+def compose(src, site, style):
+    """Return (hosted_html, artifact_html, notes)."""
+    notes = []
+
+    data = json.loads(read(src + 'gamedata.json', 'gamedata.json',
+                           'generated by finalize.py; it is checked in'))
+    # trim the chain payload to what the page needs
+    slim = {"lex": data["lex"], "chains": [
+        {"level": c["level"], "words": c["words"],
+         "links": [{"numberStrict": l["numberStrict"], "alt": l["alt"]} for l in c["links"]]}
+        for c in data["chains"]]}
+
+    words = read(src + 'dict.txt', 'the word list dict.txt', DICT_HINT).split('\n')
+    words = [w for w in words if 2 <= len(w) <= 18]
+    notes.append('dictionary %d words' % len(words))
+
+    body = read(src + 'part-b-body.html', 'part-b-body.html')
+    app = read(src + 'part-c-app.js', 'part-c-app.js')
+    app += read(src + 'composer.js', 'composer.js')
+
+    # Audit B7. Unwrapped, these two files put ~107 declarations on `window` --
+    # `$`, `S`, `SET`, `DATA`, `SITE`, `store`, `drop`, `toast`, `save`, `finish`,
+    # `pick`, `hit` and ninety more -- which collide the moment anything else shares
+    # the document. They are already concatenated here, so ONE wrapper around the
+    # concatenation closes the whole category; wrapping each file separately would
+    # instead break composer.js, which reads part-c-app.js's scope and vice versa.
+    #
+    # Two things this wrapper is careful about:
+    #   * `var C` in composer.js still hoists to the top of the shared closure, so
+    #     part-c-app.js's `typeof C !== 'undefined'` guards (lines 468, 760) keep
+    #     working exactly as they did against the global object.
+    #   * No 'use strict'. The point is the namespace, not a semantics change, and
+    #     strict mode would turn any latent implicit-global assignment into a throw.
+    # Nothing in the HTML uses an inline on* handler, so nothing outside this
+    # closure needs to reach in. Checked before wrapping.
+    app = '(function(){\n' + app + '\n})();\n'
+
+    def boot_for(target):
+        return (
+            '<script id="wcdict" type="text/plain">' + "\n".join(words) + '</script>\n'
+            '<script>\n'
+            'window.__WC_SITE__=' + json.dumps(target) + ';\n'
+            'window.__WC_DATA__=' + json.dumps(slim, separators=(",", ":")) + ';\n'
+            'window.__WC_DICT__=new Set(document.getElementById("wcdict").textContent'
+            '.split("\\n").map(function(w){return w.toUpperCase();}));\n'
+            '</script>\n')
+
+    # ---- the artifact preview: no <head> of its own, the host supplies one ----
+    artifact = (style + "\n" + body + "\n" + boot_for(ARTIFACT)
+                + "<script>\n" + app + "\n</script>\n")
+
+    # ---- the hosted page ----
+    # part-a-style.html puts the Google Fonts <link> ABOVE its copy of theme.js,
+    # so on a cold cache the theme is not decided until a third-party stylesheet
+    # has loaded and the page paints in the markup's theme until then. Lift the
+    # block out and let head.py re-emit it first. If the markers have moved the
+    # hoist is a no-op and the old order ships -- never a half-removal.
+    hosted_style, hoisted = psh.hoist_theme(style, 'wc-game')
+    notes.append('theme.js hoisted above the font stylesheet' if hoisted else
+                 'theme.js NOT hoisted (markers not found in part-a-style.html) '
+                 '-- it still ships, in its old position, below the font link')
+
+    # HEAD. Shared with Sojourner via packages/build/head.py: same tag set, same
+    # order. What this build gains from the move is <link rel="canonical">, which
+    # Sojourner had and this did not. Every block flag is off because
+    # part-a-style.html carries <title>, the font links, tokens.css, ui.css and
+    # ui.js itself -- head.py emits nothing twice -- except theme_js, which is on
+    # exactly when the hoist above succeeded.
+    head = psh.head(
+        'wc-game',
+        site=site, description=BLURB, theme_color=THEME_COLOR,
+        og_title=TITLE, og_description=BLURB, og_site_name=TITLE,
+        og_image=site.rstrip('/') + '/og.png', og_image_alt=TITLE,
+        web_app_capable=True, icon=ICON, apple_touch_icon='icon-512.png',
+        title=None,                       # part-a-style.html has it
+        theme_js=hoisted, fonts=False, tokens_css=False, ui_css=False, ui_js=False,
+        extra=hosted_style)
+
+    # class="wc-game" selects the Word Chain palette in the inlined tokens.css.
+    # PSTheme.init('wc-game') adds it too, but having it in the markup means the
+    # page is never unstyled for the one frame before script runs, and stays
+    # correct if localStorage throws. (The artifact build has no <html> of its
+    # own, so there the class comes from PSTheme.init alone.)
+    hosted = ('<!doctype html><html lang="en" class="wc-game"><head>' + head
+              + '</head><body style="margin:0">'
+              + body + "\n" + boot_for(site) + "<script>\n" + app + "\n</script></body></html>")
+    return hosted, artifact, notes
+
+
+# --------------------------------------------------------------------------- #
+# --check: everything that can be wrong, without writing anything
+
+def audit(html, src):
+    """Problems with the page that would ship. Empty list means fine."""
+    bad = []
+    # Count tags in the MARKUP only. The inlined theme.js both mentions
+    # <meta name="theme-color"> in its header comment and creates one at
+    # runtime; a naive substring count reads those as duplicate tags.
+    markup = re.sub(r'<script\b.*?</script>', '', html, flags=re.S)
+    markup = re.sub(r'<style\b.*?</style>', '', markup, flags=re.S)
+    markup = re.sub(r'<!--.*?-->', '', markup, flags=re.S)
+
+    def want(needle, why, where=None):
+        if needle not in (html if where is None else where):
+            bad.append('%s missing from the page (%s)' % (needle, why))
+
+    def once(needle, why, where=None):
+        n = (markup if where is None else where).count(needle)
+        if n != 1:
+            bad.append('%s appears %d times, expected once (%s)' % (needle, n, why))
+
+    once('<!doctype html>', 'one document')
+    once('<head>', 'one head'); once('</head>', 'one head')
+    once('<body', 'one body'); once('</body>', 'one body')
+    once('<meta charset="utf-8">', 'a second charset is ignored and confusing')
+    once('<meta name="theme-color"', 'PSTheme takes the first match; a second goes stale')
+    once('<title>', 'one title')
+    once(psh.MARKER_BEGIN % 'packages/tokens/theme.js', 'the theme must be inlined exactly once', html)
+    once(psh.MARKER_BEGIN % 'packages/tokens/tokens.css', 'the tokens must be inlined exactly once', html)
+    once(psh.MARKER_BEGIN % 'packages/ui/ui.css', 'ui.css inlined exactly once', html)
+    once(psh.MARKER_BEGIN % 'packages/ui/ui.js', 'ui.js inlined exactly once', html)
+    want('<link rel="canonical"', 'audit S8/head union')
+    want('<meta property="og:image"', 'the share card')
+    want('<link rel="apple-touch-icon"', 'the home-screen icon')
+    want(psh.FONTS_URL, 'audit S10: the union font url, byte-identical everywhere')
+    want("PSTheme.init('wc-game')", 'the theme would never be applied')
+    want('PSUI.init', 'the sheets would never open')
+
+    # the pre-paint rule, checked rather than assumed
+    t = html.find("PSTheme.init('wc-game')")
+    for stylesheet in ('<link rel="stylesheet"', '<style>'):
+        s = html.find(stylesheet)
+        if 0 <= s < t:
+            bad.append('%s at %d comes BEFORE the theme script at %d -- the page will '
+                       'paint in the wrong theme' % (stylesheet, s, t))
+
+    # the inlined copies must be the canonical bytes (what check-inline.mjs
+    # proves for the sources; this proves it for the thing actually deployed)
+    for name, rel in (('theme.js', 'packages/tokens/theme.js'),
+                      ('tokens.css', 'packages/tokens/tokens.css'),
+                      ('ui.css', 'packages/ui/ui.css'),
+                      ('ui.js', 'packages/ui/ui.js')):
+        b, e = psh.MARKER_BEGIN % rel, psh.MARKER_END % rel
+        i, j = html.find(b), html.find(e)
+        if i < 0 or j < 0:
+            continue
+        if html[i + len(b):j] != io.open(psh.package_file(name), encoding='utf-8').read():
+            bad.append('the inlined copy of %s has drifted from the canonical file' % rel)
+
+    for a in ASSETS:
+        pspaths.require(src + a, a, 'referenced by the page; it is checked in')
+    return bad
+
+
+# --------------------------------------------------------------------------- #
+
+def main(argv=None):
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    pspaths.add_path_args(p, build=False)
+    p.add_argument('--single', metavar='DIR',
+                   help='where the one-file builds go (default: games/wordchain/preview; $SINGLE)')
+    p.add_argument('--site', metavar='URL', help='hosted address (default: %s; $SITE)' % SITE_DEFAULT)
+    a = p.parse_args(argv)
+
+    game = os.path.dirname(_HERE)
+    src = pspaths.resolve(_HERE, a.src, 'SRC')
+    dist = pspaths.resolve(os.path.join(game, 'dist'), a.dist, 'DIST')
+    single = pspaths.resolve(os.path.join(game, 'preview'), a.single, 'SINGLE')
+    site = (a.site or os.environ.get('SITE') or SITE_DEFAULT).rstrip('/')
+
+    style = read(src + 'part-a-style.html', 'part-a-style.html')
+    hosted, artifact, notes = compose(src, site, style)
+
+    problems = audit(hosted, src)
+    if a.check:
+        for n in notes:
+            if not a.quiet:
+                print('  ' + n)
+        for b in problems:
+            print('  PROBLEM: ' + b)
+        print('wordchain --check: %s (%d KB would be written to %s)'
+              % ('FAILED' if problems else 'ok', len(hosted.encode()) // 1024, dist))
+        return 1 if problems else 0
+    if problems:
+        for b in problems:
+            sys.stderr.write('  PROBLEM: %s\n' % b)
+        sys.stderr.write('build.py: refusing to write a page with %d problem(s); '
+                         'run --check\n' % len(problems))
+        return 1
+
+    os.makedirs(dist, exist_ok=True)
+    os.makedirs(single, exist_ok=True)
+    io.open(dist + 'index.html', 'w', encoding='utf-8').write(hosted)
+    for asset in ASSETS:
+        # the sources may be read-only in a checkout; replace rather than write through
+        if os.path.exists(dist + asset):
+            os.remove(dist + asset)
+        shutil.copy(src + asset, dist + asset)
+        os.chmod(dist + asset, 0o644)
+    io.open(single + 'wordchain.html', 'w', encoding='utf-8').write(hosted)
+    io.open(single + 'artifact.html', 'w', encoding='utf-8').write(artifact)
+
+    if not a.quiet:
+        for n in notes:
+            print('  ' + n)
+        for f in (dist + 'index.html', single + 'wordchain.html', single + 'artifact.html'):
+            print('  %s  %.1f KB' % (os.path.relpath(f, REPO), os.path.getsize(f) / 1024))
+        tot = sum(os.path.getsize(dist + f) for f in os.listdir(dist))
+        print('hosted build %.2f MB across %d files -> %s'
+              % (tot / 1048576, len(os.listdir(dist)), os.path.relpath(dist, REPO)))
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(pspaths.run(main))

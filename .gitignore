@@ -1,6 +1,8 @@
 node_modules/
 dist/
 build/out/
+# the one-file builds each game emits beside its dist/ (build.py --single)
+games/*/preview/
 *.log
 .DS_Store
 desktop.ini
@@ -13,3 +15,5 @@ games/sojourner/data/
 *.tif
 *.zip
 *.tar.gz
+__pycache__/
+*.pyc

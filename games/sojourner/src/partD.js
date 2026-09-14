@@ -65,7 +65,12 @@ function tierColor(base){
 function shapeSvg(i, mode, base){
   // mode: 'done' | 'now' | 'todo'
   var fill = mode === 'done' ? tierColor(base) : 'none';
-  var stroke = mode === 'done' ? 'none' : (mode === 'now' ? 'var(--amber)' : 'var(--line2)');
+  // --amber and --line2 went with the legacy aliases; an undefined var() in an
+  // inherited property computes to the inherited value, and nothing above these
+  // glyphs sets a stroke, so every outline had quietly become `none`. The two
+  // role-derived replacements are declared in partA.html and swapped by the
+  // stage containers, because this row is drawn on the globe and on chrome.
+  var stroke = mode === 'done' ? 'none' : (mode === 'now' ? 'var(--shape-now)' : 'var(--shape-todo)');
   return '<svg class="rs rs-'+mode+'" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">' +
          '<g fill="'+fill+'" fill-rule="evenodd" stroke="'+stroke+'" stroke-width="1.6" stroke-linejoin="round">' +
          SHAPE[i] + '</g></svg>';
@@ -492,7 +497,7 @@ function syncSettingsUI(){
   });
   $('styleHint').textContent = STYLE_NOTE[SET.style] || '';
   $('rngTiming').value = Math.round(SET.timing*100);
-  $('tglSound').setAttribute('aria-checked', SET.sound ? 'true' : 'false');
+  $('tglSound').setAttribute('aria-pressed', SET.sound ? 'true' : 'false');
 }
 function holdMs(){ return Math.round(HOLD_BASE / SET.timing); }
 
@@ -736,10 +741,13 @@ function askLeave(on){
   }
 }
 function setHint(t){ var h=$('hint'); h.textContent=t; h.style.opacity = t ? '1' : '0'; }
-function toast(msg){ var t=$('toast'); t.textContent=msg; t.classList.add('on');
-  setTimeout(function(){ t.classList.remove('on'); }, 1800); }
-function closeSheets(){ $('revealSheet').classList.remove('up'); $('storySheet').classList.remove('up');
-  $('reviewSheet').classList.remove('up'); $('bridgeSheet').classList.remove('up'); }
+/* The sheets and the toast are PSUI's now. This file used to carry two parallel
+   sheet systems -- closeSheets() for the in-game sheets and openPanel() /
+   closePanels() with a PANELS array for the corner panels -- doing the same job
+   in two spellings, neither of them trapping focus. PSUI.init() below knows all
+   ten sheets; PSUI.open(id) raises one and lowers the rest, PSUI.close() lowers
+   them all, and both drive the scrim. The local toast() is gone too: PSUI.toast
+   reads its dwell from --toast-ms. */
 
 /* ---------------- the two quizzes ----------------
    One place at a time from a shuffled bag, three tries each, and every answered
@@ -768,7 +776,7 @@ function startSprint(){
   S.phase = 2;
   S.sprint = { bag: sprintBag(seed), at:0, score:0, done:0, right:0, log:[], bonus:0, sweep:0 };
   S.mode = 'play'; refreshQuit();
-  closeSheets(); closePanels();
+  PSUI.close();
   show($('introView'), false); show($('resultsView'), false);
   $('topbar').style.display = 'flex';
   $('clock').hidden = false;
@@ -835,13 +843,13 @@ function finishSprint(completed){
    rules change and a clock is about to start. */
 function openBridge(){
   S.mode = 'bridge'; refreshQuit();
-  closeSheets();
+  PSUI.close();
   $('topbar').style.display = 'none';
   $('promptBox').style.display = 'none';
   setHint('');
   M.idle(true); M.setShift(0); M.target.dist = 3.4;
   $('brP1').textContent = S.phase1Total;
-  $('bridgeSheet').classList.add('up');
+  PSUI.open('bridgeSheet');
 }
 
 /* ---------------- round flow ---------------- */
@@ -862,7 +870,7 @@ function beginRound(){
   S.mode = 'play';
   refreshQuit();
   clearWrong();
-  M.clearMarks(); M.setPulse(false); closeSheets();
+  M.clearMarks(); M.setPulse(false); PSUI.close();
   $('tallyOf').textContent = '/' + PHASE1_MAX;
   $('clock').hidden = true;
   $('shapes').innerHTML = shapeRow(S.results, S.round, null);
@@ -945,10 +953,10 @@ function showReveal(e, r){
   $('nextBtn').textContent = (S.round === 4) ? 'Next Phase' : 'Next round';
   M.setPulse(true);
   M.setShift(0.115);
-  setTimeout(function(){ $('revealSheet').classList.add('up'); }, 260);
+  setTimeout(function(){ PSUI.open('revealSheet'); }, 260);
 }
 function nextRound(){
-  closeSheets(); M.setShift(0);
+  PSUI.close(); M.setShift(0);
   if(S.round === 4){ endPhase1(); return; }
   S.round++;
   setTimeout(beginRound, 260);
@@ -1074,7 +1082,7 @@ function finish(){
 }
 // A practice run is a side trip; make the way back to today's game explicit.
 function backToDaily(){
-  closePanels(); closeSheets();
+  PSUI.close();
   if(!loadDay()){ startGame(false); return; }
   S.mode = 'done'; S.practice = false; refreshQuit();
   M.clearMarks(); M.setPulse(false); M.idle(true); M.setShift(0);
@@ -1094,7 +1102,7 @@ function renderReview(){
   $('rvwTitle').textContent = 'Sprint \u00b7 review';
   $('rvwCount').textContent = sprintNote(q);
   if(!q.log.length){
-    $('rvwList').innerHTML = '<p class="note">The clock ran out before a place was settled.</p>';
+    $('rvwList').innerHTML = '<p class="sj-note">The clock ran out before a place was settled.</p>';
     return;
   }
   $('rvwList').innerHTML = q.log.map(function(row, i){
@@ -1115,10 +1123,10 @@ function openReview(){
   M.target.dist = 3.2;
   renderReview();
   $('rvwBody').scrollTop = 0;
-  $('reviewSheet').classList.add('up');
+  PSUI.open('reviewSheet');
 }
 function closeReview(){
-  $('reviewSheet').classList.remove('up');
+  PSUI.close();
   M.clearOutlines(); M.setShift(0); M.idle(true); M.target.dist = 3.4;
   S.mode = 'done'; refreshQuit();
   setTimeout(function(){ show($('resultsView'), true); }, 200);
@@ -1196,11 +1204,11 @@ function doShare(){
   var txt = shareCard ? GAME_URL : shareText();
   function fallback(){
     var b = $('shareBox'); b.value = txt; b.style.display='block';
-    b.focus(); b.select(); toast('Select and copy the text below');
+    b.focus(); b.select(); PSUI.toast('Select and copy the text below');
   }
   function copyText(){
     if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(txt).then(function(){ toast('Copied — paste it to a friend'); }, fallback);
+      navigator.clipboard.writeText(txt).then(function(){ PSUI.toast('Copied — paste it to a friend'); }, fallback);
     } else fallback();
   }
   // the card is built ahead of the click, so the share sheet still counts as a gesture
@@ -1223,7 +1231,7 @@ function doShare(){
     }
     flavours['text/plain'] = new Blob([txt], {type:'text/plain'});
     navigator.clipboard.write([new ClipboardItem(flavours)]).then(function(){
-      toast('Copied — paste it to a friend');
+      PSUI.toast('Copied — paste it to a friend');
     }, copyText);
     return;
   }
@@ -1337,10 +1345,10 @@ function goStory(i){
   var last = (i >= S.results.length - 1) && S.sprint && S.sprint.log.length;
   $('stReview').style.display = last ? 'block' : 'none';
   var body = $('stBody'); if(body) body.scrollTop = 0;
-  $('storySheet').classList.add('up');
+  PSUI.open('storySheet');
 }
 function closeStories(){
-  closeSheets(); M.clearMarks(); M.setPulse(false); M.setShift(0); M.idle(true);
+  PSUI.close(); M.clearMarks(); M.setPulse(false); M.setShift(0); M.idle(true);
   M.target.dist = 3.5; S.mode = 'done'; refreshQuit();
   setTimeout(function(){ show($('resultsView'), true); }, 200);
 }
@@ -1349,7 +1357,7 @@ function closeStories(){
 function startLearn(){
   S.mode = 'learn'; S.practice = false; refreshQuit();
   show($('introView'), false); show($('resultsView'), false);
-  closeSheets();
+  PSUI.close();
   $('topbar').style.display = 'none';
   $('promptBox').style.display = 'none';
   M.clearMarks(); M.setPulse(false); M.setShift(0); M.idle(false);
@@ -1427,16 +1435,16 @@ function showLearn(pick){
     a.style.display = 'none';
   }
   $('lnMore').innerHTML = sojournLine(legs, lst);
-  $('learnSheet').classList.add('up');
+  PSUI.open('learnSheet');
 }
 function closeLearn(){
-  $('learnSheet').classList.remove('up');
+  PSUI.close();
   M.clearMarks(); M.setPulse(false); M.setShift(0);
   setHint('Press & hold anywhere to identify it');
 }
 
 function resetToIntro(){
-  closeSheets(); closePanels();
+  PSUI.close();
   M.clearMarks(); M.setPulse(false); M.setShift(0); M.idle(true);
   M.target.dist = 3.5;
   S.mode = 'idle'; S.practice = false; S.results = []; S.total = 0; S.round = 0;
@@ -1671,22 +1679,22 @@ $('playRow').addEventListener('click', function(ev){
   }
 });
 $('setLink').addEventListener('click', function(){ $('settingsBtn').click(); });
-$('aboutBtn').addEventListener('click', function(){ openPanel('aboutSheet'); });
-$('composeBtn').addEventListener('click', function(){ openPanel('composeSheet'); });
-$('friendsBtn').addEventListener('click', function(){ openPanel('friendsSheet'); });
-$('makeDone').addEventListener('click', closePanels);
-$('friendsDone').addEventListener('click', closePanels);
-$('helpDone').addEventListener('click', closePanels);
+$('aboutBtn').addEventListener('click', function(){ PSUI.open('aboutSheet'); });
+$('composeBtn').addEventListener('click', function(){ PSUI.open('composeSheet'); });
+$('friendsBtn').addEventListener('click', function(){ PSUI.open('friendsSheet'); });
+$('makeDone').addEventListener('click', PSUI.close);
+$('friendsDone').addEventListener('click', PSUI.close);
+$('helpDone').addEventListener('click', PSUI.close);
 $('homeBtn').addEventListener('click', resetToIntro);
 $('leaveBtn').addEventListener('click', backToDaily);
 $('nextBtn').addEventListener('click', nextRound);
 $('shareBtn').addEventListener('click', doShare);
 $('brGo').addEventListener('click', function(){
-  $('bridgeSheet').classList.remove('up');
+  PSUI.close();
   setTimeout(startSprint, 240);
 });
 $('stReview').addEventListener('click', function(){
-  closeSheets(); setTimeout(openReview, 220);
+  PSUI.close(); setTimeout(openReview, 220);
 });
 $('rvwBack').addEventListener('click', closeReview);
 $('rvwList').addEventListener('click', function(ev){
@@ -1697,23 +1705,23 @@ $('factsBtn').addEventListener('click', function(){ openStories(0); });
 $('stPrev').addEventListener('click', function(){ if(S.story>0) goStory(S.story-1); });
 $('stNext').addEventListener('click', function(){ if(S.story < S.results.length-1) goStory(S.story+1); });
 $('stBack').addEventListener('click', closeStories);
-function openPanel(id){
-  closePanels();
-  $('scrim').classList.add('on');
-  $(id).classList.add('up');
-}
-var PANELS = ['settingsSheet','profileSheet','aboutSheet','composeSheet','friendsSheet'];
-function closePanels(){
-  $('scrim').classList.remove('on');
-  PANELS.forEach(function(id){ $(id).classList.remove('up'); });
-}
+/* Every sheet in the game, in one list. PSUI raises one and lowers the rest,
+   drives the scrim, closes on Escape or a scrim click, moves focus into the
+   sheet on open and hands it back to whatever opened it on close -- which
+   neither of the two systems this replaces did. */
+PSUI.init({
+  sheets: ['revealSheet','storySheet','bridgeSheet','reviewSheet','learnSheet',
+           'settingsSheet','profileSheet','aboutSheet','composeSheet','friendsSheet'],
+  scrim: 'scrim',
+  toast: 'toast'
+});
 $('settingsBtn').addEventListener('click', function(){
   var mid = S.practice && (S.mode === 'play' || S.mode === 'reveal' || S.mode === 'story');
   $('rowLeave').style.display = mid ? 'block' : 'none';
-  syncSettingsUI(); openPanel('settingsSheet');
+  syncSettingsUI(); PSUI.open('settingsSheet');
 });
-$('profileBtn').addEventListener('click', function(){ openPanel('profileSheet'); });
-$('setDone').addEventListener('click', closePanels);
+$('profileBtn').addEventListener('click', function(){ PSUI.open('profileSheet'); });
+$('setDone').addEventListener('click', PSUI.close);
 $('lnClose').addEventListener('click', closeLearn);
 $('quitBtn').addEventListener('click', function(){
   if(S.mode === 'learn'){ resetToIntro(); return; }   // nothing to lose in Learn
@@ -1744,8 +1752,7 @@ $('askWrap').addEventListener('click', function(ev){ if(ev.target === $('askWrap
 document.addEventListener('keydown', function(ev){
   if(ev.key === 'Escape' && !$('askWrap').hidden) askLeave(false);
 });
-$('profDone').addEventListener('click', closePanels);
-$('scrim').addEventListener('click', closePanels);
+$('profDone').addEventListener('click', PSUI.close);
 $('segStyle').addEventListener('click', function(ev){
   var b = ev.target.closest('button'); if(!b) return;
   SET.style = b.getAttribute('data-v'); saveSettings();
@@ -1816,5 +1823,5 @@ M.onReady = function(){
   refreshIntro();
 };
 M.onLoadError = function(){ $('playRow').innerHTML =
-  '<div class="note">Could not load the map. Reload to try again.</div>'; };
+  '<p class="sj-note">Could not load the map. Reload to try again.</p>'; };
 })();

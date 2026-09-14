@@ -574,19 +574,21 @@ function goHome() {
   if (tick) { clearInterval(tick); tick = null; }
   S = null;
   $('app').hidden = true; $('home').hidden = false;
-  $('results').classList.remove('on'); closeSheets(); paintHome();
+  $('results').classList.remove('on'); PSUI.close(); paintHome();
 }
 
 /* ------------------------------------------------------------------ sheets */
-var SHEETS = ['aboutSheet', 'friendsSheet', 'settingsSheet', 'profileSheet', 'mineSheet', 'shareSheet'];
-function openSheet(id) {
-  SHEETS.forEach(function (s) { $(s).classList.remove('up'); });
-  $(id).classList.add('up'); $('scrim').classList.add('on');
-}
-function closeSheets() {
-  SHEETS.forEach(function (s) { $(s).classList.remove('up'); });
-  $('scrim').classList.remove('on');
-}
+/* packages/ui/ui.js owns sheets and the toast now: one open at a time, Escape and
+   a scrim click to close, [data-sheet-close] wired by delegation, and the focus
+   trap this game did not have — a keyboard user could tab straight past the scrim
+   into the home screen behind it. The local openSheet/closeSheets/toast that used
+   to live here are gone; call PSUI.open / PSUI.close / PSUI.toast. The open class
+   is `.sheet.on`, not `.sheet.up`. */
+PSUI.init({
+  sheets: ['aboutSheet', 'friendsSheet', 'settingsSheet', 'profileSheet', 'mineSheet', 'shareSheet'],
+  scrim: 'scrim',
+  toast: 'toast'
+});
 
 /* ------------------------------------------------------------------ home */
 function paintHome() {
@@ -620,8 +622,10 @@ function paintHome() {
 }
 function paintSettings() {
   /* #themeSeg is painted by PSTheme.bindControl — see the wiring below. */
-  $('gentleTog').setAttribute('aria-checked', SET.gentle ? 'true' : 'false');
-  $('motionTog').setAttribute('aria-checked', SET.motion ? 'true' : 'false');
+  /* aria-pressed, not aria-checked: ui.css's .toggle keys its knob off the
+     pressed state, and a toggle button is the pattern the shared control uses. */
+  $('gentleTog').setAttribute('aria-pressed', SET.gentle ? 'true' : 'false');
+  $('motionTog').setAttribute('aria-pressed', SET.motion ? 'true' : 'false');
 }
 function paintProfile() {
   var h = store('history') || [], box = $('profileBody');
@@ -639,11 +643,14 @@ function paintProfile() {
     else if (streak === 0 && k === todayKey()) { probe.setDate(probe.getDate() - 1); }
     else break;
   }
-  var out = ['<div class="setlabel">Your times</div><div class="bests">',
+  /* .mine-head, not .setlabel: these head a SECTION of the profile sheet, and the
+     shared .setlabel is the label of a settings ROW (15px, body weight). .mine-head
+     is this game's mono eyebrow and is what the My chains sheet already uses. */
+  var out = ['<div class="mine-head" style="margin-top:0">Your times</div><div class="bests">',
     '<div class="best"><span class="bl">Daily best</span><span class="bt">' + (bd !== null ? fmt(bd) : '—') + '</span></div>',
     '<div class="best"><span class="bl">Practice best</span><span class="bt">' + (bp !== null ? fmt(bp) : '—') + '</span></div>',
     '<div class="best"><span class="bl">Streak</span><span class="bt">' + streak + '</span></div>',
-    '</div><div class="setlabel" style="margin-top:22px">Finished</div><div class="hist">'];
+    '</div><div class="mine-head">Finished</div><div class="hist">'];
   h.slice(0, 12).forEach(function (r) {
     var parts = r.chain.split(' · ');
     out.push('<div class="hrow"><span class="hl">' + r.mode + '</span><span class="hc">' +
@@ -653,11 +660,6 @@ function paintProfile() {
   out.push('</div>');
   box.innerHTML = out.join('');
 }
-function toast(t) {
-  var el = $('toast'); el.textContent = t; el.classList.add('on');
-  setTimeout(function () { el.classList.remove('on'); }, 2600);
-}
-
 /* ------------------------------------------------------------------ the share card */
 function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 
@@ -776,8 +778,8 @@ function prepCard(r) {
 
 function copyFallback(txt) {
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(txt).then(function () { toast('Copied'); }, function () { toast(txt); });
-  } else toast(txt);
+    navigator.clipboard.writeText(txt).then(function () { PSUI.toast('Copied'); }, function () { PSUI.toast(txt); });
+  } else PSUI.toast(txt);
 }
 
 function doShare(res) {
@@ -824,28 +826,43 @@ $('dailyBtn').addEventListener('click', function () {
   else startGame('daily');
 });
 $('practiceBtn').addEventListener('click', function () { startGame('practice'); });
-$('aboutBtn').addEventListener('click', function () { openSheet('aboutSheet'); });
-$('friendsBtn').addEventListener('click', function () { openSheet('friendsSheet'); });
-$('settingsBtn').addEventListener('click', function () { paintSettings(); openSheet('settingsSheet'); });
-$('profileBtn').addEventListener('click', function () { paintProfile(); openSheet('profileSheet'); });
-$('scrim').addEventListener('click', closeSheets);
-document.addEventListener('click', function (e) { if (e.target.closest('[data-close]')) closeSheets(); });
+$('aboutBtn').addEventListener('click', function () { PSUI.open('aboutSheet'); });
+$('friendsBtn').addEventListener('click', function () { PSUI.open('friendsSheet'); });
+$('settingsBtn').addEventListener('click', function () { paintSettings(); PSUI.open('settingsSheet'); });
+$('profileBtn').addEventListener('click', function () { paintProfile(); PSUI.open('profileSheet'); });
+/* The scrim click and every [data-sheet-close] button are PSUI.init's, by delegation. */
 PSTheme.bindControl($('themeSeg'));
 $('gentleTog').addEventListener('click', function () { SET.gentle = !SET.gentle; saveSet(); paintSettings(); });
 $('motionTog').addEventListener('click', function () { SET.motion = !SET.motion; saveSet(); paintSettings(); });
 $('againBtn').addEventListener('click', goHome);
 $('shareBtn').addEventListener('click', function () { doShare(); });
 
+/* Layer guard, in the CAPTURE phase so it runs before ui.js's document listener.
+   PSUI's focus trap assumes the open sheet is the topmost layer. Word Chain stacks
+   two dialogs above one — #confirm (z-46; "Delete this chain?" is asked from inside
+   My chains) and #pause (z-45) — and while either is up, Escape must close IT and
+   not the sheet underneath, and Tab must not be dragged back into that sheet.
+   ui.js has no notion of a layer above a sheet; see the report. */
+document.addEventListener('keydown', function (e) {
+  var up = $('confirm').hidden === false ? 'confirm'
+         : ($('pause').hidden === false ? 'pause' : null);
+  if (!up) return;
+  if (e.key === 'Escape') {
+    e.preventDefault(); e.stopPropagation();
+    if (up === 'confirm') closeConfirm(); else resumePlay();
+  } else if (e.key === 'Tab') {
+    e.stopPropagation();
+  }
+}, true);
+
 /* a real keyboard, where there is one */
 document.addEventListener('keydown', function (e) {
-  if (e.key === 'Escape') {
-    if ($('confirm').hidden === false) { closeConfirm(); return; }
-    if ($('pause').hidden === false) { resumePlay(); return; }
-    closeSheets(); return;
-  }
+  /* Escape belongs to whichever layer is up: the guard above answers it for
+     #confirm and #pause, and PSUI answers it for an open sheet. */
+  if (e.key === 'Escape') return;
   var composing = (typeof C !== 'undefined') && C && !$('compose').hidden;
   if ($('pause').hidden === false || $('confirm').hidden === false) return;
-  if (document.querySelector('.sheet.up')) return;
+  if (document.querySelector('.sheet.on')) return;
   if (!composing && (!S || S.done || S.locked)) return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key === 'Enter') { e.preventDefault(); hit('ENTER'); press('ENTER'); return; }

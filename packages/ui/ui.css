@@ -1,0 +1,316 @@
+/* ===========================================================================
+   PlaySapien UI — the chrome every game repeats.
+
+   Before this file existed, 715 CSS declarations lived in triplicate: the
+   bottom sheet, the scrim, the toast, the corner bar, settings rows, the
+   segmented control, buttons, fields. A quarter of every game's stylesheet was
+   platform furniture copied by hand, and every copy drifted. That drift is why
+   the About icon was stroke-width 2 in one game and 1.9 in another, why the
+   corner gap was 9px here and 2px there, and why two of Word Chain's dark
+   rules were broken on exactly the "system" setting.
+
+   WHAT THIS FILE IS, AND IS NOT
+
+   It owns STRUCTURE and BEHAVIOUR: geometry, motion, focus, states, and the
+   anatomy of each control. It owns no character. Every colour comes from a
+   role token, and everything a game might legitimately want to differ on is a
+   DIAL — a component token with a default, which a game overrides in its own
+   :root.
+
+   So Sojourner's amber full-width buttons and Word Chain's ink pills are both
+   this one `.btn`, set differently. They are not two implementations.
+
+   THE DIALS, all optional, all defaulted:
+
+     Sheet     --sheet-pos --sheet-z --sheet-bg --sheet-max-h --sheet-pad
+               --sh-title-weight --sh-title-size
+     Scrim     --scrim-z
+     Toast     --toast-bottom --toast-z --toast-ms
+     Icon bar  --icon-btn --icon-stroke --corner-gap --icon-fg --icon-fg-on
+               --icon-wash
+     Button    --btn-radius --btn-pad --btn-size --btn-fill --btn-fg
+               --btn-width --btn-display --btn-ghost-border
+     Seg       --seg-radius --seg-track --seg-on
+     Settings  --setlabel-font --setlabel-size --setlabel-weight
+               --setlabel-tracking --setlabel-case
+     Field     --fld-radius
+
+   HOW A GAME USES IT
+
+   Inline this file verbatim after tokens.css, set whatever dials you want in
+   your own :root, and write the markup the components expect. That markup is
+   documented per component below and in games/_template/.
+
+   Inlined verbatim into every surface; `packages/tokens/check-inline.mjs`
+   fails the build if any copy drifts.
+   =========================================================================== */
+
+/* ---------------------------------------------------------------- sheet ----
+   A bottom sheet on a phone, a centred dialog on a wide screen. Markup:
+
+     <div class="scrim" id="scrim"></div>
+     <section class="sheet" id="fooSheet" role="dialog" aria-modal="true"
+              aria-labelledby="fooTitle" hidden>
+       <div class="sh-head"><h2 id="fooTitle">Foo</h2></div>
+       ...
+     </section>
+
+   `.on` opens it. ui.js does the rest, including the focus trap that neither
+   game had — a keyboard user could tab straight past the scrim into the page
+   behind it.
+   -------------------------------------------------------------------------- */
+.sheet {
+  position: var(--sheet-pos, fixed);
+  left: 0; right: 0; bottom: 0;
+  z-index: var(--sheet-z, 31);
+  max-height: var(--sheet-max-h, 86%);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  background: var(--sheet-bg, var(--bg-raise));
+  color: var(--fg);
+  border-top: 1px solid var(--line-2);
+  border-radius: var(--sheet-radius, 20px) var(--sheet-radius, 20px) 0 0;
+  box-shadow: var(--shadow);
+  padding: var(--sheet-pad, 20px) var(--sheet-pad, 20px)
+           calc(var(--sheet-pad, 20px) + env(safe-area-inset-bottom));
+  transform: translateY(102%);
+  visibility: hidden;
+  pointer-events: none;
+  transition: var(--sheet-ease, transform .42s cubic-bezier(.22,.9,.3,1)),
+              visibility 0s linear .42s;
+}
+.sheet.on {
+  transform: none;
+  visibility: visible;
+  pointer-events: auto;
+  transition: var(--sheet-ease, transform .42s cubic-bezier(.22,.9,.3,1)),
+              visibility 0s;
+}
+/* the grab handle: 38x4, which all three surfaces had already agreed on */
+.sheet::before {
+  content: ""; display: block;
+  width: 38px; height: 4px; border-radius: 99px;
+  background: var(--line-2);
+  margin: -6px auto 14px;
+}
+@media (min-width: 680px) {
+  /* On a wide screen a bottom sheet is a strip along the bottom edge with the
+     content miles from the pointer. Same element, centred. */
+  .sheet {
+    left: 50%; right: auto; bottom: auto; top: 50%;
+    width: min(560px, 92vw);
+    max-height: 84vh;
+    border: 1px solid var(--line-2);
+    border-radius: var(--sheet-radius, 20px);
+    transform: translate(-50%, -46%) scale(.98);
+    opacity: 0;
+  }
+  .sheet.on { transform: translate(-50%, -50%) scale(1); opacity: 1 }
+  .sheet::before { display: none }
+}
+.sh-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 18px }
+.sh-head h2 {
+  font-family: var(--f-disp); font-weight: var(--sh-title-weight, 900); font-size: var(--sh-title-size, 23px);
+  letter-spacing: -.02em; margin: 0; color: var(--fg);
+}
+.sh-head .sh-sub, .sh-head .donebtn { margin-left: auto }
+.sh-head .sh-sub {
+  font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--fg-3);
+}
+/* :where() so this contributes ZERO specificity. As `.sheet p` (0-1-1) it beat
+   .sethint, .sh-sub and every single-class paragraph rule in both games --
+   the documented stylesheet defeating the documented markup. */
+:where(.sheet) p { font-size: 14.5px; line-height: 1.62; color: var(--fg-2); margin: 0 0 12px; max-width: 56ch }
+:where(.sheet) p.hint { font-size: 13px; line-height: 1.55; color: var(--fg-3) }
+.sheet a { color: var(--fg); text-decoration-color: var(--accent); text-underline-offset: 2px }
+
+.scrim {
+  position: var(--sheet-pos, fixed); inset: 0;
+  z-index: var(--scrim-z, 30);
+  background: var(--scrim);
+  opacity: 0; pointer-events: none;
+  transition: opacity .3s;
+}
+.scrim.on { opacity: 1; pointer-events: auto }
+
+/* ---------------------------------------------------------------- toast ----
+   <div class="toast" id="toast"></div> — ui.js's toast() fills and flashes it.
+   -------------------------------------------------------------------------- */
+.toast {
+  position: var(--sheet-pos, fixed);
+  left: 50%; transform: translate(-50%, 8px);
+  bottom: calc(var(--toast-bottom, 26px) + env(safe-area-inset-bottom));
+  z-index: var(--toast-z, 60);
+  max-width: min(84vw, 420px);
+  padding: 10px 16px; border-radius: 999px;
+  background: var(--fg); color: var(--bg);
+  font-size: 13.5px; line-height: 1.4; text-align: center;
+  box-shadow: var(--shadow);
+  opacity: 0; pointer-events: none;
+  transition: opacity .25s, transform .25s;
+}
+.toast.on { opacity: 1; transform: translate(-50%, 0) }
+
+/* ------------------------------------------------------------ icon bar ----
+   The row of round icon buttons. Its POSITION is the game's business — it
+   floats over Sojourner's globe and sits in the shell's fixed bar — so this
+   file sets only the anatomy.
+   -------------------------------------------------------------------------- */
+.corner { display: flex; align-items: center; gap: var(--corner-gap, 4px) }
+.iconbtn {
+  width: var(--icon-btn, 38px); height: var(--icon-btn, 38px);
+  flex: none; border: none; padding: 0;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; background: transparent;
+  color: var(--icon-fg, var(--fg-2));
+  transition: color .16s, background .16s;
+}
+.iconbtn:hover { color: var(--icon-fg-on, var(--fg)); background: var(--icon-wash, transparent) }
+.iconbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; color: var(--icon-fg-on, var(--fg)) }
+/* One stroke weight for every corner glyph, set once. Per-glyph attributes
+   are what let About drift to 1.9 in one game and 2 in another. */
+.corner .iconbtn svg { stroke-width: var(--icon-stroke, 1.8) }
+
+/* --------------------------------------------------------------- button ----
+   One anatomy, dialled per game. Sojourner's amber block and Word Chain's ink
+   pill are this rule with --btn-radius and --btn-width set differently.
+   -------------------------------------------------------------------------- */
+.btn {
+  display: var(--btn-display, inline-block);
+  width: var(--btn-width, auto);
+  font-family: var(--f-body); font-size: var(--btn-size, 15px); font-weight: 600;
+  line-height: 1.2;
+  padding: var(--btn-pad, 12px 20px);
+  border: 1px solid transparent;
+  border-radius: var(--btn-radius, 999px);
+  background: var(--btn-fill, var(--accent));
+  color: var(--btn-fg, var(--fg-on-accent));
+  cursor: pointer;
+  transition: filter .16s, opacity .16s, transform .08s;
+}
+.btn:hover { filter: brightness(1.06) }
+.btn:active { transform: translateY(1px) }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.btn:disabled { opacity: .45; cursor: default; transform: none; filter: none }
+.btn.ghost { background: transparent; color: var(--fg); border-color: var(--btn-ghost-border, var(--line-2)) }
+.btn.ghost:hover { background: var(--icon-wash, transparent); filter: none }
+.btnrow { display: flex; gap: 9px; flex-wrap: wrap }
+
+/* ---------------------------------------------------------------- field ---- */
+.fld {
+  width: 100%; box-sizing: border-box;
+  font: inherit;
+  font-size: 16px;            /* below 16px iOS zooms the page on focus */
+  padding: 11px 13px;
+  border-radius: var(--fld-radius, 10px);
+  border: 1px solid var(--line-2);
+  background: var(--bg-raise); color: var(--fg);
+  margin: 0 0 10px;
+}
+.fld::placeholder { color: var(--fg-3) }
+.fld:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent }
+.fld.code {
+  font-family: var(--f-mono); font-size: 23px; letter-spacing: .34em;
+  text-align: center; padding: 12px 13px;
+}
+
+/* ------------------------------------------------------------- settings ----
+   <div class="setrow">
+     <div class="col"><span class="setlabel">Thing</span>
+       <p class="sethint">What it does.</p></div>
+     <button class="toggle" aria-pressed="false"></button>
+   </div>
+   -------------------------------------------------------------------------- */
+.setrow {
+  display: flex; align-items: center; gap: 14px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--line);
+}
+.setrow:last-of-type { border-bottom: 0 }
+.setrow .col { flex: 1; min-width: 0 }
+.setlabel {
+  display: block; color: var(--fg);
+  font-family: var(--setlabel-font, var(--f-body));
+  font-size: var(--setlabel-size, 15px);
+  font-weight: var(--setlabel-weight, 500);
+  letter-spacing: var(--setlabel-tracking, normal);
+  text-transform: var(--setlabel-case, none);
+}
+.sethint { margin: 3px 0 0; font-size: 13px; line-height: 1.5; color: var(--fg-3); max-width: 52ch }
+
+.toggle {
+  width: 51px; height: 30px; flex: none;
+  border: none; border-radius: 999px; cursor: pointer;
+  background: var(--bg-sink);
+  position: relative; transition: background .22s;
+}
+.toggle::after {
+  content: ""; position: absolute; top: 3px; left: 3px;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--bg-raise); box-shadow: 0 1px 3px rgba(0,0,0,.28);
+  transition: transform .22s;
+}
+.toggle[aria-pressed="true"] { background: var(--accent) }
+.toggle[aria-pressed="true"]::after { transform: translateX(21px) }
+.toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+
+.donebtn {
+  background: none; border: none; cursor: pointer;
+  font-family: var(--f-mono); font-size: 12.5px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--accent); padding: 6px 2px;
+}
+.donebtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+
+/* ------------------------------------------------------------------ seg ----
+   A segmented control. Buttons carry aria-pressed and whatever data attribute
+   the caller switches on:
+
+     <div class="seg" id="themeSeg" role="group" aria-label="Theme">
+       <button type="button" data-theme="light"  aria-pressed="false">Light</button>
+       ...
+
+   This is the iOS-style track both Word Chain and the shell had converged on.
+   Sojourner's outlined-buttons version is gone; one control, one look.
+   -------------------------------------------------------------------------- */
+.seg {
+  display: flex; gap: 3px; padding: 3px;
+  background: var(--seg-track, var(--bg-sink));
+  border-radius: var(--seg-radius, 999px);
+}
+.seg button {
+  flex: 1; font: inherit; font-size: 13.5px; font-weight: 600;
+  padding: 9px 10px; border: none; cursor: pointer;
+  border-radius: calc(var(--seg-radius, 999px) - 3px);
+  background: transparent; color: var(--fg-2);
+  transition: background .18s, color .18s;
+}
+.seg button[aria-pressed="true"] {
+  background: var(--seg-on, var(--bg-raise));
+  color: var(--fg);
+  box-shadow: 0 1px 2px rgba(0,0,0,.12);
+}
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px }
+.seg.grid { display: grid; grid-template-columns: repeat(3, 1fr) }
+
+/* -------------------------------------------------------------- utility ---- */
+.ui-note {
+  margin: 10px 0 0; padding: 10px 12px; border-radius: 9px;
+  font-size: 13px; line-height: 1.5;
+  background: var(--bg-sink); color: var(--fg);
+}
+.ui-note.bad { background: color-mix(in srgb, var(--warn) 16%, transparent) }
+.empty {
+  text-align: center; padding: 26px 10px; margin: 0 auto;
+  font-size: 14px; line-height: 1.6; color: var(--fg-2); max-width: 40ch;
+}
+
+/* Both games already zeroed every transition under reduced motion; the shell
+   only covered three selectors. One blanket rule, so a new game cannot forget. */
+@media (prefers-reduced-motion: reduce) {
+  .sheet, .scrim, .toast, .iconbtn, .btn, .toggle, .toggle::after, .seg button {
+    transition-duration: .01ms !important;
+  }
+}

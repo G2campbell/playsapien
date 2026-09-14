@@ -97,10 +97,11 @@
   <div id="cHint">Tap a row to edit it. Every row needs a word of at least three letters.</div>
 </div>
 
-<div id="scrim"></div>
+<!-- ui.css styles .scrim; the id is what PSUI.init() is handed. -->
+<div class="scrim" id="scrim"></div>
 
-<div class="sheet" id="aboutSheet"><div class="sheet-in">
-  <div class="sh-head"><h2>How to play</h2><button class="donebtn" data-close>Close</button></div>
+<section class="sheet" id="aboutSheet" role="dialog" aria-modal="true" aria-labelledby="aboutTitle" hidden><div class="sheet-in">
+  <div class="sh-head"><h2 id="aboutTitle">How to play</h2><button class="donebtn" data-sheet-close>Close</button></div>
   <p>Eight words. Every neighbouring pair makes a compound or a phrase — <b>BALL&nbsp;GAME</b>, <b>GAME&nbsp;ON</b>. The first word is given in full; the rest show only their first letter. Type your way down.</p>
   <p class="exchain">SNOW <span class="sep">·</span> BALL <span class="sep">·</span> PARK <span class="sep">·</span> BENCH <span class="sep">·</span> MARK <span class="sep">·</span> UP</p>
   <h3>One chain a day</h3>
@@ -111,62 +112,65 @@
   <p>Throw yourself one. Each tap reveals one more letter of the word you are on, and adds its cost to the clock straight away: <b>+15s</b>, then <b>+25s</b>, then <b>+40s</b>. The price resets on every new word, so one lifeline on three words is cheaper than three on one.</p>
   <h3>Near misses</h3>
   <p>Only the authored word advances the chain, but a guess that makes a real pair is told so rather than buzzed. Spelling slips are forgiven. Singular and plural both count, except on the rare link where they are genuinely different words.</p>
-</div></div>
+</div></section>
 
-<div class="sheet" id="friendsSheet"><div class="sheet-in">
-  <div class="sh-head"><h2>Friends</h2><button class="donebtn" data-close>Close</button></div>
+<section class="sheet" id="friendsSheet" role="dialog" aria-modal="true" aria-labelledby="friendsTitle" hidden><div class="sheet-in">
+  <div class="sh-head"><h2 id="friendsTitle">Friends</h2><button class="donebtn" data-sheet-close>Close</button></div>
   <div class="emptybox">
     <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M2.8 19.4a6.2 6.2 0 0 1 12.4 0"/><path d="M16.2 5.1a3.4 3.4 0 0 1 0 6.1"/><path d="M18 14.4a6.2 6.2 0 0 1 3.2 5"/></svg>
     <p class="soon">Nothing here yet</p>
     <p class="sethint" style="margin:0 auto">Friends will let you compare times on the day's chain and see who has played.</p>
   </div>
-</div></div>
+</div></section>
 
-<div class="sheet" id="settingsSheet"><div class="sheet-in">
-  <div class="sh-head"><h2>Settings</h2><button class="donebtn" data-close>Done</button></div>
+<section class="sheet" id="settingsSheet" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden><div class="sheet-in">
+  <div class="sh-head"><h2 id="settingsTitle">Settings</h2><button class="donebtn" data-sheet-close>Done</button></div>
+  <!-- The settings row is packages/ui/ui.css's .setrow: a flex line, the label and
+       its hint in a .col, the control on the right. The toggle is its .toggle —
+       a button with aria-pressed and no inner element; the knob is a ::after. -->
   <div class="setrow">
-    <div class="setlabel">Theme</div>
+    <div class="col"><span class="setlabel">Theme</span></div>
     <!-- PSTheme.bindControl() repaints aria-pressed from `ps:theme` as soon as the
          app script runs; these are only the static defaults, and the default is
          now SYSTEM, not light. -->
-    <div class="seg mini" id="themeSeg">
-      <button data-theme="light" aria-pressed="false">Light</button>
-      <button data-theme="dark" aria-pressed="false">Dark</button>
-      <button data-theme="system" aria-pressed="true">System</button>
+    <div class="seg" id="themeSeg" role="group" aria-label="Theme">
+      <button type="button" data-theme="light" aria-pressed="false">Light</button>
+      <button type="button" data-theme="dark" aria-pressed="false">Dark</button>
+      <button type="button" data-theme="system" aria-pressed="true">System</button>
     </div>
   </div>
-  <div class="setrow flex">
-    <div><div class="setlabel">Gentle replies</div>
-      <p class="sethint" style="margin:0">Swaps the sharper replies for milder ones.</p></div>
-    <button class="toggle" id="gentleTog" role="switch" aria-checked="false"><i></i></button>
-  </div>
-  <div class="setrow flex">
-    <div><div class="setlabel">Reduced motion</div>
-      <p class="sethint" style="margin:0">Stills the sheets and the clock flash.</p></div>
-    <button class="toggle" id="motionTog" role="switch" aria-checked="false"><i></i></button>
+  <div class="setrow">
+    <div class="col"><span class="setlabel">Gentle replies</span>
+      <p class="sethint">Swaps the sharper replies for milder ones.</p></div>
+    <button class="toggle" id="gentleTog" aria-pressed="false" aria-label="Gentle replies"></button>
   </div>
   <div class="setrow">
-    <div class="setlabel">Judging</div>
-    <p class="sethint" style="margin:0" id="judgeState">Checking…</p>
+    <div class="col"><span class="setlabel">Reduced motion</span>
+      <p class="sethint">Stills the sheets and the clock flash.</p></div>
+    <button class="toggle" id="motionTog" aria-pressed="false" aria-label="Reduced motion"></button>
   </div>
-</div></div>
+  <div class="setrow">
+    <div class="col"><span class="setlabel">Judging</span>
+      <p class="sethint" id="judgeState">Checking…</p></div>
+  </div>
+</div></section>
 
-<div class="sheet" id="profileSheet"><div class="sheet-in">
-  <div class="sh-head"><h2>Profile</h2><button class="donebtn" data-close>Close</button></div>
+<section class="sheet" id="profileSheet" role="dialog" aria-modal="true" aria-labelledby="profileTitle" hidden><div class="sheet-in">
+  <div class="sh-head"><h2 id="profileTitle">Profile</h2><button class="donebtn" data-sheet-close>Close</button></div>
   <div id="profileBody"><div class="emptybox">
     <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg>
     <p class="soon">Nothing here yet</p>
     <p class="sethint" style="margin:0 auto">Your finished chains will collect here. A name and a streak still to come.</p>
   </div></div>
-</div></div>
+</div></section>
 
-<div class="sheet" id="mineSheet"><div class="sheet-in">
-  <div class="sh-head"><h2>My chains</h2><button class="donebtn" data-close>Close</button></div>
+<section class="sheet" id="mineSheet" role="dialog" aria-modal="true" aria-labelledby="mineTitle" hidden><div class="sheet-in">
+  <div class="sh-head"><h2 id="mineTitle">My chains</h2><button class="donebtn" data-sheet-close>Close</button></div>
   <div id="mineBody"></div>
-</div></div>
+</div></section>
 
-<div class="sheet" id="shareSheet"><div class="sheet-in">
-  <div class="sh-head"><h2>Send to</h2><button class="donebtn" data-close>Close</button></div>
+<section class="sheet" id="shareSheet" role="dialog" aria-modal="true" aria-labelledby="shareTitle" hidden><div class="sheet-in">
+  <div class="sh-head"><h2 id="shareTitle">Send to</h2><button class="donebtn" data-sheet-close>Close</button></div>
   <div class="findrow">
     <input id="friendFind" type="text" placeholder="Search friends and groups" autocomplete="off">
     <button class="iconbtn" id="friendAdd" aria-label="Add">
@@ -175,7 +179,7 @@
   </div>
   <div id="friendList"></div>
   <button class="btn" id="sendBtn" style="width:100%;margin-top:18px" disabled>Send</button>
-</div></div>
+</div></section>
 
 <div id="confirm" hidden>
   <div class="pausecard">

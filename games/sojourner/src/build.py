@@ -1,159 +1,266 @@
-import re, os, shutil, base64, hashlib, json
-SRC='/tmp/out/'; BUILD='/tmp/build/'; DIST='/tmp/out/dist/'
-A=open(SRC+'partA.html',encoding='utf-8').read()
-B=open(SRC+'partB.html',encoding='utf-8').read()
-C=open(SRC+'partC.js',encoding='utf-8').read()
-D=open(SRC+'partD.js',encoding='utf-8').read()
-# Audit S4. One source for the address, injected as window.SOJOURNER_SITE so the
-# share link and the domain painted on the share card cannot drift apart.
-url=open(SRC+'url.txt').read().strip() if os.path.exists(SRC+'url.txt') else 'https://playsapien.com/sojourner'
-SITE_JS='<script>window.SOJOURNER_SITE=' + json.dumps(url) + ';</script>\n'
-CDN='<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>\n'
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Build Sojourner: the hosted dist/, the legal pages, and the single-file preview.
 
-# ---------- 1. single file (the shareable preview) ----------
-Ci=C; Di=D.replace('https://claude.ai/code/artifact/PLACEHOLDER', url)
-data=open(BUILD+'gamedata.json',encoding='utf-8').read()
-data=data.replace('<','\\u003c').replace('\u2028','\\u2028').replace('\u2029','\\u2029')
-b64={n:open(BUILD+n+'.b64').read() for n in ('terrain','idmap','detail')}
-# the single-file preview carries the alternate styles at half resolution only
-import base64 as _b64, json as _json
-_st={}
-for sid in ('nasa1','nasa2','mgreen','mblue','natural'):
-    p = BUILD+'styles/%s-z1.jpg' % sid
-    _st[sid] = 'data:image/jpeg;base64,' + _b64.b64encode(open(p,'rb').read()).decode()
-STYLES_JS = 'window.__STYLES__=' + _json.dumps(_st) + ';'
-_fl={}
-_ccs = set(_json.load(open(BUILD+'flagmap.json')).keys()) | set(_json.load(open(BUILD+'adm2cc.json')).values())
-for _cc in sorted(_ccs):
-    _p2 = '/tmp/flags/flags/4x3/%s.svg' % _cc.lower()
-    _fl[_cc.lower()] = 'data:image/svg+xml;base64,' + _b64.b64encode(open(_p2,'rb').read()).decode()
-import glob as _glob
-for _pf in sorted(_glob.glob(BUILD+'usflags/*.webp')):
-    _k = os.path.basename(_pf)[:-5]
-    _fl[_k] = 'data:image/webp;base64,' + _b64.b64encode(open(_pf,'rb').read()).decode()
-STYLES_JS += 'window.__FLAGS__=' + _json.dumps(_fl) + ';'
-STYLES_JS += ('window.__SELECT_SND__="data:audio/mpeg;base64,'
-              + _b64.b64encode(open(BUILD+'select.mp3','rb').read()).decode() + '";')
-STYLES_JS += ('window.__EMBLEM__="data:image/png;base64,'
-              + _b64.b64encode(open(BUILD+'emblem.png','rb').read()).decode() + '";')
-single=(A+B+CDN+SITE_JS
-  +'<script id="gamedata" type="application/json">'+data+'</script>\n'
-  +'<script>window.__TERRAIN__="data:image/jpeg;base64,'+b64['terrain']+'";'
-  +'window.__IDMAP__="data:image/png;base64,'+b64['idmap']+'";'
-  +'window.__DETAIL__="data:image/jpeg;base64,'+b64['detail']+'";'+STYLES_JS+'</script>\n'
-  +'<script>\n'+Ci+'\n'+Di+'\n</script>\n')
-open(SRC+'sojourner.html','w',encoding='utf-8').write(single)
-print('single file  %.2f MB' % (len(single.encode())/1048576))
+    python3 games/sojourner/src/build.py           # -> games/sojourner/dist/
+    python3 games/sojourner/src/build.py --check   # validate, write nothing
 
-# local test copy with three.js inlined and no webfonts
-three=open('/tmp/three/build/three.min.js',encoding='utf-8').read()
-loc=single.replace(CDN,'<script>'+three+'</script>\n')
-loc=re.sub(r'<link rel="(stylesheet|preconnect)"[^>]*>','',loc)
-open(SRC+'local.html','w',encoding='utf-8').write(loc)
+Audit S8. Every path in here used to be an absolute /tmp constant, so the build
+ran on exactly one machine and could not be put in CI. They are now repo-relative
+defaults, each overridable:
 
-# ---------- 2. hosted build ----------
-Dh=D.replace('https://claude.ai/code/artifact/PLACEHOLDER', url)
-shutil.copy('/tmp/three/build/three.min.js', DIST+'three.min.js')
-open(DIST+'app.js','w',encoding='utf-8').write(C+'\n'+Dh+'\n')
-# fingerprint so a redeploy is never served from a stale browser cache
-h=hashlib.md5()
-for root, dirs, fs in os.walk(DIST):
-    dirs.sort()
-    for f in sorted(fs):
-        if f in ('index.html','_headers','_headers.fragment','_redirects.fragment'): continue
-        fp=os.path.join(root,f)
-        h.update(os.path.relpath(fp,DIST).replace(os.sep,'/').encode())
-        h.update(open(fp,'rb').read())
-V=h.hexdigest()[:10]
-page=(A+B+SITE_JS
-  +'<script>window.SOJOURNER_V="'+V+'";</script>\n'
-  +'<script defer src="three.min.js"></script>\n'
-  +'<script defer src="app.js?v='+V+'"></script>\n')
-print('asset version', V)
-# class="sj-game" here, not only from PSTheme.init: tokens.css scopes every
-# role to a surface class, so if scripting is off or the inline script is
-# blocked by a policy, an unclassed <html> leaves --bg and friends undefined and
-# the page renders unstyled. PSTheme.init adds the class too and checks first,
-# so the two cannot fight. The single-file build gets its <html> from the
-# artifact host and relies on the script alone; that build is a preview.
-head='<!doctype html>\n<html lang="en" class="sj-game">\n<head>\n'
-# Open Graph / Twitter card: what a chat app or social site shows when the URL is pasted.
-# The picture, the heading and the blurb are all one tappable link on the other end.
-OG = ('<meta property="og:type" content="website">\n'
-      '<meta property="og:site_name" content="Sojourner">\n'
-      '<meta property="og:title" content="Sojourner \u2014 a game of geography">\n'
-      '<meta property="og:description" content="Five places a day. Find them on a bare globe, '
-      'then read the story that place has to tell.">\n'
-      '<meta property="og:url" content="' + url + '/">\n'
-      '<meta property="og:image" content="' + url + '/og.png">\n'
-      '<meta property="og:image:width" content="1200">\n'
-      '<meta property="og:image:height" content="630">\n'
-      '<meta property="og:image:alt" content="Sojourner \u2014 a game of geography">\n'
-      '<meta name="twitter:card" content="summary_large_image">\n'
-      '<meta name="twitter:title" content="Sojourner \u2014 a game of geography">\n'
-      '<meta name="twitter:description" content="Five places a day. Find them on a bare globe, '
-      'then read the story that place has to tell.">\n'
-      '<meta name="twitter:image" content="' + url + '/og.png">\n'
-      '<meta name="description" content="A daily geography game. Five places, a bare globe, '
-      'and a story for every place you find.">\n'
-      '<link rel="canonical" href="' + url + '/">\n')
-# the artifact host supplies the skeleton; a plain web page needs its own
-m=re.search(r'^(.*?)(<style>)', page, re.S)
-headbits, rest = m.group(1), page[m.start(2):]
-open(DIST+'index.html','w',encoding='utf-8').write(
-  head + headbits.strip() + '\n' + OG + rest[:rest.index('</style>')+8] +
-  '\n</head>\n<body>\n' + rest[rest.index('</style>')+8:] + '\n</body>\n</html>\n')
-# ---------- 3. the legal pages ----------
+    --src DIR   / $SRC     hand-written sources        (default: beside this file)
+    --build DIR / $BUILD   generated/downloaded inputs (default: games/sojourner/data)
+    --dist DIR  / $DIST    hosted output               (default: games/sojourner/dist)
+    --single DIR/ $SINGLE  one-file builds             (default: games/sojourner/preview)
+    --flags DIR / $FLAGS   country flag SVGs           (default: <build>/flags)
+    --three F   / $THREE   three.min.js                (default: <build>/three/build/three.min.js)
+
+WHAT IS AND IS NOT IN GIT
+
+The sources, the legal page bodies and the shared packages are checked in, so
+the hosted index.html, the legal pages and the deploy fragments always build.
+
+The baked globe -- terrain, the region id map, the detail layer, five alternate
+styles, ~250 flag SVGs, the emblem and the select sound -- is about 40 MB of
+generated binary and is NOT in git (see .gitignore). Nor is three.js. Without
+them the single-file preview cannot be made and dist/ has no playable globe in
+it; this script says exactly which input is missing and where it comes from,
+builds everything that does not depend on it, and exits 2. It does not
+traceback and it does not silently emit a broken page.
+"""
+
+import argparse
+import base64
+import glob
+import hashlib
+import json
+import os
+import re
+import shutil
+import sys
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def _find_repo(d):
+    while True:
+        if os.path.exists(os.path.join(d, 'packages', 'tokens', 'tokens.css')):
+            return d
+        p = os.path.dirname(d)
+        if p == d:
+            sys.exit('build.py: not inside a PlaySapien checkout (looked up from %s)' % _HERE)
+        d = p
+
+
+REPO = _find_repo(_HERE)
+sys.path.insert(0, os.path.join(REPO, 'packages'))
+from build import head as psh          # noqa: E402
+from build import paths as pspaths     # noqa: E402
+
+
+# --------------------------------------------------------------------------- #
+# what the page says about itself
+
+SITE_DEFAULT = 'https://playsapien.com/sojourner'
+TITLE = 'Sojourner \u2014 a game of geography'
+BLURB = ('Five places a day. Find them on a bare globe, '
+         'then read the story that place has to tell.')
+DESCRIPTION = ('A daily geography game. Five places, a bare globe, '
+               'and a story for every place you find.')
+
+CDN = '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>\n'
+
+STYLE_IDS = ('nasa1', 'nasa2', 'mgreen', 'mblue', 'natural')
+
+# Where the inputs that cannot live in git come from. Named in the failure, so
+# nobody has to read this file to find out.
+GLOBE_HINT = (
+    'the baked globe is generated, not committed (~40 MB). Regenerate it with the '
+    'pipeline in this directory -- terrain.py, raster.py, geo.py, assemble.py, pack.py '
+    '-- which needs Natural Earth 10m admin-1 (github.com/nvkelso/natural-earth-vector) '
+    'and the elevation/water textures from github.com/vasturiano/three-globe. See '
+    'games/sojourner/README.md. Point --build at wherever it was written.')
+THREE_HINT = (
+    'three.js r128, the build the page is pinned to. Download '
+    'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js, or unpack a '
+    'three.js r128 release so that <dir>/build/three.min.js exists, and pass --three '
+    '(or $THREE).')
+FLAGS_HINT = (
+    'the 4x3 country flag SVGs (github.com/hjnilsson/country-flags). Unpack them so '
+    'that <dir>/4x3/<cc>.svg exists and pass --flags (or $FLAGS).')
+
+
+# --------------------------------------------------------------------------- #
+
+def read(path, what, hint=None):
+    pspaths.require(path, what, hint)
+    return open(path, encoding='utf-8').read()
+
+
+def flag_dir(flags):
+    """Accept either <flags>/4x3 or the <flags>/flags/4x3 an unzip tends to produce."""
+    for d in (flags + '4x3', flags + 'flags' + os.sep + '4x3'):
+        if os.path.isdir(d):
+            return d + os.sep
+    raise pspaths.MissingInput('the flag SVGs', 'neither %s4x3 nor %sflags/4x3 exists'
+                               % (flags, flags), FLAGS_HINT)
+
+
+# --------------------------------------------------------------------------- #
+# 1. the single file (the shareable preview)
+
+def single_file(src, build, flags, three, A, B, C, D, url, site_js):
+    """Everything baked into one HTML file. Needs every generated input there is."""
+    b = lambda n: build + n                                          # noqa: E731
+    for need in ('gamedata.json', 'terrain.b64', 'idmap.b64', 'detail.b64',
+                 'select.mp3', 'emblem.png', 'flagmap.json', 'adm2cc.json'):
+        pspaths.require(b(need), 'the baked globe (%s)' % need, GLOBE_HINT)
+    for sid in STYLE_IDS:
+        pspaths.require(b('styles/%s-z1.jpg' % sid),
+                        'the alternate globe styles (%s-z1.jpg)' % sid, GLOBE_HINT)
+    f4x3 = flag_dir(flags)
+
+    Ci = C
+    Di = D.replace('https://claude.ai/code/artifact/PLACEHOLDER', url)
+    data = read(b('gamedata.json'), 'gamedata.json', GLOBE_HINT)
+    data = data.replace('<', '\\u003c').replace('\u2028', '\\u2028').replace('\u2029', '\\u2029')
+    b64 = {n: open(b(n + '.b64')).read() for n in ('terrain', 'idmap', 'detail')}
+
+    # the single-file preview carries the alternate styles at half resolution only
+    _st = {}
+    for sid in STYLE_IDS:
+        _st[sid] = ('data:image/jpeg;base64,'
+                    + base64.b64encode(open(b('styles/%s-z1.jpg' % sid), 'rb').read()).decode())
+    STYLES_JS = 'window.__STYLES__=' + json.dumps(_st) + ';'
+
+    _fl = {}
+    _ccs = set(json.load(open(b('flagmap.json'))).keys()) | set(json.load(open(b('adm2cc.json'))).values())
+    for _cc in sorted(_ccs):
+        _p2 = pspaths.require(f4x3 + '%s.svg' % _cc.lower(),
+                              'the flag for %s' % _cc.upper(), FLAGS_HINT)
+        _fl[_cc.lower()] = ('data:image/svg+xml;base64,'
+                            + base64.b64encode(open(_p2, 'rb').read()).decode())
+    for _pf in sorted(glob.glob(b('usflags/*.webp'))):
+        _k = os.path.basename(_pf)[:-5]
+        _fl[_k] = 'data:image/webp;base64,' + base64.b64encode(open(_pf, 'rb').read()).decode()
+    STYLES_JS += 'window.__FLAGS__=' + json.dumps(_fl) + ';'
+    STYLES_JS += ('window.__SELECT_SND__="data:audio/mpeg;base64,'
+                  + base64.b64encode(open(b('select.mp3'), 'rb').read()).decode() + '";')
+    STYLES_JS += ('window.__EMBLEM__="data:image/png;base64,'
+                  + base64.b64encode(open(b('emblem.png'), 'rb').read()).decode() + '";')
+
+    single = (A + B + CDN + site_js
+              + '<script id="gamedata" type="application/json">' + data + '</script>\n'
+              + '<script>window.__TERRAIN__="data:image/jpeg;base64,' + b64['terrain'] + '";'
+              + 'window.__IDMAP__="data:image/png;base64,' + b64['idmap'] + '";'
+              + 'window.__DETAIL__="data:image/jpeg;base64,' + b64['detail'] + '";'
+              + STYLES_JS + '</script>\n'
+              + '<script>\n' + Ci + '\n' + Di + '\n</script>\n')
+
+    # local test copy with three.js inlined and no webfonts
+    three_js = read(three, 'three.min.js', THREE_HINT)
+    loc = single.replace(CDN, '<script>' + three_js + '</script>\n')
+    loc = re.sub(r'<link rel="(stylesheet|preconnect)"[^>]*>', '', loc)
+    return single, loc
+
+
+# --------------------------------------------------------------------------- #
+# 2. the hosted build
+
+def fingerprint(dist):
+    """A hash over everything dist/ serves that is not the pages themselves.
+
+    So a redeploy is never served from a stale browser cache. The pages are
+    excluded because they embed the hash; the legal pages and the deploy
+    fragments are excluded so that a rebuild over an existing dist/ produces the
+    same version as a build into an empty one.
+    """
+    skip = {'index.html', 'privacy.html', 'terms.html', '_headers',
+            '_headers.fragment', '_redirects.fragment'}
+    h = hashlib.md5()
+    for root, dirs, fs in os.walk(dist):
+        dirs.sort()
+        for f in sorted(fs):
+            if f in skip:
+                continue
+            fp = os.path.join(root, f)
+            h.update(os.path.relpath(fp, dist).replace(os.sep, '/').encode())
+            h.update(open(fp, 'rb').read())
+    return h.hexdigest()[:10]
+
+
+def hosted_page(A, B, site_js, V, url):
+    page = (A + B + site_js
+            + '<script>window.SOJOURNER_V="' + V + '";</script>\n'
+            + '<script defer src="three.min.js"></script>\n'
+            + '<script defer src="app.js?v=' + V + '"></script>\n')
+    # class="sj-game" here, not only from PSTheme.init: tokens.css scopes every
+    # role to a surface class, so if scripting is off or the inline script is
+    # blocked by a policy, an unclassed <html> leaves --bg and friends undefined and
+    # the page renders unstyled. PSTheme.init adds the class too and checks first,
+    # so the two cannot fight. The single-file build gets its <html> from the
+    # artifact host and relies on the script alone; that build is a preview.
+    head_open = '<!doctype html>\n<html lang="en" class="sj-game">\n<head>\n'
+
+    # HEAD. Shared with Word Chain through packages/build/head.py: one tag set,
+    # one order, so a gap in one is a gap in neither. Every block flag is off --
+    # partA.html already carries <title>, theme-color, the icon, the pre-paint
+    # theme script, ui.js and the font links, and it carries them in the right
+    # order, so there is nothing here to hoist. What this build gains from the
+    # move is apple-mobile-web-app-capable, which Word Chain had and it did not.
+    META = psh.head(
+        'sj-game',
+        site=url, description=DESCRIPTION,
+        og_title=TITLE, og_description=BLURB, og_site_name='Sojourner',
+        og_image=url.rstrip('/') + '/og.png', og_image_alt=TITLE,
+        web_app_capable=True,
+        charset=False, viewport=None, title=None, theme_color=None, icon=None,
+        theme_js=False, fonts=False, tokens_css=False, ui_css=False, ui_js=False)
+
+    # the artifact host supplies the skeleton; a plain web page needs its own
+    m = re.search(r'^(.*?)(<style>)', page, re.S)
+    if not m:
+        raise pspaths.MissingInput('the head/body split marker',
+                                   'no opening style tag found in partA.html + partB.html',
+                                   'build.py splits partA on the FIRST literal opening '
+                                   'style tag; see the warning at the top of partA.html')
+    headbits, rest = m.group(1), page[m.start(2):]
+    close = rest.index('</style>') + 8
+    return (head_open + headbits.strip() + '\n' + META + rest[:close]
+            + '\n</head>\n<body>\n' + rest[close:] + '\n</body>\n</html>\n')
+
+
+# --------------------------------------------------------------------------- #
+# 3. the legal pages
+#
 # Standalone pages, not text inside a modal: Google's OAuth screen and Stripe both
 # need a public URL they can fetch, and so does anyone who wants to link to one.
-LEGAL_CSS = open(SRC+'pages/_legal.css',encoding='utf-8').read()
-# These pages are opened from a dark game in a new tab. Without the pre-paint
-# script they would paint the light base first and correct themselves, which is
-# the same flash the game's own <head> exists to prevent -- so they get the
-# identical treatment: theme.js inlined ahead of everything, then tokens.css
-# inlined ahead of _legal.css. Both are read from packages/tokens at build time
-# rather than copied into this directory, so there is only ever one source.
-# Audit S8: this script still runs out of /tmp, so the repo may or may not be
-# beside it. Look in the repo position first, then next to the sources, and say
-# plainly which paths were tried if neither is there -- a silent fallback to a
-# stale copy is exactly how an inlined file drifts from its canonical one.
-_HERE = os.path.dirname(os.path.abspath(__file__))
-def _tokens(name):
-    for d in (os.path.join(_HERE,'..','..','..','packages','tokens'),
-              os.path.join(SRC,'..','..','..','packages','tokens'),
-              os.path.join(SRC,'tokens')):
-        p = os.path.normpath(os.path.join(d,name))
-        if os.path.exists(p): return open(p,encoding='utf-8').read()
-    raise SystemExit('build.py: cannot find packages/tokens/%s (tried beside %s and %s)'
-                     % (name, _HERE, SRC))
-LEGAL_TOKENS = _tokens('tokens.css')
-LEGAL_THEME  = _tokens('theme.js')
-LEGAL_HEAD_JS = ('<script>\n'
-  '/* ===== BEGIN packages/tokens/theme.js (inlined verbatim \u2014 do not edit here) ===== */\n'
-  + LEGAL_THEME +
-  '/* ===== END packages/tokens/theme.js ===== */\n'
-  "PSTheme.init('sj-game');\n</script>\n")
-LEGAL_STYLE = ('<style>\n'
-  '/* ===== BEGIN packages/tokens/tokens.css (inlined verbatim \u2014 do not edit here) ===== */\n'
-  + LEGAL_TOKENS +
-  '/* ===== END packages/tokens/tokens.css ===== */\n'
-  + LEGAL_CSS + '</style>\n')
-LEGAL_FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com">\n'
-  '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'
-  '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?'
-  'family=Fraunces:opsz,wght@9..144,600&family=Public+Sans:wght@400;600'
-  '&family=IBM+Plex+Mono:wght@400;500&display=swap">\n')
-for _slug,_title in (('privacy','Privacy'),('terms','Terms of use')):
-    _body = open(SRC+'pages/%s.body.html' % _slug,encoding='utf-8').read()
-    open(DIST+_slug+'.html','w',encoding='utf-8').write(
-      '<!doctype html>\n<html lang="en" class="sj-game">\n<head>\n<meta charset="utf-8">\n'
-      '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-      '<title>' + _title + ' \u00b7 Sojourner</title>\n'
-      '<meta name="robots" content="index,follow">\n'
-      + LEGAL_HEAD_JS + LEGAL_FONTS + LEGAL_STYLE + '</head>\n<body>\n'
-      + _body + '\n</body>\n</html>\n')
+#
+# They are opened from a dark game in a new tab. Without the pre-paint script they
+# would paint the light base first and correct themselves, which is the same flash
+# the game's own <head> exists to prevent -- so they get the identical treatment,
+# and now they get it from the same place the game does: head.py emits theme.js
+# ahead of everything, then the fonts, then tokens.css ahead of _legal.css. There
+# is no longer a second, trimmed font url here to drift from the union one.
 
-# ---------- 4. deploy fragments (audit B2) ----------
+LEGAL_PAGES = (('privacy', 'Privacy'), ('terms', 'Terms of use'))
+
+
+def legal_page(src, slug, title):
+    body = read(src + 'pages/%s.body.html' % slug, 'pages/%s.body.html' % slug)
+    legal_css = read(src + 'pages/_legal.css', 'pages/_legal.css')
+    return ('<!doctype html>\n<html lang="en" class="sj-game">\n'
+            + psh.head('sj-game',
+                       title='%s \u00b7 Sojourner' % title, robots='index,follow',
+                       viewport=psh.PLAIN_VIEWPORT, canonical=None, og=False,
+                       css=legal_css, wrap=True)
+            + '<body>\n' + body + '\n</body>\n</html>\n')
+
+
+# --------------------------------------------------------------------------- #
+# 4. deploy fragments (audit B2)
+#
 # Cloudflare Pages honours exactly one _headers and one _redirects, both at the
 # DEPLOYED ROOT. Under the unified site this directory is /sojourner/, so a
 # _headers written here would be inert AND publicly fetchable, and every pattern
@@ -164,18 +271,196 @@ for _slug,_title in (('privacy','Privacy'),('terms','Terms of use')):
 # is deliberate -- it keeps Pages from mistaking either for the real thing if
 # this directory is ever deployed on its own, and makes an accidentally-served
 # copy obviously not a config file.
-open(DIST+'_headers.fragment','w').write(
-"# fragment: merge into the platform root _headers (see deploy/_headers)\n"
-"/sojourner/assets/detail/*\n  Cache-Control: public, max-age=2592000\n"
-"/sojourner/assets/*\n  Cache-Control: public, max-age=604800\n"
-"/sojourner/three.min.js\n  Cache-Control: public, max-age=2592000\n"
-"/sojourner/app.js\n  Cache-Control: public, max-age=3600\n"
-"/sojourner/og.png\n  Cache-Control: public, max-age=86400\n")
+
+HEADERS_FRAGMENT = (
+    "# fragment: merge into the platform root _headers (see deploy/_headers)\n"
+    "/sojourner/assets/detail/*\n  Cache-Control: public, max-age=2592000\n"
+    "/sojourner/assets/*\n  Cache-Control: public, max-age=604800\n"
+    "/sojourner/three.min.js\n  Cache-Control: public, max-age=2592000\n"
+    "/sojourner/app.js\n  Cache-Control: public, max-age=3600\n"
+    "/sojourner/og.png\n  Cache-Control: public, max-age=86400\n")
 # Audit B3: the asset base is './assets/', so /sojourner WITHOUT the slash
 # resolves every asset against the platform root and the globe never loads.
-open(DIST+'_redirects.fragment','w').write(
-"# fragment: merge into the platform root _redirects (see deploy/_redirects)\n"
-"/sojourner   /sojourner/   301\n")
-tot=sum(os.path.getsize(os.path.join(dp,f)) for dp,_,fs in os.walk(DIST) for f in fs)
-n=sum(len(fs) for _,_,fs in os.walk(DIST))
-print('hosted build %.2f MB across %d files' % (tot/1048576, n))
+REDIRECTS_FRAGMENT = (
+    "# fragment: merge into the platform root _redirects (see deploy/_redirects)\n"
+    "/sojourner   /sojourner/   301\n")
+
+
+# --------------------------------------------------------------------------- #
+# --check
+
+def audit(html, src):
+    bad = []
+    markup = re.sub(r'<script\b.*?</script>', '', html, flags=re.S)
+    markup = re.sub(r'<style\b.*?</style>', '', markup, flags=re.S)
+    markup = re.sub(r'<!--.*?-->', '', markup, flags=re.S)
+
+    def want(needle, why, where=None):
+        if needle not in (html if where is None else where):
+            bad.append('%s missing from the page (%s)' % (needle, why))
+
+    def once(needle, why, where=None):
+        n = (markup if where is None else where).count(needle)
+        if n != 1:
+            bad.append('%s appears %d times, expected once (%s)' % (needle, n, why))
+
+    once('<!doctype html>', 'one document')
+    once('<head>', 'one head'); once('</head>', 'one head')
+    once('<body>', 'one body'); once('</body>', 'one body')
+    once('<meta charset="utf-8">', 'a second charset is ignored and confusing')
+    once('<meta name="theme-color"', 'PSTheme takes the first match; a second goes stale')
+    once('<title>', 'one title')
+    for rel in ('packages/tokens/theme.js', 'packages/tokens/tokens.css',
+                'packages/ui/ui.css', 'packages/ui/ui.js'):
+        once(psh.MARKER_BEGIN % rel, '%s inlined exactly once' % rel, html)
+    want('<link rel="canonical"', 'audit S8/head union')
+    want('<meta property="og:image"', 'the share card')
+    want('<meta name="apple-mobile-web-app-capable"', 'audit S8/head union')
+    want('<link rel="icon"', 'audit S11: no icon means a 404 on /favicon.ico')
+    want(psh.FONTS_URL, 'audit S10: the union font url, byte-identical everywhere')
+    want("PSTheme.init('sj-game')", 'the theme would never be applied')
+    want('PSUI.init', 'the sheets would never open')
+
+    t = html.find("PSTheme.init('sj-game')")
+    for stylesheet in ('<link rel="stylesheet"', '<style>'):
+        s = html.find(stylesheet)
+        if 0 <= s < t:
+            bad.append('%s at %d comes BEFORE the theme script at %d -- the page will '
+                       'paint in the wrong theme' % (stylesheet, s, t))
+
+    for name, rel in (('theme.js', 'packages/tokens/theme.js'),
+                      ('tokens.css', 'packages/tokens/tokens.css'),
+                      ('ui.css', 'packages/ui/ui.css'),
+                      ('ui.js', 'packages/ui/ui.js')):
+        b, e = psh.MARKER_BEGIN % rel, psh.MARKER_END % rel
+        i, j = html.find(b), html.find(e)
+        if i < 0 or j < 0:
+            continue
+        if html[i + len(b):j] != open(psh.package_file(name), encoding='utf-8').read():
+            bad.append('the inlined copy of %s has drifted from the canonical file' % rel)
+    return bad
+
+
+# --------------------------------------------------------------------------- #
+
+def main(argv=None):
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    pspaths.add_path_args(p)
+    p.add_argument('--single', metavar='DIR', help='one-file builds (default: '
+                   'games/sojourner/preview; $SINGLE)')
+    p.add_argument('--flags', metavar='DIR', help='country flag SVGs (default: <build>/flags; $FLAGS)')
+    p.add_argument('--three', metavar='FILE', help='three.min.js (default: '
+                   '<build>/three/build/three.min.js; $THREE)')
+    p.add_argument('--site', metavar='URL', help='hosted address; overrides src/url.txt')
+    # For CI. The baked globe and three.js are not in git, so a checkout can only
+    # ever build the pages -- which is exactly the part worth checking cheaply on
+    # every push. With this flag their absence is reported and not counted as a
+    # failure; without it the build exits 2, because a dist/ with no globe in it
+    # must not be mistaken for a deployable one.
+    p.add_argument('--allow-missing', action='store_true',
+                   help='do not fail when an input that cannot live in git is absent')
+    a = p.parse_args(argv)
+
+    game = os.path.dirname(_HERE)
+    src = pspaths.resolve(_HERE, a.src, 'SRC')
+    build = pspaths.resolve(os.path.join(game, 'data'), a.build, 'BUILD')
+    dist = pspaths.resolve(os.path.join(game, 'dist'), a.dist, 'DIST')
+    single_dir = pspaths.resolve(os.path.join(game, 'preview'), a.single, 'SINGLE')
+    flags = pspaths.resolve(build + 'flags', a.flags, 'FLAGS')
+    three = (a.three or os.environ.get('THREE')
+             or os.path.join(build + 'three', 'build', 'three.min.js'))
+    say = (lambda *m: None) if a.quiet else (lambda *m: print(*m))
+
+    # Audit S4. One source for the address, injected as window.SOJOURNER_SITE so the
+    # share link and the domain painted on the share card cannot drift apart.
+    url = (a.site or os.environ.get('SITE')
+           or (open(src + 'url.txt').read().strip() if os.path.exists(src + 'url.txt')
+               else SITE_DEFAULT)).rstrip('/')
+    site_js = '<script>window.SOJOURNER_SITE=' + json.dumps(url) + ';</script>\n'
+
+    A = read(src + 'partA.html', 'partA.html')
+    B = read(src + 'partB.html', 'partB.html')
+    C = read(src + 'partC.js', 'partC.js')
+    D = read(src + 'partD.js', 'partD.js')
+
+    # ---------------- what can be built at all ----------------
+    deferred = []      # (what, message) for inputs that are not in git
+    try:
+        single, local = single_file(src, build, flags, three, A, B, C, D, url, site_js)
+    except pspaths.MissingInput as e:
+        single = local = None
+        deferred.append(('the single-file preview', e))
+
+    have_three = os.path.exists(three)
+    if not have_three:
+        deferred.append(('three.min.js in dist/',
+                         pspaths.MissingInput('three.min.js', 'not found at %s' % three, THREE_HINT)))
+
+    # ---------------- validate before writing anything ----------------
+    Dh = D.replace('https://claude.ai/code/artifact/PLACEHOLDER', url)
+    problems = audit(hosted_page(A, B, site_js, '0' * 10, url), src)
+    for slug, title in LEGAL_PAGES:
+        legal_page(src, slug, title)          # raises if a body or _legal.css is gone
+
+    if a.check:
+        if single:
+            say('  single-file preview  %.2f MB' % (len(single.encode()) / 1048576))
+        for what, e in deferred:
+            say('  SKIP %s -- %s' % (what, e))
+        for b in problems:
+            print('  PROBLEM: ' + b)
+        print('sojourner --check: %s%s'
+              % ('FAILED' if problems else 'ok',
+                 '' if not deferred else ' (%d part(s) not buildable here)' % len(deferred)))
+        return 1 if problems else (0 if a.allow_missing or not deferred else 2)
+    if problems:
+        for b in problems:
+            sys.stderr.write('  PROBLEM: %s\n' % b)
+        sys.stderr.write('build.py: refusing to write a page with %d problem(s)\n' % len(problems))
+        return 1
+
+    # ---------------- 1. single file ----------------
+    if single:
+        os.makedirs(single_dir, exist_ok=True)
+        open(single_dir + 'sojourner.html', 'w', encoding='utf-8').write(single)
+        open(single_dir + 'local.html', 'w', encoding='utf-8').write(local)
+        say('  single file  %.2f MB' % (len(single.encode()) / 1048576))
+
+    # ---------------- 2. hosted ----------------
+    os.makedirs(dist, exist_ok=True)
+    if have_three:
+        if os.path.exists(dist + 'three.min.js'):
+            os.remove(dist + 'three.min.js')
+        shutil.copy(three, dist + 'three.min.js')
+        os.chmod(dist + 'three.min.js', 0o644)
+    open(dist + 'app.js', 'w', encoding='utf-8').write(C + '\n' + Dh + '\n')
+    # fingerprint so a redeploy is never served from a stale browser cache
+    V = fingerprint(dist)
+    say('  asset version', V)
+    open(dist + 'index.html', 'w', encoding='utf-8').write(hosted_page(A, B, site_js, V, url))
+
+    # ---------------- 3. legal pages ----------------
+    for slug, title in LEGAL_PAGES:
+        open(dist + slug + '.html', 'w', encoding='utf-8').write(legal_page(src, slug, title))
+
+    # ---------------- 4. deploy fragments ----------------
+    open(dist + '_headers.fragment', 'w').write(HEADERS_FRAGMENT)
+    open(dist + '_redirects.fragment', 'w').write(REDIRECTS_FRAGMENT)
+
+    tot = sum(os.path.getsize(os.path.join(dp, f)) for dp, _, fs in os.walk(dist) for f in fs)
+    n = sum(len(fs) for _, _, fs in os.walk(dist))
+    say('hosted build %.2f MB across %d files -> %s'
+        % (tot / 1048576, n, os.path.relpath(dist, REPO)))
+
+    if deferred:
+        sys.stderr.write('\n%d build input(s) are not in git, so this dist/ is not '
+                         'playable:\n' % len(deferred))
+        for what, e in deferred:
+            sys.stderr.write('  %s\n    %s\n' % (what, str(e).replace('\n', '\n  ')))
+        sys.stderr.write('Everything that does not depend on them was built.\n')
+        return 0 if a.allow_missing else 2
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(pspaths.run(main))

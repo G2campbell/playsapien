@@ -50,7 +50,8 @@ while ((m = re.exec(bare))) {
 }
 
 /* Collapse into one entry per (surface, theme), light inherited by dark. */
-const SURFACES = { '.ps-shell': 'PlaySapien shell', '.sj-game': 'Sojourner', '.wc-game': 'Word Chain' };
+const SURFACES = { '.ps-shell': 'PlaySapien shell', '.sj-game': 'Sojourner',
+                   '.wc-game': 'Word Chain', '.tp-game': 'Template' };
 const themes = new Map();
 for (const { selector, vars } of blocks) {
   for (const [cls, name] of Object.entries(SURFACES)) {
@@ -76,7 +77,7 @@ const AA = 4.5;
 const EXEMPT = new Set(['--accent-soft']);
 
 let failures = 0, checks = 0;
-const order = ['PlaySapien shell', 'Sojourner', 'Word Chain'];
+const order = ['PlaySapien shell', 'Sojourner', 'Word Chain', 'Template'];
 const sorted = [...themes.values()].sort(
   (a, b) => order.indexOf(a.surface) - order.indexOf(b.surface) || a.theme.localeCompare(b.theme)
 );
