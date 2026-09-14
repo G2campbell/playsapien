@@ -126,10 +126,13 @@
   <div class="sh-head"><h2>Settings</h2><button class="donebtn" data-close>Done</button></div>
   <div class="setrow">
     <div class="setlabel">Theme</div>
+    <!-- PSTheme.bindControl() repaints aria-pressed from `ps:theme` as soon as the
+         app script runs; these are only the static defaults, and the default is
+         now SYSTEM, not light. -->
     <div class="seg mini" id="themeSeg">
-      <button data-theme="light" aria-pressed="true">Light</button>
+      <button data-theme="light" aria-pressed="false">Light</button>
       <button data-theme="dark" aria-pressed="false">Dark</button>
-      <button data-theme="system" aria-pressed="false">System</button>
+      <button data-theme="system" aria-pressed="true">System</button>
     </div>
   </div>
   <div class="setrow flex">

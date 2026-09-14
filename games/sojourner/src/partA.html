@@ -1,9 +1,218 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Sojourner</title>
-<!-- Audit S6. Sojourner is a black page and had no theme-color at all, so the
-     mobile status bar took the browser default over it. One value, no media
-     query: this surface is .theme-dark, it does not follow the system.
+
+<!-- ===========================================================================
+     THE THEME, and why it is the first thing in this file.
+
+     `packages/tokens/theme.js`, inlined VERBATIM between the markers below.
+     Do not edit the copy -- edit the canonical file and re-inline; CI diffs the
+     two. It has to be inline and it has to be here, ahead of the webfont
+     stylesheet and the rule block below it, because it stamps data-theme on
+     <html> BEFORE first paint. Loaded any later and the page renders in one
+     theme and snaps to the other, which is the flash every themed site is
+     judged on.
+
+     AND NOTHING IN THIS COMMENT MAY SPELL THE OPENING STYLE TAG. build.py
+     splits partA on the first literal occurrence of it and carries everything
+     before that into <head>; a mention of the tag in prose up here is indexed
+     as the real one and the split lands mid-comment. It did, once, while this
+     was being written -- the harness caught it, a reading of the diff would not
+     have. The split is what puts this script in the head of the hosted build;
+     the single-file build concatenates partA whole and it lands there anyway.
+     =========================================================================== -->
+<script>
+/* ===== BEGIN packages/tokens/theme.js (inlined verbatim — do not edit here) ===== */
+/* ===========================================================================
+   The theme mechanism. One copy, inlined into all three surfaces.
+
+   This file is the source of truth. The shell and both games each inline it
+   verbatim into an inline script in the head, BEFORE any stylesheet, because
+   it has to run before first paint — otherwise the page renders light and then
+   snaps to dark, which is the flash every themed site is judged on.
+
+   It is deliberately tiny, dependency-free, and written in ES5 so it can sit
+   in a plain inline script element in any of the three builds without a
+   transpile step or a module boundary.
+
+   WHAT IT DOES
+
+     - Reads the player's choice from localStorage `ps:theme`. One key for the
+       whole platform, because all three surfaces are one origin. Choose dark
+       in Word Chain and the shell is dark when you come back to it.
+     - Stamps data-theme="light" or "dark" on <html>, or removes the attribute
+       for "system" so the CSS media query takes over.
+     - Adds the surface class (ps-shell / sj-game / wc-game) so tokens.css
+       knows which palette to serve.
+     - Keeps <meta name="theme-color"> in step, so the phone's status bar
+       matches the page rather than the other way round.
+     - Follows the OS live while the setting is "system", via a
+       prefers-color-scheme listener. Without it, a player who flips their
+       phone to dark at sunset sees the page change only on reload.
+
+   MIGRATION. Word Chain stored its theme at `wordchain:set.theme` before the
+   platform existed. On first run, if `ps:theme` is unset and that older value
+   exists, it is adopted so nobody loses their choice.
+   =========================================================================== */
+
+(function (global) {
+  'use strict';
+
+  var KEY = 'ps:theme';
+  var LEGACY = 'wordchain:set';
+  var VALID = { light: 1, dark: 1, system: 1 };
+
+  /* Both grounds, per surface, straight from tokens.css. The status bar has to
+     be told a literal colour; it cannot read a custom property. */
+  var BAR = {
+    'ps-shell': { light: '#C5C6C1', dark: '#3D352A' },
+    'sj-game':  { light: '#F0E8DA', dark: '#0C0B0A' },
+    'wc-game':  { light: '#E8D1DA', dark: '#3C2F34' }
+  };
+
+  function read() {
+    try {
+      var v = localStorage.getItem(KEY);
+      if (v && VALID[v]) return v;
+      /* one-time adoption of Word Chain's older per-game setting */
+      var old = JSON.parse(localStorage.getItem(LEGACY) || '{}');
+      if (old && old.theme && VALID[old.theme]) {
+        try { localStorage.setItem(KEY, old.theme); } catch (e) {}
+        return old.theme;
+      }
+    } catch (e) {}
+    return 'system';
+  }
+
+  function write(v) {
+    try { localStorage.setItem(KEY, v); } catch (e) {}
+  }
+
+  /* What the page is actually showing right now, which is not the same thing
+     as what the player chose: "system" resolves to one or the other. */
+  function resolved(choice) {
+    if (choice === 'light' || choice === 'dark') return choice;
+    try {
+      return global.matchMedia && global.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    } catch (e) { return 'light'; }
+  }
+
+  function apply(choice, surface) {
+    var el = document.documentElement;
+    if (choice === 'system') el.removeAttribute('data-theme');
+    else el.setAttribute('data-theme', choice);
+    if (surface && !el.classList.contains(surface)) el.classList.add(surface);
+
+    var pal = BAR[surface || currentSurface()];
+    if (pal) {
+      var m = document.querySelector('meta[name="theme-color"]');
+      if (!m) {
+        m = document.createElement('meta');
+        m.setAttribute('name', 'theme-color');
+        (document.head || el).appendChild(m);
+      }
+      m.setAttribute('content', pal[resolved(choice)]);
+    }
+    return choice;
+  }
+
+  function currentSurface() {
+    var c = document.documentElement.className || '';
+    if (c.indexOf('ps-shell') > -1) return 'ps-shell';
+    if (c.indexOf('sj-game') > -1) return 'sj-game';
+    if (c.indexOf('wc-game') > -1) return 'wc-game';
+    return null;
+  }
+
+  var listeners = [];
+
+  var Theme = {
+    /* Call once, as the first thing in <head>. `surface` is one of
+       'ps-shell' | 'sj-game' | 'wc-game'. */
+    init: function (surface) {
+      var choice = read();
+      apply(choice, surface);
+      /* Track the OS while the choice is "system". Safari before 14 has only
+         addListener, hence the fallback. */
+      try {
+        var mq = global.matchMedia('(prefers-color-scheme: dark)');
+        var onChange = function () {
+          if (read() !== 'system') return;
+          apply('system', surface);
+          notify();
+        };
+        if (mq.addEventListener) mq.addEventListener('change', onChange);
+        else if (mq.addListener) mq.addListener(onChange);
+      } catch (e) {}
+      return choice;
+    },
+
+    /* The player's choice: 'light' | 'dark' | 'system'. */
+    get: read,
+
+    /* What is on screen: 'light' | 'dark'. */
+    resolved: function () { return resolved(read()); },
+
+    set: function (v) {
+      if (!VALID[v]) return read();
+      write(v);
+      apply(v, currentSurface());
+      notify();
+      return v;
+    },
+
+    /* Fires whenever the rendered theme changes, from either a click here or
+       the OS changing under a "system" setting. Canvas that has painted its
+       own colours — a share card, a globe overlay — should redraw on this. */
+    onChange: function (fn) { if (typeof fn === 'function') listeners.push(fn); },
+
+    /* Wire a three-button segmented control. Each button carries
+       data-theme="light|dark|system". Keeps aria-pressed honest. */
+    bindControl: function (el) {
+      if (!el) return;
+      var paint = function () {
+        var cur = read();
+        for (var i = 0; i < el.children.length; i++) {
+          var b = el.children[i];
+          b.setAttribute('aria-pressed', b.getAttribute('data-theme') === cur ? 'true' : 'false');
+        }
+      };
+      el.addEventListener('click', function (e) {
+        var b = e.target.closest ? e.target.closest('[data-theme]') : null;
+        if (!b || !el.contains(b)) return;
+        Theme.set(b.getAttribute('data-theme'));
+        paint();
+      });
+      listeners.push(paint);
+      paint();
+    }
+  };
+
+  function notify() {
+    var r = resolved(read());
+    for (var i = 0; i < listeners.length; i++) {
+      try { listeners[i](r); } catch (e) {}
+    }
+  }
+
+  global.PSTheme = Theme;
+})(typeof window !== 'undefined' ? window : this);
+/* ===== END packages/tokens/theme.js ===== */
+PSTheme.init('sj-game');
+</script>
+<!-- Audit S6. The status bar colour. PSTheme rewrites this tag's content on
+     every theme change (it cannot read a custom property, so theme.js carries
+     the two grounds per surface as literals) -- the value here is only the one
+     that is true before the script has run and for anything that reads the
+     markup rather than the DOM. It is the DARK ground on purpose: the game
+     opens on the globe, and the globe is dark in both themes.
+
+     Known and accepted: in the light theme PSTheme sets this to the ROOM's
+     cream, which is right on the intro and score pages and slightly light over
+     the instrument bar mid-round. A per-view status bar would need theme.js to
+     grow a third colour for every surface; the stage is a Sojourner problem,
+     not a platform one, and the bar is 40px of it.
+
      Declared here rather than in build.py so it lands in BOTH the hosted build
      and the single-file build -- build.py carries partA's head bits into both. -->
 <meta name="theme-color" content="#0C0B0A">
@@ -24,64 +233,435 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,900&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Petit+Formal+Script&display=swap">
 <style>
 /* ---------------------------------------------------------------------------
-   Audit S5. `packages/tokens/tokens.css` is the canonical source for every
-   value below; this block is a copy, not a second opinion. The build should
-   inline that file here once it can run from the repo -- audit S8 (build.py
-   hard-codes /tmp paths) is what currently blocks that, not anything about
-   the tokens.
+   Audit S5 / S6. Everything between the BEGIN and END markers below is
+   `packages/tokens/tokens.css`, INLINED VERBATIM. It is a copy, not a second
+   opinion: do not edit, reformat or trim it here -- edit the canonical file and
+   re-inline, because CI diffs this copy against it byte for byte.
 
-   Two layers, in the order the token file defines them:
-     1. ROLES  -- --bg, --fg, --line, --accent. What new CSS should reference.
-     2. LEGACY -- --ink, --paper and friends, now aliases onto the roles.
+   Sojourner's own layer -- the legacy aliases -- comes AFTER the marker block,
+   so it is ordinary CSS appended to the shared language rather than a fork of
+   it. Read the token file's own header for the role names and the three-block
+   resolution order; this file does not restate them.
+   --------------------------------------------------------------------------- */
+/* ===== BEGIN packages/tokens/tokens.css (inlined verbatim — do not edit here) ===== */
+/* ===========================================================================
+   PlaySapien design tokens — one language, three surfaces.
 
-   The legacy names could not simply be deleted or globally renamed: `--ink` is
-   the BACKGROUND here and the TEXT in Word Chain, so any flat shared stylesheet
-   would have silently inverted one game, and there are several hundred
-   var(--ink) call sites in this file alone. Aliasing keeps all of them correct
-   while new CSS can be written against roles. The two migrate apart at leisure.
+   THE CONTRACT
+
+   Every surface (the shell and each game) defines the SAME role names. A
+   surface differs only in the values it gives them. So a component written
+   against `--bg` / `--fg` / `--accent` is portable, and a reader of any
+   stylesheet in this repo knows what a name means without looking it up.
+
+   Three themes everywhere: light, dark, and system. One mechanism:
+
+     1. The choice lives in localStorage under `ps:theme` — ONE key, shared by
+        all three surfaces, because they are one origin. Choose dark in Word
+        Chain and the shell is dark when you navigate back to it.
+        Values: "light" | "dark" | "system".
+     2. A pre-paint inline script stamps data-theme="light"|"dark" on <html>,
+        or removes the attribute for "system". It must run BEFORE first paint
+        or the page flashes the wrong theme.
+     3. CSS resolves in three blocks, in this order:
+          :root                                     light (the base)
+          @media (prefers-color-scheme: dark)
+            :root:not([data-theme="light"])          system, following dark
+          :root[data-theme="dark"]                   explicit dark, wins
+        The `:not([data-theme="light"])` is what lets an explicit light choice
+        beat a dark system. Leave it out and "light" silently stops working on
+        a dark machine.
+
+   THE ROLE NAMES
+
+     Ground        --bg          the page
+                   --bg-raise    above the page: sheets, cards, bars
+                   --bg-sink     below it: wells, tracks, keycaps
+                   --bg-edge     the far end of the ground ramp, for vignettes
+     Text          --fg          primary
+                   --fg-2        secondary
+                   --fg-3        tertiary, hints
+                   --fg-on-accent  text sitting on --accent
+     Rules         --line        hairline
+                   --line-2      a rule you are meant to notice
+     Colour        --accent      the surface's signature, SAFE FOR TEXT
+                   --accent-soft the same colour as a FILL — decorative only,
+                                 never text; it is not contrast-checked
+                   --good        success / correct
+                   --warn        error / caution
+     Effects       --shadow  --scrim
+                   --texture-ink    colour of the paper grain overlay
+                   --texture-alpha  how strongly the grain shows
+     Stage         --stage       a ground that stays DARK IN BOTH THEMES
+                   --stage-fg    text that sits on it
+
+   WHY --stage EXISTS
+
+   Sojourner is a lit globe. Its terrain, borders and region fills are a WebGL
+   scene whose colours are baked into textures, not CSS — and they are designed
+   against black. A light theme that lightened the globe's ground would wreck
+   the artwork. So the globe keeps a dark stage in both themes while the chrome
+   around it — bar, sheets, prompts, settings — goes light. Dark stage, light
+   room, like a gallery. Any surface with artwork that must not re-theme uses
+   the same pair.
+
+   CONTRAST
+
+   Every token in the text group clears 4.5:1 against the ground it is used on,
+   verified by `packages/tokens/check-contrast.mjs`, which runs in CI. Run it
+   after changing any value here. `--accent-soft` is deliberately exempt: it is
+   a fill, and the checker skips it by name.
+
+   A NOTE ON THE LIGHT SHELL. Its ground #C5C6C1 is a mid-tone, so there is
+   little luminance headroom between primary and tertiary text. --fg-2 and
+   --fg-3 are therefore separated by HUE rather than by lightness — one stays
+   blue, one goes neutral. They read as different weights without either
+   dropping below 4.5:1. This is a constraint of the anchor colour, not an
+   oversight.
+   =========================================================================== */
+
+/* ---------------------------------------------------------------- type ---- */
+:root {
+  --f-disp:   "Fraunces", Georgia, "Times New Roman", serif;
+  --f-body:   "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --f-mono:   "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --f-script: "Petit Formal Script", "Snell Roundhand", "Apple Chancery", cursive;
+
+  /* Sojourner sets display headings at 700, the platform and Word Chain at
+     900. Deliberate: a serif at 900 on a black ground closes up, and
+     Sojourner's headings sit on black. Both are in the union font url. */
+  --w-disp-game:     700;
+  --w-disp-platform: 900;
+
+  /* ------------------------------------------------------------ metrics -- */
+  --bar-h: 58px;
+  --icon-btn: 38px;
+  --icon-stroke: 1.8;
+  --corner-gap: 4px;
+  --sheet-radius: 20px;
+  --sheet-ease: transform .42s cubic-bezier(.22,.9,.3,1);
+}
+
+/* ===========================================================================
+   PLAYSAPIEN — the shell.
+
+   Sampled from the letterpress proof in "Sapo Sapien Designs/Play Sapien
+   01.png": cool grey rag paper, steel-blue foil on the rings and bars, a
+   near-black navy for SAPIEN, and a warm taupe outline on PLAY. Those four
+   are the whole brand.
+   =========================================================================== */
+
+.ps-shell {
+  /* the proof's own inks, theme-independent */
+  --brand-steel:      #5A7085;   /* the foil on the rings and bars           */
+  --brand-steel-deep: #2F434C;   /* its shadowed side                        */
+  --brand-navy:       #16242E;   /* SAPIEN                                   */
+  --brand-taupe:      #9D8D85;   /* the PLAY outline                         */
+  --brand-paper:      #C5C6C1;   /* the sheet                                */
+
+  --bg:        #C5C6C1;
+  --bg-raise:  #D6D7D3;
+  --bg-sink:   #B3B4AF;
+  --bg-edge:   #AFB0AA;
+  --fg:        #213946;
+  --fg-2:      #3D5465;          /* blue-leaning                            */
+  --fg-3:      #485259;          /* neutral-leaning — see the note above     */
+  --fg-on-accent: #EDEEEA;
+  --line:      #ABADA7;
+  --line-2:    #94968F;
+  --accent:    #3F5569;
+  --accent-soft: #5A7085;        /* fill only                                */
+  --good:      #325843;
+  --warn:      #863921;
+  --shadow:    0 18px 50px rgba(33,57,70,.22);
+  --scrim:     rgba(33,57,70,.30);
+  --texture-ink:   #4B4F4A;
+  --texture-alpha: .40;
+}
+
+.ps-shell[data-theme="dark"],
+.ps-shell.t-dark {
+  --bg:        #3D352A;
+  --bg-raise:  #4A4137;
+  --bg-sink:   #2F2921;
+  --bg-edge:   #2A241D;
+  --fg:        #EDE7DC;
+  --fg-2:      #C9BFAF;
+  --fg-3:      #BCAF9C;
+  --fg-on-accent: #1A2229;
+  --line:      #554B3E;
+  --line-2:    #6B5F4F;
+  --accent:    #9FB6C9;
+  --accent-soft: #7A93A8;
+  --good:      #7FBF9B;
+  --warn:      #F29C74;
+  --shadow:    0 18px 50px rgba(0,0,0,.48);
+  --scrim:     rgba(20,16,11,.58);
+  --texture-ink:   #0E0B07;
+  --texture-alpha: .34;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ps-shell:not([data-theme="light"]) {
+    --bg:        #3D352A;
+    --bg-raise:  #4A4137;
+    --bg-sink:   #2F2921;
+    --bg-edge:   #2A241D;
+    --fg:        #EDE7DC;
+    --fg-2:      #C9BFAF;
+    --fg-3:      #BCAF9C;
+    --fg-on-accent: #1A2229;
+    --line:      #554B3E;
+    --line-2:    #6B5F4F;
+    --accent:    #9FB6C9;
+    --accent-soft: #7A93A8;
+    --good:      #7FBF9B;
+    --warn:      #F29C74;
+    --shadow:    0 18px 50px rgba(0,0,0,.48);
+    --scrim:     rgba(20,16,11,.58);
+    --texture-ink:   #0E0B07;
+    --texture-alpha: .34;
+  }
+}
+
+/* ===========================================================================
+   SOJOURNER — ink and amber.
+
+   Dark is the original and is unchanged. Light is its inverse: the cream
+   becomes the ground, the near-black becomes the text. Amber cannot simply
+   invert — #E0A44A on cream is 1.8:1 — so the light theme darkens it to a
+   burnt gold for text and keeps the bright amber as a fill only.
+
+   --stage stays #0C0B0A in both, because the globe does.
+   =========================================================================== */
+
+.sj-game {
+  --stage:     #0C0B0A;          /* the globe's ground, both themes          */
+  --stage-fg:  #F0E8DA;
+  --stage-line: #38302A;
+
+  --bg:        #F0E8DA;
+  --bg-raise:  #FAF5EB;
+  --bg-sink:   #E0D5C2;
+  --bg-edge:   #D8CBB4;
+  --fg:        #0C0B0A;
+  --fg-2:      #3A332B;
+  --fg-3:      #5E5448;
+  --fg-on-accent: #F7F2E7;
+  --line:      #CFC3AE;
+  --line-2:    #B2A48C;
+  --accent:    #8A5E16;
+  --accent-soft: #E0A44A;        /* fill only                                */
+  --good:      #26705F;
+  --warn:      #A63D17;
+  --shadow:    0 18px 50px rgba(40,32,18,.18);
+  --scrim:     rgba(30,24,14,.42);
+  --texture-ink:   #6B5E48;
+  --texture-alpha: .14;
+}
+
+.sj-game[data-theme="dark"],
+.sj-game.t-dark {
+  --bg:        #0C0B0A;
+  --bg-raise:  #171412;
+  --bg-sink:   #221D19;
+  --bg-edge:   #050504;
+  --fg:        #F0E8DA;
+  --fg-2:      #C3B9AD;
+  --fg-3:      #A99D8F;
+  --fg-on-accent: #1A1206;
+  --line:      #38302A;
+  --line-2:    #4C423A;
+  --accent:    #E0A44A;
+  --accent-soft: #8E6B2C;
+  --good:      #59B9A4;
+  --warn:      #E8734A;
+  --shadow:    0 18px 50px rgba(0,0,0,.55);
+  --scrim:     rgba(6,5,4,.62);
+  --texture-ink:   #000000;
+  --texture-alpha: .10;
+}
+
+@media (prefers-color-scheme: dark) {
+  .sj-game:not([data-theme="light"]) {
+    --bg:        #0C0B0A;
+    --bg-raise:  #171412;
+    --bg-sink:   #221D19;
+    --bg-edge:   #050504;
+    --fg:        #F0E8DA;
+    --fg-2:      #C3B9AD;
+    --fg-3:      #A99D8F;
+    --fg-on-accent: #1A1206;
+    --line:      #38302A;
+    --line-2:    #4C423A;
+    --accent:    #E0A44A;
+    --accent-soft: #8E6B2C;
+    --good:      #59B9A4;
+    --warn:      #E8734A;
+    --shadow:    0 18px 50px rgba(0,0,0,.55);
+    --scrim:     rgba(6,5,4,.62);
+    --texture-ink:   #000000;
+    --texture-alpha: .10;
+  }
+}
+
+/* ===========================================================================
+   WORD CHAIN — rose and plum.
+
+   Was a clay ochre, which sat too close to Sojourner's amber; side by side on
+   the shell's rail the two games read as one. This palette is deliberately in
+   a different family so each game keeps its own identity.
+   =========================================================================== */
+
+.wc-game {
+  --bg:        #E8D1DA;
+  --bg-raise:  #F5E6EC;
+  --bg-sink:   #D8BCC8;
+  --bg-edge:   #D0B0BF;
+  --fg:        #33262C;
+  --fg-2:      #57444C;
+  --fg-3:      #6B535D;
+  --fg-on-accent: #FBF2F6;
+  --line:      #CFB2BF;
+  --line-2:    #B593A2;
+  --accent:    #8E3A5A;
+  --accent-soft: #C77E98;        /* fill only                                */
+  --good:      #35603F;
+  --warn:      #9A3520;
+  --shadow:    0 18px 50px rgba(60,47,52,.20);
+  --scrim:     rgba(51,38,44,.44);
+  --texture-ink:   #6B4E59;
+  --texture-alpha: .10;
+}
+
+.wc-game[data-theme="dark"],
+.wc-game.t-dark {
+  --bg:        #3C2F34;
+  --bg-raise:  #4A3A41;
+  --bg-sink:   #2E2429;
+  --bg-edge:   #251D21;
+  --fg:        #F2E6EB;
+  --fg-2:      #D2BDC6;
+  --fg-3:      #BEA4B1;
+  --fg-on-accent: #2A1C22;
+  --line:      #55444B;
+  --line-2:    #6B565E;
+  --accent:    #E8A6BE;
+  --accent-soft: #B4728B;
+  --good:      #8FC6A3;
+  --warn:      #E8977E;
+  --shadow:    0 18px 50px rgba(0,0,0,.46);
+  --scrim:     rgba(20,14,17,.60);
+  --texture-ink:   #150F12;
+  --texture-alpha: .10;
+}
+
+@media (prefers-color-scheme: dark) {
+  .wc-game:not([data-theme="light"]) {
+    --bg:        #3C2F34;
+    --bg-raise:  #4A3A41;
+    --bg-sink:   #2E2429;
+    --bg-edge:   #251D21;
+    --fg:        #F2E6EB;
+    --fg-2:      #D2BDC6;
+    --fg-3:      #BEA4B1;
+    --fg-on-accent: #2A1C22;
+    --line:      #55444B;
+    --line-2:    #6B565E;
+    --accent:    #E8A6BE;
+    --accent-soft: #B4728B;
+    --good:      #8FC6A3;
+    --warn:      #E8977E;
+    --shadow:    0 18px 50px rgba(0,0,0,.46);
+    --scrim:     rgba(20,14,17,.60);
+    --texture-ink:   #150F12;
+    --texture-alpha: .10;
+  }
+}
+
+/* ===========================================================================
+   color-scheme — so the browser paints native controls, scrollbars, range
+   thumbs and focus rings to match. Cheap, and its absence is what made
+   Sojourner's sliders render in light chrome on a black page.
+   =========================================================================== */
+.ps-shell, .sj-game, .wc-game { color-scheme: light }
+.ps-shell[data-theme="dark"], .sj-game[data-theme="dark"], .wc-game[data-theme="dark"] { color-scheme: dark }
+@media (prefers-color-scheme: dark) {
+  .ps-shell:not([data-theme="light"]),
+  .sj-game:not([data-theme="light"]),
+  .wc-game:not([data-theme="light"]) { color-scheme: dark }
+}
+/* ===== END packages/tokens/tokens.css ===== */
+
+/* ---------------------------------------------------------------------------
+   SOJOURNER'S LEGACY NAMES, aliased onto the roles. Declared ONCE.
+
+   `--ink` is the BACKGROUND here and the TEXT in Word Chain, so the names could
+   not simply be renamed across a shared stylesheet without silently inverting
+   one game, and there are several hundred var(--ink) call sites below. Aliasing
+   keeps every one of them correct while new CSS is written against roles.
+
+   ONCE is the important word. A custom property substitutes its COMPUTED value,
+   so `--paper:var(--fg)` resolves against whichever of the three token blocks
+   won for this element. Repeating the aliases inside a light block and a dark
+   block would give the two an opportunity to drift apart; one declaration
+   cannot.
    --------------------------------------------------------------------------- */
 :root{
-  /* Audit S6. Sojourner is permanently dark. Without this the UA paints range
-     inputs, scrollbars, focus rings and form controls in LIGHT chrome on a
-     black page. One line, and the native controls match the design. */
-  color-scheme:dark;
-
-  /* --- roles (this surface is .theme-dark in the token file's terms) ------ */
-  --bg:#0C0B0A; --bg-2:#171412; --bg-3:#221D19;
-  --fg:#F0E8DA; --fg-2:#C3B9AD; --fg-3:#A99D8F;
-  --line:#38302A; --line-2:#4C423A;
-  --accent:#E0A44A; --good:#59B9A4;
-  --shadow:0 18px 50px rgba(0,0,0,.55);
-
-  /* --- legacy names, aliased onto the roles above ------------------------- */
-  /* NOTE --bg-3 is #221D19 and Word Chain's nearest step is #241C16. Close,
-     not equal. tokens.css keeps both (--p-ink-700 / --p-ink-650) deliberately;
-     do not "unify" them, it shifts one game's panel tint. */
-  --ink:var(--bg); --ink2:var(--bg-2); --ink3:var(--bg-3);
+  --ink:var(--bg); --ink2:var(--bg-raise); --ink3:var(--bg-sink);
   --paper:var(--fg); --paper-dim:var(--fg-2); --paper-faint:var(--fg-3);
   --line2:var(--line-2);
-  --amber:var(--accent); --verdigris:var(--good);
+  --amber:var(--accent); --amber-dim:var(--accent-soft);
+  --verdigris:var(--good); --signal:var(--warn);
 
-  /* Sojourner-only: no counterpart in Word Chain and no role to alias onto, so
-     these stay literal. Both currently have ZERO var() call sites in this file
-     -- they are kept because the palette they belong to is real (the unlit
-     amber and the wrong-answer flash), not because anything paints with them. */
-  --amber-dim:#8E6B2C;
-  --signal:#E8734A;
+  /* ----- the stage's own text ramp -------------------------------------------
+     tokens.css gives the stage a ground, one text colour and one rule
+     (--stage / --stage-fg / --stage-line). The instrument bar over the globe
+     needs the two quieter steps as well -- the round label, the tally
+     denominator, the loading line. These are Sojourner-local extensions of the
+     shared pair, and like it they are theme-INDEPENDENT: they are the dark
+     theme's --fg-2 and --fg-3, frozen, because the ground they sit on is
+     frozen. That is the whole point of the stage.
+     -------------------------------------------------------------------------- */
+  --stage-fg-2: #C3B9AD;
+  --stage-fg-3: #A99D8F;
+  --stage-wash: rgba(240,232,218,.09);   /* hover wash on the dark stage        */
+  /* The stage's signature colour is frozen for the same reason its ink is: the
+     round multiplier and the FIND label sit on the globe, so they need the
+     amber that was picked against black. Aliasing them to --accent looked
+     right and measured 4.02:1 in dark mode, because --accent-soft is a FILL
+     and the token file says so in as many words. The sweep caught it. */
+  --stage-accent: #E0A44A;
 
-  --f-disp:"Fraunces",Georgia,"Times New Roman",serif;
-  --f-body:"Public Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
-  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  /* ----- three colours that must FOLLOW the theme but have no role token ------
+     Each is DERIVED from a role rather than declared twice, for the same reason
+     the aliases are declared once: two literals in two blocks can drift, a
+     derivation cannot. color-mix resolves against whichever block won, so each
+     of these moves towards the ink of the theme that is actually up -- deeper
+     on cream, brighter on black -- and gains contrast in both directions. If a
+     browser cannot parse color-mix the property is invalid at computed-value
+     time and falls back to the inherited colour, which is legible either way.
 
-  /* Audit S7: one stroke weight for every corner glyph. Was 1.9 on the About
-     icon here and 2 in the other two surfaces -- visible on an identical path. */
-  --icon-stroke:1.8;
+     --soj-other is the purple the globe uses for "somebody else's answer"
+     (0xAA0FFF in partC.js). The literal #C77BFF it replaces is 4.4:1 on cream:
+     a fail, and exactly the kind a rendered contrast sweep catches and a
+     reading of the diff does not. */
+  --soj-other:       color-mix(in srgb, #AA0FFF, var(--fg) 30%);
+  --rule-good:       color-mix(in srgb, var(--good) 38%, transparent);
+  --rule-good-strong:color-mix(in srgb, var(--good) 48%, transparent);
+
 }
 *{box-sizing:border-box}
 [hidden]{display:none !important}
 html,body{height:100%}
+/* THE STAGE / THE ROOM. The ground behind the globe is --stage in both themes,
+   because the canvas clears to the same #0C0B0A (partC.js:50) and the terrain,
+   borders and region fills are baked against it. Text defaults to --fg, the
+   ROOM's ink, because every opaque surface in this file -- sheets, panels, the
+   two full-page views -- is chrome and does re-theme. The handful of things
+   that float ON the stage set --stage-fg on themselves and let it inherit. */
 body{
-  margin:0; background:var(--ink); color:var(--paper);
+  margin:0; background:var(--stage); color:var(--fg);
   font-family:var(--f-body); font-size:16px; line-height:1.5;
   -webkit-font-smoothing:antialiased; overscroll-behavior:none;
   touch-action:none; user-select:none; -webkit-user-select:none;
@@ -90,13 +670,20 @@ body{
 #app{position:fixed; inset:0; overflow:hidden}
 #glwrap{position:absolute; inset:0}
 canvas{display:block; width:100%; height:100%}
+/* STAGE: it darkens the corners of the globe itself. Literal, and frozen. */
 #vig{position:absolute; inset:0; pointer-events:none;
   background:radial-gradient(120% 90% at 50% 45%,transparent 42%,rgba(9,7,5,.74) 100%)}
 
 /* ---------- top instrument bar ---------- */
+/* STAGE. Translucent glass over the artwork: the globe is meant to show
+   through it, so it cannot go light without either turning opaque (a slab on
+   top of the picture) or producing a contrast that depends on which bit of
+   ocean happens to be behind it. It keeps the dark instrument look in both
+   themes and sets --stage-fg for its children to inherit. */
 .topbar{position:absolute; top:0; left:0; right:0;
   padding:calc(env(safe-area-inset-top) + 10px) 15px 14px;
   display:flex; align-items:flex-start; gap:12px; pointer-events:none; z-index:5;
+  color:var(--stage-fg);
   background:linear-gradient(180deg,rgba(9,7,5,.94) 0%,rgba(9,7,5,.8) 45%,rgba(9,7,5,.42) 78%,transparent 100%)}
 .tb-left{flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; padding-right:94px}
 .shapes{display:flex; align-items:center; gap:7px; height:20px}
@@ -106,29 +693,41 @@ canvas{display:block; width:100%; height:100%}
 .res-shapes{display:flex; gap:11px; margin:16px 0 4px}
 .res-shapes .rs{width:28px; height:28px}
 .eyebrow{font-family:var(--f-mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
-  color:var(--paper-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.mult{font-family:var(--f-mono); font-size:12.5px; color:var(--amber); letter-spacing:.03em;
+  color:var(--fg-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+/* the same class appears inside the About sheet, which is chrome; only the copy
+   in the instrument bar is on the stage */
+.topbar .eyebrow{color:var(--stage-fg-2)}
+.mult{font-family:var(--f-mono); font-size:12.5px; color:var(--stage-accent); letter-spacing:.03em;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .chip-foot{display:flex; align-items:center; justify-content:center; gap:14px;
   margin-top:11px; padding-top:10px; border-top:1px solid rgba(140,122,100,.3)}
 .chip-score{font-family:var(--f-mono); font-variant-numeric:tabular-nums; font-size:18px;
   line-height:1; color:var(--paper)}
 .chip-score .of{font-size:11.5px; color:var(--paper-faint); margin-left:1px}
+/* the tally appears twice: on the prompt chip (stage) and in the reveal
+   sheet's foot (chrome). Only the first is frozen. */
+.prompt .chip-score{color:var(--stage-fg)}
+.prompt .chip-score .of{color:var(--stage-fg-3)}
 .rv-foot{display:flex; align-items:center; justify-content:space-between; gap:14px;
   margin:0 0 15px}
 
 /* ---------- prompt ---------- */
 .prompt{position:absolute; left:0; right:0; top:calc(env(safe-area-inset-top) + 92px);
   pointer-events:none; z-index:5; padding:0 16px; display:flex; justify-content:center}
+/* STAGE, for the same reason as the bar: it is a pane of smoked glass laid on
+   the globe, and the place-name has to be readable against whatever is behind
+   it. Setting the colour here is what makes the h1 (which has no colour of its
+   own) and every child inherit the stage ink rather than the room's. */
 .prompt-chip{display:inline-block; text-align:center; padding:10px 20px 12px; border-radius:16px;
+  color:var(--stage-fg);
   background:rgba(12,10,8,.66); border:1px solid rgba(124,106,86,.38);
   backdrop-filter:blur(10px); max-width:min(92vw,560px)}
 .prompt .find{font-family:var(--f-mono); font-size:11px; letter-spacing:.22em; text-transform:uppercase;
-  color:var(--amber); margin-bottom:6px}
+  color:var(--stage-accent); margin-bottom:6px}
 .prompt h1{font-family:var(--f-disp); font-weight:600; font-size:clamp(24px,6.4vw,36px);
   margin:0; line-height:1.12; text-wrap:balance; letter-spacing:-.005em;
   text-shadow:0 2px 18px rgba(0,0,0,.75)}
-.comma{color:var(--paper-dim)}
+.prompt .comma{color:var(--stage-fg-2)}
 .flagimg{display:block; height:clamp(52px,15vw,74px); width:auto; margin:2px auto 0;
   border-radius:4px; border:1px solid rgba(240,232,218,.28);
   box-shadow:0 6px 20px rgba(0,0,0,.55); background:#0C0B0A}
@@ -145,15 +744,21 @@ canvas{display:block; width:100%; height:100%}
 .ret-tick{stroke:rgba(255,102,0,.55); stroke-width:1.8}
 .ret-dot{fill:#FF6600}
 
+/* STAGE */
 .hint{position:absolute; left:50%; transform:translateX(-50%); bottom:calc(env(safe-area-inset-bottom) + 68px);
   z-index:5; font-family:var(--f-mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase;
-  color:var(--paper-dim); background:rgba(14,12,10,.74); border:1px solid var(--line);
+  color:var(--stage-fg-2); background:rgba(14,12,10,.74); border:1px solid var(--stage-line);
   padding:9px 15px; border-radius:99px; backdrop-filter:blur(8px); pointer-events:none;
   white-space:nowrap; transition:opacity .3s}
 
 /* ---------- sheets ---------- */
+/* CHROME. Opaque surfaces you read on -- reveal, story, results bridge,
+   review, learn, and the five panels. These are the room, and they re-theme.
+   The gradient was two hand-mixed near-blacks; it is now the same two steps of
+   the ground ramp, so it inverts with everything else. */
 .sheet{position:absolute; left:0; right:0; bottom:0; z-index:9;
-  background:linear-gradient(180deg,rgba(23,20,18,.95),rgba(12,11,10,.985));
+  color:var(--fg);
+  background:linear-gradient(180deg,var(--bg-raise),var(--bg));
   backdrop-filter:blur(18px); border-top:1px solid var(--line2);
   border-radius:20px 20px 0 0; box-shadow:var(--shadow);
   padding:20px 20px calc(env(safe-area-inset-bottom) + 20px);
@@ -166,9 +771,10 @@ canvas{display:block; width:100%; height:100%}
 .sheet.story{max-height:58%; display:flex; flex-direction:column; overflow:hidden}
 /* the beat between the phases: the score is the whole message */
 /* one beat on the globe before the score page takes over */
+/* STAGE: it is painted straight onto the globe, with nothing behind it. */
 .timeup{position:absolute; left:50%; top:44%; transform:translate(-50%,-50%) scale(.94);
   z-index:15; font-family:var(--f-disp); font-weight:600; font-size:44px; letter-spacing:-.01em;
-  color:var(--paper); text-transform:uppercase; white-space:nowrap; pointer-events:none;
+  color:var(--stage-fg); text-transform:uppercase; white-space:nowrap; pointer-events:none;
   text-shadow:0 4px 30px rgba(0,0,0,.85), 0 0 60px rgba(0,0,0,.7);
   opacity:0; transition:opacity .22s ease, transform .22s ease}
 .timeup.on{opacity:1; transform:translate(-50%,-50%) scale(1)}
@@ -189,6 +795,12 @@ canvas{display:block; width:100%; height:100%}
   -webkit-overflow-scrolling:touch}
 .st-foot{flex:0 0 auto; padding-top:12px; margin-top:2px;
   border-top:1px solid var(--line); background:transparent}
+/* CHROME, and the biggest single reason the light theme is worth having: the
+   intro and the score page are the two screens with real reading on them, and
+   neither shows any part of the globe. The Du Bois emblem on the intro is a
+   transparent PNG -- near-black discs, grey land, amber Africa -- which reads
+   on cream exactly as the 1900 plate did on paper, so nothing here is baked
+   artwork that needs the stage. */
 .full{position:absolute; inset:0; z-index:12; background:var(--ink);
   overflow-y:auto; overscroll-behavior:contain; display:none}
 .full.on{display:block}
@@ -197,7 +809,7 @@ canvas{display:block; width:100%; height:100%}
 /* ---------- buttons ---------- */
 .btn{display:block; width:100%; border:none; cursor:pointer; font-family:var(--f-body);
   font-weight:600; font-size:15.5px; padding:15px 18px; border-radius:11px;
-  background:var(--amber); color:#1A1206; letter-spacing:.01em; transition:filter .18s, transform .1s}
+  background:var(--amber); color:var(--fg-on-accent); letter-spacing:.01em; transition:filter .18s, transform .1s}
 .btn:hover{filter:brightness(1.08)} .btn:active{transform:translateY(1px)}
 .btn.ghost{background:transparent; color:var(--paper); border:1px solid var(--line2)}
 .btn.ghost:hover{background:var(--ink3); filter:none}
@@ -223,7 +835,7 @@ canvas{display:block; width:100%; height:100%}
 .legend i{display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:6px; vertical-align:0}
 .dist{color:var(--paper); margin-left:auto}
 .bonus{display:inline-flex; align-items:center; color:var(--verdigris);
-  border:1px solid rgba(89,185,164,.45); border-radius:99px; padding:4px 10px; font-size:11.5px}
+  border:1px solid var(--rule-good-strong); border-radius:99px; padding:4px 10px; font-size:11.5px}
 
 /* ---------- story ---------- */
 .st-head{display:flex; align-items:center; gap:9px; margin-bottom:9px}
@@ -231,9 +843,9 @@ canvas{display:block; width:100%; height:100%}
   color:var(--amber)}
 .st-count{margin-left:auto; font-family:var(--f-mono); font-size:11px; color:var(--paper-faint);
   letter-spacing:.1em}
-.st-fact{margin:11px 0 12px; font-size:15.5px; line-height:1.62; color:#DAD5C9; max-width:62ch}
+.st-fact{margin:11px 0 12px; font-size:15.5px; line-height:1.62; color:var(--fg-2); max-width:62ch}
 .st-src{display:inline-block; font-family:var(--f-mono); font-size:12px; color:var(--verdigris);
-  text-decoration:none; border-bottom:1px solid rgba(89,185,164,.35); word-break:break-word;
+  text-decoration:none; border-bottom:1px solid var(--rule-good); word-break:break-word;
   margin-bottom:16px}
 .st-src:hover{border-bottom-color:var(--verdigris)}
 .st-nav{display:flex; gap:10px; margin-bottom:10px}
@@ -243,15 +855,16 @@ canvas{display:block; width:100%; height:100%}
   background:none; border:0; border-bottom:1px solid var(--line); color:inherit;
   font:inherit; padding:11px 2px; cursor:pointer}
 .rvw:last-child{border-bottom:0}
-.rvw:hover,.rvw.on{background:rgba(255,255,255,.045)}
+/* was a white wash, which is invisible on a cream panel */
+.rvw:hover,.rvw.on{background:var(--bg-sink)}
 .rvw i{width:11px; height:11px; border-radius:3px; flex:0 0 auto}
 .rvw .nm{flex:1 1 auto; font-size:15px; color:var(--paper)}
 .rvw .tr{font-family:var(--f-mono); font-size:11px; letter-spacing:.05em;
   text-transform:uppercase; color:var(--paper-faint); white-space:nowrap}
 .st-more{font-family:var(--f-mono); font-size:11.5px; letter-spacing:.05em;
   color:var(--paper-faint); margin-bottom:14px; line-height:1.6}
-.st-more .soj{color:#C77BFF}
-.st-more .soj b{color:#C77BFF; font-weight:500}
+.st-more .soj{color:var(--soj-other)}
+.st-more .soj b{color:var(--soj-other); font-weight:500}
 .edition{font-family:var(--f-mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
   color:var(--amber); text-align:left; margin-top:0}
 
@@ -260,9 +873,10 @@ canvas{display:block; width:100%; height:100%}
 .timedset .btn{flex-direction:column; gap:3px; line-height:1.25; padding:15px 16px}
 .timedset .btn small{display:block; font-family:var(--f-mono); font-size:11px; font-weight:400;
   letter-spacing:.02em; text-transform:none; opacity:.72}
+/* STAGE: the clock only ever appears inside the prompt chip. */
 .clock{font-family:var(--f-mono); font-size:16px; font-variant-numeric:tabular-nums;
-  letter-spacing:.06em; color:var(--paper); padding:2px 9px; border-radius:5px;
-  border:1px solid var(--line2); background:rgba(0,0,0,.28)}
+  letter-spacing:.06em; color:var(--stage-fg); padding:2px 9px; border-radius:5px;
+  border:1px solid var(--stage-line); background:rgba(0,0,0,.28)}
 .clock.warn{color:#FFB27A; border-color:rgba(255,120,40,.5)}
 .clock.out{color:#FF7A4A; border-color:rgba(255,90,40,.75)}
 .quizsum{display:flex; flex-wrap:wrap; gap:9px 16px; margin:4px 0 18px;
@@ -281,10 +895,10 @@ canvas{display:block; width:100%; height:100%}
    things rather than a list, so neither should look like the head of a menu. */
 .levelset{display:flex; gap:10px; margin-bottom:4px}
 .levelset button{flex:1 1 0; font-family:var(--f-mono); font-size:15px; letter-spacing:.03em;
-  padding:15px 10px; border-radius:0; border:1px solid #2A251C; background:#1C1913;
+  padding:15px 10px; border-radius:0; border:1px solid var(--line); background:var(--ink3);
   color:var(--paper-dim); cursor:pointer; transition:background .15s, color .15s, border-color .15s}
-.levelset button:hover{border-color:#6A5E47; color:var(--paper)}
-.levelset button[aria-pressed="true"]{background:#6A5E47; border-color:#6A5E47; color:var(--paper)}
+.levelset button:hover{border-color:var(--line2); color:var(--paper)}
+.levelset button[aria-pressed="true"]{background:var(--line2); border-color:var(--line2); color:var(--paper)}
 .levelset button:focus-visible{outline:2px solid var(--amber); outline-offset:2px}
 
 /* Du Bois's two hemispheres, given room to be looked at */
@@ -300,21 +914,23 @@ canvas{display:block; width:100%; height:100%}
   line-height:1.2; padding:15px 30px; font-size:17px}
 .playset .btn small{display:block; font-family:var(--f-mono); font-size:12px; font-weight:400;
   letter-spacing:.02em; text-transform:none; opacity:.75}
-.btn.alt{background:#332D22; color:var(--paper); border:1px solid var(--line2)}
-.btn.alt:hover{background:#3E3729; filter:none}
+.btn.alt{background:var(--ink3); color:var(--paper); border:1px solid var(--line2)}
+.btn.alt:hover{background:var(--bg-edge); filter:none}
 .setline{font-family:var(--f-mono); font-size:12px; color:var(--paper-faint); line-height:1.7;
   margin:2px 0 30px}
 .inlink{font:inherit; color:var(--verdigris); background:none; border:0; padding:0; cursor:pointer;
   display:inline-flex; align-items:center; gap:4px;
-  border-bottom:1px solid rgba(89,185,164,.35)}
-.inlink:hover{color:#7FD8C3}
+  border-bottom:1px solid var(--rule-good)}
+/* the hover moves TOWARDS the text colour of whichever theme is up, so it
+   brightens on the dark ground and deepens on the light one */
+.inlink:hover{color:color-mix(in srgb, var(--good) 78%, var(--fg))}
 .inlink:focus-visible{outline:2px solid var(--amber); outline-offset:2px}
 .hrule{border:0; border-top:1px solid var(--line); margin:22px 0}
 .sh-sec{font-family:var(--f-disp); font-size:21px; font-weight:600; letter-spacing:-.01em;
   color:var(--paper); margin:0 0 11px}
 .legal{display:flex; gap:16px; flex-wrap:wrap; margin:14px 0 14px}
 .legal a{font-family:var(--f-mono); font-size:12px; color:var(--verdigris);
-  text-decoration:none; border-bottom:1px solid rgba(89,185,164,.35)}
+  text-decoration:none; border-bottom:1px solid var(--rule-good)}
 .legal a:hover{border-bottom-color:var(--verdigris)}
 .selectbox{width:100%; font-family:var(--f-mono); font-size:13.5px; color:var(--paper);
   background:var(--ink3); border:1px solid var(--line2); border-radius:8px;
@@ -327,21 +943,22 @@ canvas{display:block; width:100%; height:100%}
 .rv-more{display:block; margin:2px 0 12px; padding:10px 13px;
   border:1px solid rgba(170,15,255,.42); background:rgba(170,15,255,.10); border-radius:8px;
   font-size:13px; line-height:1.45; color:var(--paper-dim)}
-.rv-more b{color:#C77BFF; font-weight:600}
+.rv-more b{color:var(--soj-other); font-weight:600}
 
 /* ---------- leaving a round ---------- */
+/* STAGE: only ever shown mid-round, over the globe. */
 .quitbtn{position:absolute; left:14px; bottom:calc(env(safe-area-inset-bottom) + 18px);
   z-index:6; font-family:var(--f-mono); font-size:11.5px; letter-spacing:.09em;
-  text-transform:uppercase; color:var(--paper-dim); background:rgba(14,12,10,.78);
-  border:1px solid var(--line2); padding:10px 15px; border-radius:99px;
+  text-transform:uppercase; color:var(--stage-fg-2); background:rgba(14,12,10,.78);
+  border:1px solid var(--stage-line); padding:10px 15px; border-radius:99px;
   backdrop-filter:blur(8px); cursor:pointer; white-space:nowrap;
   transition:color .18s, background .18s, border-color .18s}
-.quitbtn:hover{color:var(--paper); background:var(--ink3); border-color:var(--paper-faint)}
+.quitbtn:hover{color:var(--stage-fg); background:rgba(14,12,10,.92); border-color:var(--stage-fg-3)}
 .quitbtn:focus-visible{outline:2px solid var(--amber); outline-offset:2px}
 .askwrap{position:absolute; inset:0; z-index:22; display:flex; align-items:center;
-  justify-content:center; padding:24px; background:rgba(6,5,4,.72); backdrop-filter:blur(3px)}
+  justify-content:center; padding:24px; background:var(--scrim); backdrop-filter:blur(3px)}
 .ask{width:100%; max-width:340px; background:var(--ink2); border:1px solid var(--line2);
-  border-radius:14px; padding:22px 20px 18px; box-shadow:0 18px 50px rgba(0,0,0,.6)}
+  border-radius:14px; padding:22px 20px 18px; box-shadow:var(--shadow)}
 .ask h2{margin:0 0 9px; font-family:var(--f-disp); font-size:21px; color:var(--paper);
   font-weight:600; letter-spacing:-.01em}
 .ask p{margin:0 0 18px; font-size:14px; line-height:1.6; color:var(--paper-dim)}
@@ -368,42 +985,71 @@ canvas{display:block; width:100%; height:100%}
   letter-spacing:-.03em; line-height:.95; margin:0}
 .brandline{font-family:var(--f-mono); font-size:11px; letter-spacing:.26em; text-transform:uppercase;
   color:var(--amber); margin-bottom:10px}
-.lede{font-size:16.5px; color:#DCD4C7; max-width:44ch; margin:16px 0 26px; line-height:1.6}
+.lede{font-size:16.5px; color:var(--fg-2); max-width:44ch; margin:16px 0 26px; line-height:1.6}
 .steps{list-style:none; padding:0; margin:0 0 28px}
 .steps li{display:grid; grid-template-columns:26px 1fr; gap:12px; padding:12px 0; border-top:1px solid var(--line);
-  font-size:15px; color:#DCD4C7; align-items:start}
+  font-size:15px; color:var(--fg-2); align-items:start}
 .steps li:last-child{border-bottom:1px solid var(--line)}
 .steps b{font-family:var(--f-mono); font-size:11.5px; color:var(--amber); font-weight:500; padding-top:3px}
 .ladder{display:flex; gap:10px; margin:0 0 14px}
 .lad{flex:1; display:flex; flex-direction:column; align-items:center; gap:7px;
-  padding:12px 4px 10px; border:1px solid var(--line); border-radius:10px; background:rgba(34,29,25,.45)}
+  /* --bg-RAISE, not --bg-sink. The rung carries an amber multiplier, and the
+     token file only promises --accent 4.5:1 against the page and the raised
+     ground -- on the sunken one it measures 3.92:1 in light. It is a card in a
+     ladder, not a well, so the raised step is the right one anyway. */
+  padding:12px 4px 10px; border:1px solid var(--line); border-radius:10px; background:var(--bg-raise)}
 .lad .rs{width:22px; height:22px; opacity:1}
 .lad-m{font-family:var(--f-mono); font-size:11.5px; color:var(--amber)}
 .note{font-family:var(--f-mono); font-size:12.5px; color:var(--paper-faint); line-height:1.65; letter-spacing:.01em}
-.notice{border:1px solid rgba(224,164,74,.34); background:rgba(224,164,74,.07);
+.notice{border:1px solid color-mix(in srgb, var(--accent) 36%, transparent);
+  background:color-mix(in srgb, var(--accent) 8%, transparent);
   border-radius:12px; padding:14px 16px 15px; margin-bottom:20px; text-align:left}
 .notice .note{color:var(--paper-dim)}
 #toast{position:absolute; left:50%; transform:translate(-50%,14px); bottom:calc(env(safe-area-inset-bottom) + 92px);
-  background:var(--verdigris); color:#04201A; font-weight:600; font-size:13.5px; padding:11px 18px;
+  background:var(--verdigris); color:var(--fg-on-accent); font-weight:600; font-size:13.5px; padding:11px 18px;
   border-radius:99px; z-index:20; opacity:0; pointer-events:none; transition:opacity .25s, transform .25s}
 #toast.on{opacity:1; transform:translate(-50%,0)}
+/* STAGE: it covers the globe while the textures decode, and it is the very
+   first thing painted -- a cream flash here then a cut to black would be worse
+   than the theme flash the pre-paint script exists to prevent. */
 #loading{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; z-index:30;
-  background:var(--ink); font-family:var(--f-mono); font-size:11.5px; letter-spacing:.22em;
-  text-transform:uppercase; color:var(--paper-faint); transition:opacity .5s}
-.share-box{width:100%; background:var(--ink); color:var(--paper-dim); border:1px solid var(--line);
+  background:var(--stage); font-family:var(--f-mono); font-size:11.5px; letter-spacing:.22em;
+  text-transform:uppercase; color:var(--stage-fg-3); transition:opacity .5s}
+.share-box{width:100%; background:var(--ink3); color:var(--paper-dim); border:1px solid var(--line);
   border-radius:10px; padding:12px; font-family:var(--f-mono); font-size:12px; line-height:1.7;
   margin-top:12px; resize:none; user-select:text; -webkit-user-select:text}
 /* ---------- corner controls ---------- */
 /* Audit S7: the gap was 9px here, 2px in Word Chain and 1px in the shell. 4px
    is the agreed middle and is what tokens.css calls --corner-gap. */
+/* THE ONE CONTROL THAT SITS ON BOTH GROUNDS.
+   The corner bar is z-index 16 and never hides, so during a round it floats on
+   the globe (stage) and on the intro and score pages it floats on a full-page
+   chrome view (.full.on, inset:0, z-index 12). One colour cannot serve both
+   once the room can go light: stage ink on a cream page is invisible, room ink
+   on the globe is invisible.
+
+   So the bar carries its own three-step ramp as variables and swaps the whole
+   ramp in one rule. `.paged` is stamped on #app by show() in partD.js -- the
+   single place any .full view is toggled -- rather than inferred with :has(),
+   because a selector whose fallback is "invisible icons" is the wrong way round
+   to fail.
+
+   It does NOT need a third case for an open panel: the panels are bottom
+   sheets capped at 88% height, so the corner is always over the scrimmed globe
+   when one is up, never over the panel itself. */
 .corner{position:absolute; top:calc(env(safe-area-inset-top) + 10px); right:10px;
-  display:flex; align-items:center; gap:4px; z-index:16}
+  display:flex; align-items:center; gap:4px; z-index:16;
+  --corner-fg:var(--stage-fg); --corner-fg-2:var(--stage-fg-2);
+  --corner-fg-3:var(--stage-fg-3); --corner-wash:var(--stage-wash)}
+#app.paged .corner{
+  --corner-fg:var(--fg); --corner-fg-2:var(--fg-2);
+  --corner-fg-3:var(--fg-3); --corner-wash:color-mix(in srgb, var(--fg) 10%, transparent)}
 #introView .wrap{padding-top:calc(env(safe-area-inset-top) + 62px)}
 .iconbtn{width:38px; height:38px; border-radius:50%; display:flex; align-items:center;
-  justify-content:center; cursor:pointer; color:var(--paper-dim);
+  justify-content:center; cursor:pointer; color:var(--corner-fg-2);
   background:transparent; border:none; flex:none;
   transition:color .18s, background .18s}
-.iconbtn:hover{color:var(--paper); background:rgba(240,232,218,.09)}
+.iconbtn:hover{color:var(--corner-fg); background:var(--corner-wash)}
 .iconbtn:focus-visible{outline:2px solid var(--amber); outline-offset:2px}
 /* One weight for every corner glyph, from one token. The stroke-width attribute
    on each <svg> stays as the no-CSS fallback; this rule is what actually paints,
@@ -424,11 +1070,11 @@ canvas{display:block; width:100%; height:100%}
    ("Duplication worth extracting") when that sprite exists. */
 .brandlink{display:flex; align-items:center; justify-content:center;
   height:38px; padding:0 8px; border-radius:99px; text-decoration:none;
-  flex:none; color:var(--fg-3); transition:color .18s, background .18s}
+  flex:none; color:var(--corner-fg-3); transition:color .18s, background .18s}
 .brandlink svg{display:block; width:23px; height:14.5px; overflow:visible}
-.brandlink:hover{color:var(--fg); background:rgba(240,232,218,.09)}
+.brandlink:hover{color:var(--corner-fg); background:var(--corner-wash)}
 .brandlink:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
-.scrim{position:absolute; inset:0; background:rgba(6,5,4,.6); z-index:13;
+.scrim{position:absolute; inset:0; background:var(--scrim); z-index:13;
   opacity:0; pointer-events:none; transition:opacity .3s}
 .scrim.on{opacity:1; pointer-events:auto}
 .sheet.panel{z-index:14; max-height:88%}
@@ -449,7 +1095,7 @@ canvas{display:block; width:100%; height:100%}
   background:transparent; border:1px solid var(--line2); transition:all .18s}
 .seg button:hover{background:var(--ink3); color:var(--paper)}
 .seg button[aria-pressed="true"]{background:var(--amber); border-color:var(--amber);
-  color:#1A1206; font-weight:600}
+  color:var(--fg-on-accent); font-weight:600}
 .rng{width:100%; -webkit-appearance:none; appearance:none; height:4px; border-radius:99px;
   background:var(--line2); outline:none; margin:14px 0 8px}
 .rng::-webkit-slider-thumb{-webkit-appearance:none; width:22px; height:22px; border-radius:50%;
@@ -463,7 +1109,7 @@ canvas{display:block; width:100%; height:100%}
 .toggle i{position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%;
   background:var(--paper-dim); transition:transform .22s, background .22s}
 .toggle[aria-checked="true"]{background:var(--amber); border-color:var(--amber)}
-.toggle[aria-checked="true"] i{transform:translateX(22px); background:#1A1206}
+.toggle[aria-checked="true"] i{transform:translateX(22px); background:var(--fg-on-accent)}
 .soon{font-family:var(--f-disp); font-weight:600; font-size:21px; margin:0 0 6px}
 @media (prefers-reduced-motion:reduce){*{transition-duration:.01ms !important; animation-duration:.01ms !important}}
 </style>

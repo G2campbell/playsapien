@@ -95,13 +95,15 @@ function pruneOldDailies() {
 pruneOldDailies();
 
 /* ------------------------------------------------------------------ settings */
-var SET = Object.assign({ theme: 'light', gentle: false, motion: false }, store('set') || {});
+/* The theme is NOT a Word Chain setting any more. It lives at localStorage
+   `ps:theme`, is shared with the shell and Sojourner, and is owned end to end by
+   PSTheme (packages/tokens/theme.js, inlined in <head> so it runs before paint).
+   `theme` is dropped from any stored object left over from the old scheme —
+   PSTheme has already migrated the value by the time this runs. `gentle` and
+   `motion` are still ours. */
+var SET = Object.assign({ gentle: false, motion: false }, store('set') || {});
+delete SET.theme;
 function saveSet() { store('set', SET); }
-function applyTheme() {
-  if (SET.theme === 'system') document.documentElement.removeAttribute('data-theme');
-  else document.documentElement.setAttribute('data-theme', SET.theme);
-}
-applyTheme();
 
 /* ------------------------------------------------------------------ inflection */
 function plural(w) {
@@ -617,9 +619,7 @@ function paintHome() {
     : 'Chains by G2';
 }
 function paintSettings() {
-  [].forEach.call($('themeSeg').children, function (b) {
-    b.setAttribute('aria-pressed', b.dataset.theme === SET.theme ? 'true' : 'false');
-  });
+  /* #themeSeg is painted by PSTheme.bindControl — see the wiring below. */
   $('gentleTog').setAttribute('aria-checked', SET.gentle ? 'true' : 'false');
   $('motionTog').setAttribute('aria-checked', SET.motion ? 'true' : 'false');
 }
@@ -661,15 +661,29 @@ function toast(t) {
 /* ------------------------------------------------------------------ the share card */
 function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 
+/* The card is FIXED in the light rose, in both themes, and does not subscribe to
+   PSTheme.onChange. It is an image people post publicly: it lands in someone
+   else's timeline, next to someone else's theme, so "follows the player's
+   theme" only decides which of two looks a stranger sees at random. Fixed also
+   keeps it identical to og.png, icon-512.png and the favicon, so every public
+   impression of Word Chain is the same colour. These literals are the light
+   .wc-game values — --clay #EFCBDA and --fg #33262C — and must be updated by
+   hand if those change; canvas cannot read a custom property. */
+var CARD_BG = '#EFCBDA';        /* light --clay                                */
+var CARD_INK = '#33262C';       /* light --fg  — 9.78:1 on CARD_BG             */
+var CARD_INK_74 = 'rgba(51,38,44,.74)';
+var CARD_INK_55 = 'rgba(51,38,44,.55)';
+var CARD_INK_28 = 'rgba(51,38,44,.28)';
+
 function buildCard(r) {
   var cv = $('cardcv'), x = cv.getContext('2d');
   var W = cv.width, H = cv.height;
-  x.fillStyle = '#D4B072'; x.fillRect(0, 0, W, H);
-  x.textAlign = 'center'; x.fillStyle = '#1F1A14';
+  x.fillStyle = CARD_BG; x.fillRect(0, 0, W, H);
+  x.textAlign = 'center'; x.fillStyle = CARD_INK;
 
   /* the mark, drawn from the same path as the app icon */
   x.save(); x.translate(W / 2 - 46, 120); x.scale(3.85, 3.85);
-  x.strokeStyle = '#1F1A14'; x.lineWidth = 1.9; x.lineCap = 'round'; x.lineJoin = 'round';
+  x.strokeStyle = CARD_INK; x.lineWidth = 1.9; x.lineCap = 'round'; x.lineJoin = 'round';
   var p1 = new Path2D('M10.4 13.6a4.6 4.6 0 0 0 6.94.5l2.76-2.76a4.6 4.6 0 0 0-6.5-6.5l-1.58 1.57');
   var p2 = new Path2D('M13.6 10.4a4.6 4.6 0 0 0-6.94-.5L3.9 12.66a4.6 4.6 0 0 0 6.5 6.5l1.57-1.57');
   x.stroke(p1); x.stroke(p2); x.restore();
@@ -693,10 +707,10 @@ function buildCard(r) {
     for (var i = 0; i < n; i++) {
       var cx = x0 + i * gap, used = (r.perWord || [])[i];
       x.beginPath(); x.arc(cx, y, used ? 21 : 17, 0, Math.PI * 2);
-      if (used) { x.strokeStyle = 'rgba(31,26,20,.55)'; x.lineWidth = 5; x.stroke(); }
-      else { x.fillStyle = '#1F1A14'; x.fill(); }
+      if (used) { x.strokeStyle = CARD_INK_55; x.lineWidth = 5; x.stroke(); }
+      else { x.fillStyle = CARD_INK; x.fill(); }
     }
-    x.fillStyle = '#1F1A14';
+    x.fillStyle = CARD_INK;
     x.font = '400 30px Fraunces, Georgia, serif';
     x.fillText('eight words linked', W / 2, y + 88);
     y += 150;
@@ -710,19 +724,19 @@ function buildCard(r) {
   }
 
   y += 34;
-  x.strokeStyle = 'rgba(31,26,20,.28)'; x.lineWidth = 2;
+  x.strokeStyle = CARD_INK_28; x.lineWidth = 2;
   x.beginPath(); x.moveTo(W / 2 - 200, y); x.lineTo(W / 2 + 200, y); x.stroke();
 
   x.font = '900 126px Fraunces, Georgia, serif';
   x.fillText(fmt(r.total), W / 2, y + 136);
 
   x.font = '400 34px Fraunces, Georgia, serif';
-  x.fillStyle = 'rgba(31,26,20,.74)';
+  x.fillStyle = CARD_INK_74;
   x.fillText(r.hints ? r.hints + ' lifeline' + (r.hints > 1 ? 's' : '') + ' used' : 'no lifelines',
     W / 2, y + 192);
 
   x.font = '400 28px Fraunces, Georgia, serif';
-  x.fillStyle = 'rgba(31,26,20,.55)';
+  x.fillStyle = CARD_INK_55;
   if (SITE) x.fillText(SITE.replace(/^https?:\/\//, '').replace(/\/$/, ''), W / 2, H - 64);
 
   return new Promise(function (res) { cv.toBlob(res, 'image/png'); });
@@ -816,10 +830,7 @@ $('settingsBtn').addEventListener('click', function () { paintSettings(); openSh
 $('profileBtn').addEventListener('click', function () { paintProfile(); openSheet('profileSheet'); });
 $('scrim').addEventListener('click', closeSheets);
 document.addEventListener('click', function (e) { if (e.target.closest('[data-close]')) closeSheets(); });
-$('themeSeg').addEventListener('click', function (e) {
-  var b = e.target.closest('button'); if (!b) return;
-  SET.theme = b.dataset.theme; saveSet(); applyTheme(); paintSettings();
-});
+PSTheme.bindControl($('themeSeg'));
 $('gentleTog').addEventListener('click', function () { SET.gentle = !SET.gentle; saveSet(); paintSettings(); });
 $('motionTog').addEventListener('click', function () { SET.motion = !SET.motion; saveSet(); paintSettings(); });
 $('againBtn').addEventListener('click', goHome);

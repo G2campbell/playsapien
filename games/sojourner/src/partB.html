@@ -245,6 +245,22 @@
     </div>
 
     <div class="setrow">
+      <div class="setlabel">Theme</div>
+      <!-- Wired by PSTheme.bindControl (partD.js), which reads data-theme off
+           each child and keeps aria-pressed honest. The choice is written to
+           ps:theme, the one key all three PlaySapien surfaces share, so it
+           carries to Word Chain and the front door. -->
+      <div class="seg" id="themeSeg">
+        <button type="button" data-theme="light">Light</button>
+        <button type="button" data-theme="dark">Dark</button>
+        <button type="button" data-theme="system">System</button>
+      </div>
+      <p class="sethint">Changes the room, not the globe. The globe keeps its dark sky in
+        both themes &mdash; its terrain, borders and region colours are painted against
+        black and would not survive being lightened. Shared with the rest of PlaySapien.</p>
+    </div>
+
+    <div class="setrow">
       <div class="setlabel">Units</div>
       <div class="seg" id="segUnits">
         <button type="button" data-v="km">Kilometres</button>
@@ -286,7 +302,7 @@
       Baumfree and renamed herself in 1843 &mdash; Sojourner because she was to travel up and down the
       land, Truth because she was to declare it.
       <a href="https://www.loc.gov/exhibits/odyssey/educate/truth.html" target="_blank" rel="noopener"
-         style="color:var(--verdigris);text-decoration:none;border-bottom:1px solid rgba(89,185,164,.35)">Library of Congress</a></p>
+         style="color:var(--verdigris);text-decoration:none;border-bottom:1px solid var(--rule-good)">Library of Congress</a></p>
     <hr class="hrule">
     <h3 class="sh-sec">The two globes</h3>
     <p class="note">The emblem on the front page follows a chart W.&nbsp;E.&nbsp;B. Du Bois made
@@ -297,9 +313,9 @@
       tracing the routes of the African slave trade, with Georgia starred. The originals, grown
       brittle, are held and digitised by the Library of Congress.
       <a href="https://www.loc.gov/pictures/item/2013650420/" target="_blank" rel="noopener"
-         style="color:var(--verdigris);text-decoration:none;border-bottom:1px solid rgba(89,185,164,.35)">The plate</a> &middot;
+         style="color:var(--verdigris);text-decoration:none;border-bottom:1px solid var(--rule-good)">The plate</a> &middot;
       <a href="https://www.loc.gov/pictures/collection/anedub/" target="_blank" rel="noopener"
-         style="color:var(--verdigris);text-decoration:none;border-bottom:1px solid rgba(89,185,164,.35)">The collection</a></p>
+         style="color:var(--verdigris);text-decoration:none;border-bottom:1px solid var(--rule-good)">The collection</a></p>
     <p class="note" style="margin-top:10px; color:var(--paper-faint)">What you see here is not a
       reproduction of that plate. The continents are projected from this game&rsquo;s own map and
       coloured in its own palette; what is borrowed is the composition, and the lines.</p>

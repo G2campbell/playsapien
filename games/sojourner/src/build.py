@@ -70,7 +70,13 @@ page=(A+B+SITE_JS
   +'<script defer src="three.min.js"></script>\n'
   +'<script defer src="app.js?v='+V+'"></script>\n')
 print('asset version', V)
-head='<!doctype html>\n<html lang="en">\n<head>\n'
+# class="sj-game" here, not only from PSTheme.init: tokens.css scopes every
+# role to a surface class, so if scripting is off or the inline script is
+# blocked by a policy, an unclassed <html> leaves --bg and friends undefined and
+# the page renders unstyled. PSTheme.init adds the class too and checks first,
+# so the two cannot fight. The single-file build gets its <html> from the
+# artifact host and relies on the script alone; that build is a preview.
+head='<!doctype html>\n<html lang="en" class="sj-game">\n<head>\n'
 # Open Graph / Twitter card: what a chat app or social site shows when the URL is pasted.
 # The picture, the heading and the blurb are all one tappable link on the other end.
 OG = ('<meta property="og:type" content="website">\n'
@@ -101,6 +107,37 @@ open(DIST+'index.html','w',encoding='utf-8').write(
 # Standalone pages, not text inside a modal: Google's OAuth screen and Stripe both
 # need a public URL they can fetch, and so does anyone who wants to link to one.
 LEGAL_CSS = open(SRC+'pages/_legal.css',encoding='utf-8').read()
+# These pages are opened from a dark game in a new tab. Without the pre-paint
+# script they would paint the light base first and correct themselves, which is
+# the same flash the game's own <head> exists to prevent -- so they get the
+# identical treatment: theme.js inlined ahead of everything, then tokens.css
+# inlined ahead of _legal.css. Both are read from packages/tokens at build time
+# rather than copied into this directory, so there is only ever one source.
+# Audit S8: this script still runs out of /tmp, so the repo may or may not be
+# beside it. Look in the repo position first, then next to the sources, and say
+# plainly which paths were tried if neither is there -- a silent fallback to a
+# stale copy is exactly how an inlined file drifts from its canonical one.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+def _tokens(name):
+    for d in (os.path.join(_HERE,'..','..','..','packages','tokens'),
+              os.path.join(SRC,'..','..','..','packages','tokens'),
+              os.path.join(SRC,'tokens')):
+        p = os.path.normpath(os.path.join(d,name))
+        if os.path.exists(p): return open(p,encoding='utf-8').read()
+    raise SystemExit('build.py: cannot find packages/tokens/%s (tried beside %s and %s)'
+                     % (name, _HERE, SRC))
+LEGAL_TOKENS = _tokens('tokens.css')
+LEGAL_THEME  = _tokens('theme.js')
+LEGAL_HEAD_JS = ('<script>\n'
+  '/* ===== BEGIN packages/tokens/theme.js (inlined verbatim \u2014 do not edit here) ===== */\n'
+  + LEGAL_THEME +
+  '/* ===== END packages/tokens/theme.js ===== */\n'
+  "PSTheme.init('sj-game');\n</script>\n")
+LEGAL_STYLE = ('<style>\n'
+  '/* ===== BEGIN packages/tokens/tokens.css (inlined verbatim \u2014 do not edit here) ===== */\n'
+  + LEGAL_TOKENS +
+  '/* ===== END packages/tokens/tokens.css ===== */\n'
+  + LEGAL_CSS + '</style>\n')
 LEGAL_FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com">\n'
   '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'
   '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?'
@@ -109,11 +146,11 @@ LEGAL_FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com">\n'
 for _slug,_title in (('privacy','Privacy'),('terms','Terms of use')):
     _body = open(SRC+'pages/%s.body.html' % _slug,encoding='utf-8').read()
     open(DIST+_slug+'.html','w',encoding='utf-8').write(
-      '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+      '<!doctype html>\n<html lang="en" class="sj-game">\n<head>\n<meta charset="utf-8">\n'
       '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
       '<title>' + _title + ' \u00b7 Sojourner</title>\n'
       '<meta name="robots" content="index,follow">\n'
-      + LEGAL_FONTS + '<style>\n' + LEGAL_CSS + '</style>\n</head>\n<body>\n'
+      + LEGAL_HEAD_JS + LEGAL_FONTS + LEGAL_STYLE + '</head>\n<body>\n'
       + _body + '\n</body>\n</html>\n')
 
 # ---------- 4. deploy fragments (audit B2) ----------

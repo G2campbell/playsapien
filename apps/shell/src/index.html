@@ -1,14 +1,192 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="ps-shell">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>PlaySapien</title>
-<meta name="description" content="Daily sapo-challenges to play, share, and see where your multiple intellisenses rank you.">
+<meta name="description" content="A daily puzzle for every kind of thinking — play, share, and see where your multiple intellisenses rank you.">
 <!-- Audit S11. The shell and Sojourner both set no icon, so on the shared
      origin both fell back to a /favicon.ico that does not exist. -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 260 164'%3E%3Crect width='260' height='164' rx='30' fill='%23F3EEE2'/%3E%3Cg fill='none' stroke-linecap='round' stroke-width='13'%3E%3Cg id='h'%3E%3Cpath d='M131.05 117.24A46 46 0 1 0 121.65 40.66C129.36 44.42 137.49 66.36 141.96 66.36L248.22 66.36' stroke='%23153C5E'/%3E%3Cpath d='M11.78 66.36L108.86 66.36C116.86 66.36 119.22 61.90 121.72 54.40' stroke='%23B69A6E'/%3E%3C/g%3E%3Cuse href='%23h' transform='rotate(180 130 82)'/%3E%3C/g%3E%3C/svg%3E">
-<meta name="theme-color" content="#F3EEE2">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-40 -40 1299 722'%3E%3Crect x='-40' y='-40' width='1299' height='722' rx='90' fill='%23C5C6C1'/%3E%3Cg fill='none' stroke='%235A7085' stroke-width='62' stroke-linecap='round'%3E%3Ccircle cx='472' cy='321' r='301'/%3E%3Ccircle cx='745' cy='321' r='301'/%3E%3Cpath d='M20 220H1199'/%3E%3Cpath d='M20 422H1199'/%3E%3C/g%3E%3C/svg%3E">
+<script>
+/* ===== BEGIN packages/tokens/theme.js (inlined verbatim — do not edit here) ===== */
+/* ===========================================================================
+   The theme mechanism. One copy, inlined into all three surfaces.
+
+   This file is the source of truth. The shell and both games each inline it
+   verbatim into an inline script in the head, BEFORE any stylesheet, because
+   it has to run before first paint — otherwise the page renders light and then
+   snaps to dark, which is the flash every themed site is judged on.
+
+   It is deliberately tiny, dependency-free, and written in ES5 so it can sit
+   in a plain inline script element in any of the three builds without a
+   transpile step or a module boundary.
+
+   WHAT IT DOES
+
+     - Reads the player's choice from localStorage `ps:theme`. One key for the
+       whole platform, because all three surfaces are one origin. Choose dark
+       in Word Chain and the shell is dark when you come back to it.
+     - Stamps data-theme="light" or "dark" on <html>, or removes the attribute
+       for "system" so the CSS media query takes over.
+     - Adds the surface class (ps-shell / sj-game / wc-game) so tokens.css
+       knows which palette to serve.
+     - Keeps <meta name="theme-color"> in step, so the phone's status bar
+       matches the page rather than the other way round.
+     - Follows the OS live while the setting is "system", via a
+       prefers-color-scheme listener. Without it, a player who flips their
+       phone to dark at sunset sees the page change only on reload.
+
+   MIGRATION. Word Chain stored its theme at `wordchain:set.theme` before the
+   platform existed. On first run, if `ps:theme` is unset and that older value
+   exists, it is adopted so nobody loses their choice.
+   =========================================================================== */
+
+(function (global) {
+  'use strict';
+
+  var KEY = 'ps:theme';
+  var LEGACY = 'wordchain:set';
+  var VALID = { light: 1, dark: 1, system: 1 };
+
+  /* Both grounds, per surface, straight from tokens.css. The status bar has to
+     be told a literal colour; it cannot read a custom property. */
+  var BAR = {
+    'ps-shell': { light: '#C5C6C1', dark: '#3D352A' },
+    'sj-game':  { light: '#F0E8DA', dark: '#0C0B0A' },
+    'wc-game':  { light: '#E8D1DA', dark: '#3C2F34' }
+  };
+
+  function read() {
+    try {
+      var v = localStorage.getItem(KEY);
+      if (v && VALID[v]) return v;
+      /* one-time adoption of Word Chain's older per-game setting */
+      var old = JSON.parse(localStorage.getItem(LEGACY) || '{}');
+      if (old && old.theme && VALID[old.theme]) {
+        try { localStorage.setItem(KEY, old.theme); } catch (e) {}
+        return old.theme;
+      }
+    } catch (e) {}
+    return 'system';
+  }
+
+  function write(v) {
+    try { localStorage.setItem(KEY, v); } catch (e) {}
+  }
+
+  /* What the page is actually showing right now, which is not the same thing
+     as what the player chose: "system" resolves to one or the other. */
+  function resolved(choice) {
+    if (choice === 'light' || choice === 'dark') return choice;
+    try {
+      return global.matchMedia && global.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    } catch (e) { return 'light'; }
+  }
+
+  function apply(choice, surface) {
+    var el = document.documentElement;
+    if (choice === 'system') el.removeAttribute('data-theme');
+    else el.setAttribute('data-theme', choice);
+    if (surface && !el.classList.contains(surface)) el.classList.add(surface);
+
+    var pal = BAR[surface || currentSurface()];
+    if (pal) {
+      var m = document.querySelector('meta[name="theme-color"]');
+      if (!m) {
+        m = document.createElement('meta');
+        m.setAttribute('name', 'theme-color');
+        (document.head || el).appendChild(m);
+      }
+      m.setAttribute('content', pal[resolved(choice)]);
+    }
+    return choice;
+  }
+
+  function currentSurface() {
+    var c = document.documentElement.className || '';
+    if (c.indexOf('ps-shell') > -1) return 'ps-shell';
+    if (c.indexOf('sj-game') > -1) return 'sj-game';
+    if (c.indexOf('wc-game') > -1) return 'wc-game';
+    return null;
+  }
+
+  var listeners = [];
+
+  var Theme = {
+    /* Call once, as the first thing in <head>. `surface` is one of
+       'ps-shell' | 'sj-game' | 'wc-game'. */
+    init: function (surface) {
+      var choice = read();
+      apply(choice, surface);
+      /* Track the OS while the choice is "system". Safari before 14 has only
+         addListener, hence the fallback. */
+      try {
+        var mq = global.matchMedia('(prefers-color-scheme: dark)');
+        var onChange = function () {
+          if (read() !== 'system') return;
+          apply('system', surface);
+          notify();
+        };
+        if (mq.addEventListener) mq.addEventListener('change', onChange);
+        else if (mq.addListener) mq.addListener(onChange);
+      } catch (e) {}
+      return choice;
+    },
+
+    /* The player's choice: 'light' | 'dark' | 'system'. */
+    get: read,
+
+    /* What is on screen: 'light' | 'dark'. */
+    resolved: function () { return resolved(read()); },
+
+    set: function (v) {
+      if (!VALID[v]) return read();
+      write(v);
+      apply(v, currentSurface());
+      notify();
+      return v;
+    },
+
+    /* Fires whenever the rendered theme changes, from either a click here or
+       the OS changing under a "system" setting. Canvas that has painted its
+       own colours — a share card, a globe overlay — should redraw on this. */
+    onChange: function (fn) { if (typeof fn === 'function') listeners.push(fn); },
+
+    /* Wire a three-button segmented control. Each button carries
+       data-theme="light|dark|system". Keeps aria-pressed honest. */
+    bindControl: function (el) {
+      if (!el) return;
+      var paint = function () {
+        var cur = read();
+        for (var i = 0; i < el.children.length; i++) {
+          var b = el.children[i];
+          b.setAttribute('aria-pressed', b.getAttribute('data-theme') === cur ? 'true' : 'false');
+        }
+      };
+      el.addEventListener('click', function (e) {
+        var b = e.target.closest ? e.target.closest('[data-theme]') : null;
+        if (!b || !el.contains(b)) return;
+        Theme.set(b.getAttribute('data-theme'));
+        paint();
+      });
+      listeners.push(paint);
+      paint();
+    }
+  };
+
+  function notify() {
+    var r = resolved(read());
+    for (var i = 0; i < listeners.length; i++) {
+      try { listeners[i](r); } catch (e) {}
+    }
+  }
+
+  global.PSTheme = Theme;
+})(typeof window !== 'undefined' ? window : this);
+/* ===== END packages/tokens/theme.js ===== */
+PSTheme.init('ps-shell');
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- Audit S10. One union url across shell and both games, so navigating
@@ -18,11 +196,360 @@
      the shared cache entry is lost. -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,900&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Petit+Formal+Script&display=swap">
 <style>
+/* ===== BEGIN packages/tokens/tokens.css (inlined verbatim — do not edit here) ===== */
+/* ===========================================================================
+   PlaySapien design tokens — one language, three surfaces.
+
+   THE CONTRACT
+
+   Every surface (the shell and each game) defines the SAME role names. A
+   surface differs only in the values it gives them. So a component written
+   against `--bg` / `--fg` / `--accent` is portable, and a reader of any
+   stylesheet in this repo knows what a name means without looking it up.
+
+   Three themes everywhere: light, dark, and system. One mechanism:
+
+     1. The choice lives in localStorage under `ps:theme` — ONE key, shared by
+        all three surfaces, because they are one origin. Choose dark in Word
+        Chain and the shell is dark when you navigate back to it.
+        Values: "light" | "dark" | "system".
+     2. A pre-paint inline script stamps data-theme="light"|"dark" on <html>,
+        or removes the attribute for "system". It must run BEFORE first paint
+        or the page flashes the wrong theme.
+     3. CSS resolves in three blocks, in this order:
+          :root                                     light (the base)
+          @media (prefers-color-scheme: dark)
+            :root:not([data-theme="light"])          system, following dark
+          :root[data-theme="dark"]                   explicit dark, wins
+        The `:not([data-theme="light"])` is what lets an explicit light choice
+        beat a dark system. Leave it out and "light" silently stops working on
+        a dark machine.
+
+   THE ROLE NAMES
+
+     Ground        --bg          the page
+                   --bg-raise    above the page: sheets, cards, bars
+                   --bg-sink     below it: wells, tracks, keycaps
+                   --bg-edge     the far end of the ground ramp, for vignettes
+     Text          --fg          primary
+                   --fg-2        secondary
+                   --fg-3        tertiary, hints
+                   --fg-on-accent  text sitting on --accent
+     Rules         --line        hairline
+                   --line-2      a rule you are meant to notice
+     Colour        --accent      the surface's signature, SAFE FOR TEXT
+                   --accent-soft the same colour as a FILL — decorative only,
+                                 never text; it is not contrast-checked
+                   --good        success / correct
+                   --warn        error / caution
+     Effects       --shadow  --scrim
+                   --texture-ink    colour of the paper grain overlay
+                   --texture-alpha  how strongly the grain shows
+     Stage         --stage       a ground that stays DARK IN BOTH THEMES
+                   --stage-fg    text that sits on it
+
+   WHY --stage EXISTS
+
+   Sojourner is a lit globe. Its terrain, borders and region fills are a WebGL
+   scene whose colours are baked into textures, not CSS — and they are designed
+   against black. A light theme that lightened the globe's ground would wreck
+   the artwork. So the globe keeps a dark stage in both themes while the chrome
+   around it — bar, sheets, prompts, settings — goes light. Dark stage, light
+   room, like a gallery. Any surface with artwork that must not re-theme uses
+   the same pair.
+
+   CONTRAST
+
+   Every token in the text group clears 4.5:1 against the ground it is used on,
+   verified by `packages/tokens/check-contrast.mjs`, which runs in CI. Run it
+   after changing any value here. `--accent-soft` is deliberately exempt: it is
+   a fill, and the checker skips it by name.
+
+   A NOTE ON THE LIGHT SHELL. Its ground #C5C6C1 is a mid-tone, so there is
+   little luminance headroom between primary and tertiary text. --fg-2 and
+   --fg-3 are therefore separated by HUE rather than by lightness — one stays
+   blue, one goes neutral. They read as different weights without either
+   dropping below 4.5:1. This is a constraint of the anchor colour, not an
+   oversight.
+   =========================================================================== */
+
+/* ---------------------------------------------------------------- type ---- */
+:root {
+  --f-disp:   "Fraunces", Georgia, "Times New Roman", serif;
+  --f-body:   "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --f-mono:   "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --f-script: "Petit Formal Script", "Snell Roundhand", "Apple Chancery", cursive;
+
+  /* Sojourner sets display headings at 700, the platform and Word Chain at
+     900. Deliberate: a serif at 900 on a black ground closes up, and
+     Sojourner's headings sit on black. Both are in the union font url. */
+  --w-disp-game:     700;
+  --w-disp-platform: 900;
+
+  /* ------------------------------------------------------------ metrics -- */
+  --bar-h: 58px;
+  --icon-btn: 38px;
+  --icon-stroke: 1.8;
+  --corner-gap: 4px;
+  --sheet-radius: 20px;
+  --sheet-ease: transform .42s cubic-bezier(.22,.9,.3,1);
+}
+
+/* ===========================================================================
+   PLAYSAPIEN — the shell.
+
+   Sampled from the letterpress proof in "Sapo Sapien Designs/Play Sapien
+   01.png": cool grey rag paper, steel-blue foil on the rings and bars, a
+   near-black navy for SAPIEN, and a warm taupe outline on PLAY. Those four
+   are the whole brand.
+   =========================================================================== */
+
+.ps-shell {
+  /* the proof's own inks, theme-independent */
+  --brand-steel:      #5A7085;   /* the foil on the rings and bars           */
+  --brand-steel-deep: #2F434C;   /* its shadowed side                        */
+  --brand-navy:       #16242E;   /* SAPIEN                                   */
+  --brand-taupe:      #9D8D85;   /* the PLAY outline                         */
+  --brand-paper:      #C5C6C1;   /* the sheet                                */
+
+  --bg:        #C5C6C1;
+  --bg-raise:  #D6D7D3;
+  --bg-sink:   #B3B4AF;
+  --bg-edge:   #AFB0AA;
+  --fg:        #213946;
+  --fg-2:      #3D5465;          /* blue-leaning                            */
+  --fg-3:      #485259;          /* neutral-leaning — see the note above     */
+  --fg-on-accent: #EDEEEA;
+  --line:      #ABADA7;
+  --line-2:    #94968F;
+  --accent:    #3F5569;
+  --accent-soft: #5A7085;        /* fill only                                */
+  --good:      #325843;
+  --warn:      #863921;
+  --shadow:    0 18px 50px rgba(33,57,70,.22);
+  --scrim:     rgba(33,57,70,.30);
+  --texture-ink:   #4B4F4A;
+  --texture-alpha: .40;
+}
+
+.ps-shell[data-theme="dark"],
+.ps-shell.t-dark {
+  --bg:        #3D352A;
+  --bg-raise:  #4A4137;
+  --bg-sink:   #2F2921;
+  --bg-edge:   #2A241D;
+  --fg:        #EDE7DC;
+  --fg-2:      #C9BFAF;
+  --fg-3:      #BCAF9C;
+  --fg-on-accent: #1A2229;
+  --line:      #554B3E;
+  --line-2:    #6B5F4F;
+  --accent:    #9FB6C9;
+  --accent-soft: #7A93A8;
+  --good:      #7FBF9B;
+  --warn:      #F29C74;
+  --shadow:    0 18px 50px rgba(0,0,0,.48);
+  --scrim:     rgba(20,16,11,.58);
+  --texture-ink:   #0E0B07;
+  --texture-alpha: .34;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ps-shell:not([data-theme="light"]) {
+    --bg:        #3D352A;
+    --bg-raise:  #4A4137;
+    --bg-sink:   #2F2921;
+    --bg-edge:   #2A241D;
+    --fg:        #EDE7DC;
+    --fg-2:      #C9BFAF;
+    --fg-3:      #BCAF9C;
+    --fg-on-accent: #1A2229;
+    --line:      #554B3E;
+    --line-2:    #6B5F4F;
+    --accent:    #9FB6C9;
+    --accent-soft: #7A93A8;
+    --good:      #7FBF9B;
+    --warn:      #F29C74;
+    --shadow:    0 18px 50px rgba(0,0,0,.48);
+    --scrim:     rgba(20,16,11,.58);
+    --texture-ink:   #0E0B07;
+    --texture-alpha: .34;
+  }
+}
+
+/* ===========================================================================
+   SOJOURNER — ink and amber.
+
+   Dark is the original and is unchanged. Light is its inverse: the cream
+   becomes the ground, the near-black becomes the text. Amber cannot simply
+   invert — #E0A44A on cream is 1.8:1 — so the light theme darkens it to a
+   burnt gold for text and keeps the bright amber as a fill only.
+
+   --stage stays #0C0B0A in both, because the globe does.
+   =========================================================================== */
+
+.sj-game {
+  --stage:     #0C0B0A;          /* the globe's ground, both themes          */
+  --stage-fg:  #F0E8DA;
+  --stage-line: #38302A;
+
+  --bg:        #F0E8DA;
+  --bg-raise:  #FAF5EB;
+  --bg-sink:   #E0D5C2;
+  --bg-edge:   #D8CBB4;
+  --fg:        #0C0B0A;
+  --fg-2:      #3A332B;
+  --fg-3:      #5E5448;
+  --fg-on-accent: #F7F2E7;
+  --line:      #CFC3AE;
+  --line-2:    #B2A48C;
+  --accent:    #8A5E16;
+  --accent-soft: #E0A44A;        /* fill only                                */
+  --good:      #26705F;
+  --warn:      #A63D17;
+  --shadow:    0 18px 50px rgba(40,32,18,.18);
+  --scrim:     rgba(30,24,14,.42);
+  --texture-ink:   #6B5E48;
+  --texture-alpha: .14;
+}
+
+.sj-game[data-theme="dark"],
+.sj-game.t-dark {
+  --bg:        #0C0B0A;
+  --bg-raise:  #171412;
+  --bg-sink:   #221D19;
+  --bg-edge:   #050504;
+  --fg:        #F0E8DA;
+  --fg-2:      #C3B9AD;
+  --fg-3:      #A99D8F;
+  --fg-on-accent: #1A1206;
+  --line:      #38302A;
+  --line-2:    #4C423A;
+  --accent:    #E0A44A;
+  --accent-soft: #8E6B2C;
+  --good:      #59B9A4;
+  --warn:      #E8734A;
+  --shadow:    0 18px 50px rgba(0,0,0,.55);
+  --scrim:     rgba(6,5,4,.62);
+  --texture-ink:   #000000;
+  --texture-alpha: .10;
+}
+
+@media (prefers-color-scheme: dark) {
+  .sj-game:not([data-theme="light"]) {
+    --bg:        #0C0B0A;
+    --bg-raise:  #171412;
+    --bg-sink:   #221D19;
+    --bg-edge:   #050504;
+    --fg:        #F0E8DA;
+    --fg-2:      #C3B9AD;
+    --fg-3:      #A99D8F;
+    --fg-on-accent: #1A1206;
+    --line:      #38302A;
+    --line-2:    #4C423A;
+    --accent:    #E0A44A;
+    --accent-soft: #8E6B2C;
+    --good:      #59B9A4;
+    --warn:      #E8734A;
+    --shadow:    0 18px 50px rgba(0,0,0,.55);
+    --scrim:     rgba(6,5,4,.62);
+    --texture-ink:   #000000;
+    --texture-alpha: .10;
+  }
+}
+
+/* ===========================================================================
+   WORD CHAIN — rose and plum.
+
+   Was a clay ochre, which sat too close to Sojourner's amber; side by side on
+   the shell's rail the two games read as one. This palette is deliberately in
+   a different family so each game keeps its own identity.
+   =========================================================================== */
+
+.wc-game {
+  --bg:        #E8D1DA;
+  --bg-raise:  #F5E6EC;
+  --bg-sink:   #D8BCC8;
+  --bg-edge:   #D0B0BF;
+  --fg:        #33262C;
+  --fg-2:      #57444C;
+  --fg-3:      #6B535D;
+  --fg-on-accent: #FBF2F6;
+  --line:      #CFB2BF;
+  --line-2:    #B593A2;
+  --accent:    #8E3A5A;
+  --accent-soft: #C77E98;        /* fill only                                */
+  --good:      #35603F;
+  --warn:      #9A3520;
+  --shadow:    0 18px 50px rgba(60,47,52,.20);
+  --scrim:     rgba(51,38,44,.44);
+  --texture-ink:   #6B4E59;
+  --texture-alpha: .10;
+}
+
+.wc-game[data-theme="dark"],
+.wc-game.t-dark {
+  --bg:        #3C2F34;
+  --bg-raise:  #4A3A41;
+  --bg-sink:   #2E2429;
+  --bg-edge:   #251D21;
+  --fg:        #F2E6EB;
+  --fg-2:      #D2BDC6;
+  --fg-3:      #BEA4B1;
+  --fg-on-accent: #2A1C22;
+  --line:      #55444B;
+  --line-2:    #6B565E;
+  --accent:    #E8A6BE;
+  --accent-soft: #B4728B;
+  --good:      #8FC6A3;
+  --warn:      #E8977E;
+  --shadow:    0 18px 50px rgba(0,0,0,.46);
+  --scrim:     rgba(20,14,17,.60);
+  --texture-ink:   #150F12;
+  --texture-alpha: .10;
+}
+
+@media (prefers-color-scheme: dark) {
+  .wc-game:not([data-theme="light"]) {
+    --bg:        #3C2F34;
+    --bg-raise:  #4A3A41;
+    --bg-sink:   #2E2429;
+    --bg-edge:   #251D21;
+    --fg:        #F2E6EB;
+    --fg-2:      #D2BDC6;
+    --fg-3:      #BEA4B1;
+    --fg-on-accent: #2A1C22;
+    --line:      #55444B;
+    --line-2:    #6B565E;
+    --accent:    #E8A6BE;
+    --accent-soft: #B4728B;
+    --good:      #8FC6A3;
+    --warn:      #E8977E;
+    --shadow:    0 18px 50px rgba(0,0,0,.46);
+    --scrim:     rgba(20,14,17,.60);
+    --texture-ink:   #150F12;
+    --texture-alpha: .10;
+  }
+}
+
+/* ===========================================================================
+   color-scheme — so the browser paints native controls, scrollbars, range
+   thumbs and focus rings to match. Cheap, and its absence is what made
+   Sojourner's sliders render in light chrome on a black page.
+   =========================================================================== */
+.ps-shell, .sj-game, .wc-game { color-scheme: light }
+.ps-shell[data-theme="dark"], .sj-game[data-theme="dark"], .wc-game[data-theme="dark"] { color-scheme: dark }
+@media (prefers-color-scheme: dark) {
+  .ps-shell:not([data-theme="light"]),
+  .sj-game:not([data-theme="light"]),
+  .wc-game:not([data-theme="light"]) { color-scheme: dark }
+}
+/* ===== END packages/tokens/tokens.css ===== */
 /* ===========================================================================
    PlaySapien -- the platform landing page.
 
    The whole sheet is meant to read as one piece of very heavy cold-press
-   watercolour paper, with the SapoSapien nyansapo mark debossed into it. The
+   watercolour paper, with the PlaySapien mark debossed into it. The
    paper is built from two turbulence layers (fibre + tooth) plus a few pale
    washes; nothing is an image file, so this page is a single portable file.
 
@@ -33,33 +560,14 @@
    To add a game: add one object to GAMES at the bottom. Nothing else.
    =========================================================================== */
 :root{
-  /* ink: sampled from the SapoSapien letterpress proofs */
-  --navy:#153C5E; --navy-deep:#0C2740; --navy-mid:#2A5A80; --navy-faint:rgba(21,60,94,.55);
-  --tan:#B69A6E; --tan-soft:#D0BC98; --tan-deep:#8E7247;
-  /* paper */
-  --paper:#F3EEE2; --paper-hi:#FCF9F1; --paper-lo:#E4DAC5; --paper-edge:#D8CCB2;
-  --line:rgba(21,60,94,.15); --line-2:rgba(21,60,94,.28);
-
-  /* Audit S5. Role names, so CSS written from here on says what a colour is
-     FOR rather than which ink it happens to be. packages/tokens/tokens.css is
-     the canonical definition and the build should inline it once the builds
-     run from the repo (S8 blocks that today).
-
-     This surface is `.theme-light` in the token system's terms: pinned light,
-     always. That is the brief -- the page is a sheet of cold-press watercolour
-     paper -- not an unimplemented dark mode. Note --line here is an rgba with
-     alpha where both games use an opaque hex; substituting one for the other
-     makes a solid rule see-through, which is why the ramp stays shell-local. */
-  --bg:var(--paper); --bg-2:var(--paper-hi); --bg-3:var(--paper-lo);
-  --fg:var(--navy); --fg-2:var(--navy-mid); --fg-3:var(--navy-faint);
-  --accent:var(--tan-deep); --good:#3F6B4A;
-  --shadow:0 18px 50px rgba(21,60,94,.18);
-  --f-disp:"Fraunces",Georgia,"Times New Roman",serif;
-  --f-body:"Public Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
-  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
-  --f-script:"Petit Formal Script","Snell Roundhand","Apple Chancery",cursive;
-  --bar-h:58px; --corner-gap:4px; --icon-stroke:1.8;
-  color-scheme:light;
+  /* The palette now lives in tokens.css above, under .ps-shell, in three
+     theme blocks. What remains here is the mapping from this page's older
+     names onto the shared roles, declared ONCE so light and dark cannot
+     drift apart -- a custom property substitutes the computed value, so a
+     single alias follows whichever theme block won. */
+  --navy:var(--fg); --navy-deep:var(--brand-navy); --navy-mid:var(--fg-2); --navy-faint:var(--fg-3);
+  --tan:var(--accent-soft); --tan-soft:var(--bg-raise); --tan-deep:var(--accent);
+  --paper:var(--bg); --paper-hi:var(--bg-raise); --paper-lo:var(--bg-sink); --paper-edge:var(--bg-edge);
 }
 *{box-sizing:border-box}
 [hidden]{display:none !important}
@@ -77,21 +585,38 @@ body{
    -------------------------------------------------------------------------- */
 body::before,body::after{content:""; position:fixed; inset:0; pointer-events:none; z-index:0}
 body::before{
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23f)' opacity='0.55'/%3E%3C/svg%3E");
-  mix-blend-mode:multiply; opacity:.34;
+  /* 192px seamless tile, cut from a photograph of cold-press watercolour paper
+     (packages/tokens/paper-tile.png). High-passed first: the photograph's own
+     lighting would otherwise repeat as a visible bright blob every 192px. */
+  background-image:url("data:image/png;base64,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");
+  background-size:192px 192px;
+  mix-blend-mode:multiply; opacity:var(--texture-alpha);
 }
 body::after{
-  background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='t'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.035 0.05' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='420' height='420' filter='url(%23t)' opacity='0.8'/%3E%3C/svg%3E");
-  mix-blend-mode:soft-light; opacity:.5;
+  /* The same tile again, larger and in soft-light, which reads as the deeper
+     cold-press tooth under the fibre. Two scales of one texture beats one. */
+  background-image:url("data:image/png;base64,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");
+  background-size:544px 544px;
+  mix-blend-mode:soft-light; opacity:calc(var(--texture-alpha) * .8);
 }
 .washes{
   position:fixed; inset:0; z-index:0; pointer-events:none;
   background:
-    radial-gradient(58% 42% at 18% 12%, rgba(255,255,255,.85), transparent 70%),
-    radial-gradient(52% 38% at 86% 28%, rgba(214,196,160,.30), transparent 72%),
-    radial-gradient(64% 46% at 50% 104%, rgba(184,166,132,.26), transparent 70%),
-    radial-gradient(120% 86% at 50% 46%, transparent 52%, rgba(120,104,74,.16) 100%);
+    radial-gradient(58% 42% at 18% 12%, var(--wash-hi), transparent 70%),
+    radial-gradient(52% 38% at 86% 28%, var(--wash-warm), transparent 72%),
+    radial-gradient(64% 46% at 50% 104%, var(--wash-warm), transparent 70%),
+    radial-gradient(120% 86% at 50% 46%, transparent 52%, var(--wash-edge) 100%);
+}
+:root{ --bar-bg:rgba(213,214,210,.88); --hover-wash:rgba(33,57,70,.10);
+       --lockup-ink:var(--brand-navy); --lockup-outline:#7E6B60;
+       --wash-hi:rgba(255,255,255,.38); --wash-warm:rgba(150,156,160,.14); --wash-edge:rgba(60,74,84,.07) }
+:root[data-theme="dark"]{ --bar-bg:rgba(47,41,33,.90); --hover-wash:rgba(237,231,220,.12);
+       --lockup-ink:var(--fg); --lockup-outline:#C6AE9A;
+       --wash-hi:rgba(255,246,232,.05); --wash-warm:rgba(120,96,64,.10); --wash-edge:rgba(0,0,0,.22) }
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){ --bar-bg:rgba(47,41,33,.90); --hover-wash:rgba(237,231,220,.12);
+       --lockup-ink:var(--fg); --lockup-outline:#C6AE9A;
+       --wash-hi:rgba(255,246,232,.05); --wash-warm:rgba(120,96,64,.10); --wash-edge:rgba(0,0,0,.22) }
 }
 .page{position:relative; z-index:1}
 
@@ -101,12 +626,12 @@ body::after{
   min-height:calc(var(--bar-h) + env(safe-area-inset-top));
   padding:calc(env(safe-area-inset-top) + 9px) 14px 9px;
   display:flex; align-items:center; gap:11px;
-  background:rgba(243,238,226,.86);
+  background:var(--bar-bg);
   -webkit-backdrop-filter:saturate(150%) blur(12px); backdrop-filter:saturate(150%) blur(12px);
   border-bottom:1px solid var(--line);
 }
 .bar-brand{display:flex; align-items:center; gap:9px; min-width:0}
-.bar-brand .mk{width:38px; flex:none; display:block; --mk-w:9.4}
+.bar-brand .mk{width:44px; flex:none; display:block; --mk-w:62}
 .bar-name{
   font-family:var(--f-disp); font-weight:600; font-size:17.5px; letter-spacing:-.014em;
   white-space:nowrap; color:var(--navy);
@@ -120,10 +645,10 @@ body::after{
 .corner .iconbtn svg{stroke-width:var(--icon-stroke,1.8)}
 .iconbtn{
   width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-  cursor:pointer; color:var(--navy); opacity:.6; background:transparent; border:none; flex:none;
+  cursor:pointer; color:var(--fg-2); background:transparent; border:none; flex:none;
   transition:opacity .16s, background .16s;
 }
-.iconbtn:hover{opacity:1; background:rgba(21,60,94,.08)}
+.iconbtn:hover{color:var(--fg); background:var(--hover-wash)}
 .iconbtn:focus-visible{outline:2px solid var(--tan-deep); outline-offset:2px; opacity:1}
 
 /* ---------- hero ----------------------------------------------------------- */
@@ -131,24 +656,32 @@ body::after{
   padding:calc(var(--bar-h) + env(safe-area-inset-top) + 32px) 20px 4px;
   text-align:center; display:flex; flex-direction:column; align-items:center;
 }
-.crest{width:min(244px,60vw); margin:0 0 8px}
-.crest svg{--mk-w:6.5}
-.crest svg{width:100%; display:block}
-.wordmark{
-  font-family:var(--f-disp); font-weight:900; font-variation-settings:"opsz" 128;
-  font-size:clamp(42px,10.5vw,70px); line-height:.96; letter-spacing:-.03em;
-  margin:0; color:var(--navy);
-  text-shadow:0 1px 0 rgba(255,255,255,.75), 0 -1px 0 rgba(12,39,64,.1);
+.lockup{width:min(560px,88vw); margin:0 0 4px}
+.lockup svg{width:100%; height:auto; display:block}
+/* The proof is letterpress: the ink is pressed INTO the sheet. A light edge
+   below and a dark edge above reads as debossed, because we light everything
+   from the top left. Kept subtle -- overdone it looks like a bevel filter. */
+.lockup svg{
+  filter:drop-shadow(0 1px 0 rgba(255,255,255,.55)) drop-shadow(0 -1px 0 rgba(20,30,38,.16));
 }
-.wordmark i{font-style:normal; color:var(--tan-deep)}
+:root[data-theme="dark"] .lockup svg,
+:root:not([data-theme="light"]) .lockup svg{
+  filter:drop-shadow(0 1px 0 rgba(255,255,255,.10)) drop-shadow(0 -1px 0 rgba(0,0,0,.40));
+}
+@media (prefers-color-scheme:light){
+  :root:not([data-theme="dark"]) .lockup svg{
+    filter:drop-shadow(0 1px 0 rgba(255,255,255,.55)) drop-shadow(0 -1px 0 rgba(20,30,38,.16));
+  }
+}
+.bar-brand .mk,footer .mk{filter:drop-shadow(0 .5px 0 rgba(255,255,255,.4))}
 .tagline{
   font-family:var(--f-script); font-weight:400;
   font-size:clamp(20px,4.2vw,27px); line-height:1.46; letter-spacing:.006em;
-  margin:12px 0 0; max-width:34ch; color:var(--navy); opacity:.92; text-wrap:balance;
+  margin:12px 0 0; max-width:34ch; color:var(--fg-2); text-wrap:balance;
 }
 .datum{
   font-family:var(--f-mono); font-size:11px; letter-spacing:.19em; text-transform:uppercase;
-  color:var(--navy); opacity:.5; margin:20px 0 0;
+  color:var(--fg-2); margin:20px 0 0;
 }
 .rule{
   width:min(560px,82%); height:1px; margin:20px auto 0; border:0;
@@ -160,7 +693,7 @@ body::after{
 .rail-head{
   display:flex; align-items:baseline; justify-content:center; gap:10px; margin:0 0 22px;
   font-family:var(--f-mono); font-size:11px; letter-spacing:.19em; text-transform:uppercase;
-  color:var(--navy); opacity:.52;
+  color:var(--fg-2);
 }
 .rail{
   display:flex; gap:6px; justify-content:center; align-items:stretch;
@@ -193,11 +726,11 @@ body::after{
 .spine .nm{
   writing-mode:vertical-rl; transform:rotate(180deg);
   font-family:var(--f-disp); font-weight:600; font-size:19px; letter-spacing:.028em;
-  white-space:nowrap; color:var(--fg); opacity:.94;
+  white-space:nowrap; color:var(--fg);
 }
 .spine .nb{
-  font-family:var(--f-mono); font-size:10px; letter-spacing:.16em; color:var(--fg);
-  opacity:.45; writing-mode:vertical-rl; transform:rotate(180deg);
+  font-family:var(--f-mono); font-size:10px; letter-spacing:.16em; color:var(--fg-2);
+  writing-mode:vertical-rl; transform:rotate(180deg);
 }
 
 /* face: what an open panel shows */
@@ -225,7 +758,7 @@ body::after{
 }
 .face .blurb{
   font-family:var(--f-disp); font-weight:400; font-size:17px; line-height:1.34;
-  margin:10px 0 0; max-width:23ch; color:var(--fg); opacity:.84; text-wrap:balance;
+  margin:10px 0 0; max-width:23ch; color:var(--fg); text-wrap:balance;
 }
 .face .play{
   display:inline-flex; align-items:center; gap:9px; margin-top:20px;
@@ -238,11 +771,11 @@ body::after{
 .face .play svg{width:16px; height:16px}
 .panel.soon{cursor:default}
 .panel.soon .face .play{display:none}
-.panel.soon{box-shadow:0 1px 0 rgba(255,255,255,.6), inset 0 0 0 1.5px var(--line-2)}
+.panel.soon{box-shadow:inset 0 0 0 1.5px var(--line-2)}
 .panel.soon::after{background:none}
 .rail-foot{
   text-align:center; margin:20px 0 0; font-family:var(--f-mono); font-size:11px;
-  letter-spacing:.15em; text-transform:uppercase; color:var(--navy); opacity:.4;
+  letter-spacing:.15em; text-transform:uppercase; color:var(--fg-3);
 }
 
 /* ---------- footer --------------------------------------------------------- */
@@ -250,10 +783,10 @@ footer{
   margin-top:44px; padding:26px 20px calc(env(safe-area-inset-bottom) + 34px);
   border-top:1px solid var(--line); text-align:center;
 }
-footer .mk{width:78px; margin:0 auto 12px; display:block; opacity:.46; --mk-w:8.6}
+footer .mk{width:92px; margin:0 auto 12px; display:block; opacity:.5; --mk-w:56}
 footer p{
   font-family:var(--f-mono); font-size:11px; letter-spacing:.15em; text-transform:uppercase;
-  color:var(--navy); opacity:.5; margin:0; line-height:2;
+  color:var(--fg-2); margin:0; line-height:2;
 }
 footer a{color:inherit; text-decoration:none; border-bottom:1px solid var(--line-2)}
 footer a:hover{opacity:1}
@@ -287,7 +820,7 @@ footer a:hover{opacity:1}
    invent. Light palette, because the shell is deliberately a sheet of paper.
    -------------------------------------------------------------------------- */
 .scrim{
-  position:fixed; inset:0; z-index:50; background:rgba(21,60,94,.28);
+  position:fixed; inset:0; z-index:50; background:var(--scrim);
   opacity:0; pointer-events:none; transition:opacity .3s;
   -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px);
 }
@@ -297,7 +830,7 @@ footer a:hover{opacity:1}
   max-height:86%; overflow-y:auto; overscroll-behavior:contain;
   background:var(--paper-hi); border-radius:20px 20px 0 0;
   border-top:1px solid var(--line-2);
-  box-shadow:0 -18px 50px rgba(21,60,94,.18);
+  box-shadow:var(--shadow);
   padding:20px 20px calc(24px + env(safe-area-inset-bottom));
   transform:translateY(102%); transition:transform .42s cubic-bezier(.22,.9,.3,1);
 }
@@ -322,10 +855,10 @@ footer a:hover{opacity:1}
 }
 .sh-head .sh-sub{
   font-family:var(--f-mono); font-size:10.5px; letter-spacing:.16em;
-  text-transform:uppercase; color:var(--navy); opacity:.45; margin-left:auto;
+  text-transform:uppercase; color:var(--fg-3); margin-left:auto;
 }
-.sheet p{font-size:14.5px; line-height:1.62; color:var(--navy); opacity:.86; margin:0 0 12px; max-width:56ch}
-.sheet p.hint{font-size:13px; opacity:.6; line-height:1.55}
+.sheet p{font-size:14.5px; line-height:1.62; color:var(--fg-2); margin:0 0 12px; max-width:56ch}
+.sheet p.hint{font-size:13px; color:var(--fg-3); line-height:1.55}
 .sheet a{color:var(--navy); text-decoration-color:var(--tan-deep); text-underline-offset:2px}
 
 .setrow{
@@ -335,7 +868,19 @@ footer a:hover{opacity:1}
 .setrow:last-child{border-bottom:0}
 .setrow .col{flex:1; min-width:0}
 .setlabel{font-size:15px; font-weight:500; color:var(--navy); display:block}
-.sethint{font-size:13px; line-height:1.5; color:var(--navy); opacity:.58; margin:3px 0 0; max-width:52ch}
+.sethint{font-size:13px; line-height:1.5; color:var(--fg-3); margin:3px 0 0; max-width:52ch}
+
+.seg{
+  display:flex; gap:2px; padding:3px; margin:2px 0 6px;
+  background:var(--bg-sink); border-radius:999px;
+}
+.seg button{
+  flex:1; font:inherit; font-size:13.5px; font-weight:600; cursor:pointer;
+  padding:9px 10px; border:none; border-radius:999px; background:transparent;
+  color:var(--fg-2); transition:background .18s, color .18s;
+}
+.seg button[aria-pressed="true"]{ background:var(--bg-raise); color:var(--fg); box-shadow:0 1px 2px rgba(0,0,0,.10) }
+.seg button:focus-visible{ outline:2px solid var(--accent); outline-offset:1px }
 
 .fld{
   width:100%; box-sizing:border-box; font:inherit; font-size:16px; /* 16px: iOS zooms below it */
@@ -365,7 +910,7 @@ footer a:hover{opacity:1}
 .or{
   display:flex; align-items:center; gap:12px; margin:16px 0;
   font-family:var(--f-mono); font-size:10px; letter-spacing:.18em;
-  text-transform:uppercase; color:var(--navy); opacity:.4;
+  text-transform:uppercase; color:var(--fg-3);
 }
 .or::before,.or::after{content:''; flex:1; height:1px; background:var(--line)}
 .note{
@@ -383,19 +928,19 @@ footer a:hover{opacity:1}
 }
 .pf .who{min-width:0}
 .pf .who strong{display:block; font-family:var(--f-disp); font-size:19px; font-weight:600; color:var(--navy)}
-.pf .who span{font-size:13px; color:var(--navy); opacity:.55}
+.pf .who span{font-size:13px; color:var(--fg-2)}
 .stats{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); border-radius:12px; overflow:hidden; margin:18px 0 4px}
 .stat{background:var(--paper-hi); padding:14px 10px; text-align:center}
 .stat b{display:block; font-family:var(--f-disp); font-weight:900; font-size:27px; line-height:1; color:var(--navy)}
 .stat span{
   display:block; margin-top:5px; font-family:var(--f-mono); font-size:9.5px;
-  letter-spacing:.15em; text-transform:uppercase; color:var(--navy); opacity:.5;
+  letter-spacing:.15em; text-transform:uppercase; color:var(--fg-2);
 }
 .gstat{display:flex; align-items:center; gap:11px; padding:13px 0; border-bottom:1px solid var(--line); font-size:14.5px; color:var(--navy)}
 .gstat:last-child{border-bottom:0}
 .gstat .gi{width:21px; height:21px; flex:none; opacity:.65}
 .gstat .gn{flex:1; font-weight:500}
-.gstat .gv{font-family:var(--f-mono); font-size:12.5px; opacity:.62; letter-spacing:.04em}
+.gstat .gv{font-family:var(--f-mono); font-size:12.5px; color:var(--fg-2); letter-spacing:.04em}
 
 /* friends */
 .frow{display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--line)}
@@ -403,30 +948,30 @@ footer a:hover{opacity:1}
 .frow .av{width:34px; height:34px; border-radius:50%; flex:none; display:grid; place-items:center;
   background:var(--tan-soft); color:var(--navy); font-family:var(--f-disp); font-weight:600; font-size:14px}
 .frow .fn{flex:1; min-width:0; font-size:14.5px; color:var(--navy)}
-.frow .fn em{display:block; font-style:normal; font-size:12.5px; opacity:.55}
-.frow .fs{font-family:var(--f-mono); font-size:13px; color:var(--navy); opacity:.7}
+.frow .fn em{display:block; font-style:normal; font-size:12.5px; color:var(--fg-2)}
+.frow .fs{font-family:var(--f-mono); font-size:13px; color:var(--fg-2)}
 .codebox{
   display:flex; align-items:center; gap:10px; margin:6px 0 2px;
   padding:12px 14px; border-radius:11px; border:1px dashed var(--line-2);
-  background:rgba(255,255,255,.5);
+  background:var(--bg-raise);
 }
 .codebox code{
   font-family:var(--f-mono); font-size:19px; letter-spacing:.22em; color:var(--navy); flex:1;
 }
 .empty{
   text-align:center; padding:26px 10px; font-size:14px; line-height:1.6;
-  color:var(--navy); opacity:.55; max-width:40ch; margin:0 auto;
+  color:var(--fg-2); max-width:40ch; margin:0 auto;
 }
 
 /* today's status, printed on each game card */
 .status{
   display:flex; align-items:center; gap:7px; margin-top:14px;
   font-family:var(--f-mono); font-size:10px; letter-spacing:.15em; text-transform:uppercase;
-  color:var(--fg); opacity:.62;
+  color:var(--fg-2);
 }
 .status .dot{width:6px; height:6px; border-radius:50%; background:currentColor; flex:none; opacity:.5}
 .status.done .dot{background:var(--accent); opacity:1}
-.status.done{opacity:.85}
+.status.done{color:var(--fg)}
 
 @media (prefers-reduced-motion:reduce){
   .sheet,.scrim{transition-duration:.01ms !important}
@@ -438,13 +983,16 @@ footer a:hover{opacity:1}
 
 <!-- One definition of the mark; every instance is a <use>. -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="nyansapo" viewBox="0 0 260 164">
-    <g fill="none" stroke-linecap="round" stroke-width="var(--mk-w,7.4)">
-      <g id="ny-half">
-        <path d="M 131.05 117.24 A 46 46 0 1 0 121.65 40.66 C 129.36 44.42 137.49 66.36 141.96 66.36 L 248.22 66.36" stroke="var(--mk-ink,#153C5E)"/>
-        <path d="M 11.78 66.36 L 108.86 66.36 C 116.86 66.36 119.22 61.90 121.72 54.40" stroke="var(--mk-accent,#B69A6E)"/>
-      </g>
-      <use href="#ny-half" transform="rotate(180 130 82)"/>
+  <!-- The PlaySapien mark, traced from "Sapo Sapien Designs/Play Sapien 01.png".
+       Geometry measured off the proof: rings of r=301 with centres 273 apart,
+       two rules at +-101 from the centre line. One definition; the bar, the
+       hero and the footer are all <use> of it at different weights. -->
+  <symbol id="psmark" viewBox="0 0 1219 642">
+    <g fill="none" stroke="currentColor" stroke-width="var(--mk-w,40)" stroke-linecap="round">
+      <circle cx="472" cy="321" r="301"/>
+      <circle cx="745" cy="321" r="301"/>
+      <path d="M20 220H1199"/>
+      <path d="M20 422H1199"/>
     </g>
   </symbol>
 </svg>
@@ -453,7 +1001,7 @@ footer a:hover{opacity:1}
 
   <header class="bar">
     <div class="bar-brand">
-      <svg class="mk" viewBox="0 0 260 164" aria-hidden="true"><use href="#nyansapo"/></svg>
+      <svg class="mk" viewBox="0 0 1219 642" aria-hidden="true"><use href="#psmark"/></svg>
       <span class="bar-name">Play<b>Sapien</b></span>
     </div>
     <div class="spacer"></div>
@@ -475,9 +1023,24 @@ footer a:hover{opacity:1}
 
   <main>
     <section class="hero">
-      <div class="crest"><svg viewBox="0 0 260 164" role="img" aria-label="The nyansapo wisdom knot"><use href="#nyansapo"/></svg></div>
-      <h1 class="wordmark">Play<i>Sapien</i></h1>
-      <p class="tagline">Daily sapo-challenges to play, share, and see where your multiple intellisenses rank you.</p>
+      <div class="lockup">
+        <svg viewBox="0 0 1219 642" role="img" aria-label="PlaySapien">
+          <g class="lk-mark" fill="none" stroke="var(--brand-steel)" stroke-width="40" stroke-linecap="round">
+            <circle cx="472" cy="321" r="301"/>
+            <circle cx="745" cy="321" r="301"/>
+            <path d="M20 220H1199"/>
+            <path d="M20 422H1199"/>
+          </g>
+          <!-- textLength pins each word to the width it occupies on the proof,
+               so the lockup keeps its proportions whatever Fraunces does. -->
+          <g font-family="Fraunces, Georgia, serif" font-size="145" font-weight="600" lengthAdjust="spacing">
+            <text x="8"   y="369" textLength="484" fill="none"
+                  stroke="var(--lockup-outline)" stroke-width="2.6">PLAY</text>
+            <text x="555" y="369" textLength="645" fill="var(--lockup-ink)">SAPIEN</text>
+          </g>
+        </svg>
+      </div>
+      <p class="tagline">A daily puzzle for every kind of thinking — play, share, and see where your multiple intellisenses rank you.</p>
       <p class="datum" id="datum">&nbsp;</p>
       <hr class="rule">
     </section>
@@ -491,7 +1054,7 @@ footer a:hover{opacity:1}
   </main>
 
   <footer>
-    <svg class="mk" viewBox="0 0 260 164" aria-hidden="true"><use href="#nyansapo"/></svg>
+    <svg class="mk" viewBox="0 0 1219 642" aria-hidden="true"><use href="#psmark"/></svg>
     <p>PlaySapien is a SapoSapien project</p>
     <p><a href="/about/">About</a> &nbsp;&middot;&nbsp; <a href="/privacy/">Privacy</a> &nbsp;&middot;&nbsp; <a href="/terms/">Terms</a></p>
   </footer>
@@ -504,9 +1067,9 @@ footer a:hover{opacity:1}
   <div class="sh-head"><h2 id="aboutTitle">PlaySapien</h2><span class="sh-sub">About</span></div>
   <p>A small workshop of daily puzzles. One a day, each one a different kind of
      thinking &mdash; a globe, a chain of words, and whatever is next on the bench.</p>
-  <p>The name is the nyansapo, the Akan wisdom knot: <em>&ldquo;wisdom knot &mdash; wisdom
-     comes from a knot that cannot be untied by force.&rdquo;</em> It is the mark at the
-     top of every page.</p>
+  <p>The mark is two rings crossed by two rules &mdash; a knot you cannot pull
+     apart by force, which is the idea the name carries. It is set the way it was
+     first proofed: pressed into a sheet of cold-press rag paper.</p>
   <p class="hint">Every game keeps your progress on your own device. An account is
      optional, and only exists so a streak survives a new phone and so a friend can
      see how you did today.</p>
@@ -612,6 +1175,18 @@ footer a:hover{opacity:1}
   <div class="sh-head"><h2 id="settingsTitle">Settings</h2><span class="sh-sub">Platform</span></div>
   <div class="setrow">
     <div class="col">
+      <span class="setlabel">Theme</span>
+      <p class="sethint">Applies to PlaySapien and to every game. Choose once here
+        and Sojourner and Word Chain follow.</p>
+    </div>
+  </div>
+  <div class="seg" id="themeSeg" role="group" aria-label="Theme">
+    <button type="button" data-theme="light"  aria-pressed="false">Light</button>
+    <button type="button" data-theme="dark"   aria-pressed="false">Dark</button>
+    <button type="button" data-theme="system" aria-pressed="true">System</button>
+  </div>
+  <div class="setrow">
+    <div class="col">
       <span class="setlabel">Reduced motion</span>
       <p class="sethint">Follows your system setting. Turn it on in your operating
         system and every animation here stops.</p>
@@ -684,17 +1259,17 @@ const GAMES = [
   {
     slug:'sojourner', name:'Sojourner', kicker:'Daily geography', number:'No. 01',
     blurb:'Five places. One unlabelled globe.',
-    icon:'globe', field:'#0C0B0A', fg:'#F0E8DA', accent:'#E0A44A'
+    icon:'globe', field:'#0C0B0A', fg:'#F0E8DA', fg2:'#C3B9AD', accent:'#E0A44A'
   },
   {
     slug:'wordchain', name:'Word Chain', kicker:'Daily word puzzle', number:'No. 02',
     blurb:'Link every word to the next.',
-    icon:'link', field:'#D4B072', fg:'#1F1A14', accent:'#9A4A24'
+    icon:'link', field:'#E8D1DA', fg:'#33262C', fg2:'#57444C', accent:'#8E3A5A'
   },
   {
     slug:'', name:'More soon', kicker:'In the workshop', number:'No. 03',
-    blurb:'The next sapo-challenge is on the bench.',
-    icon:'seed', field:'transparent', fg:'#153C5E', accent:'#B69A6E', soon:true
+    blurb:'The next puzzle is on the bench.',
+    icon:'seed', soon:true   /* no palette: inherits the page, so it themes */
   }
 ];
 
@@ -703,7 +1278,7 @@ const rail = document.getElementById('rail');
 rail.innerHTML = GAMES.map((g,i) => `
   <div class="panel${g.soon ? ' soon' : ''}" data-slug="${g.slug}" tabindex="0"
        aria-expanded="false" aria-label="${g.soon ? g.name : 'Open ' + g.name}" data-i="${i}"
-       style="--field:${g.field}; --fg:${g.fg}; --accent:${g.accent}">
+       style="${g.soon ? '' : `--field:${g.field}; --fg:${g.fg}; --fg-2:${g.fg2}; --accent:${g.accent}`}">
     <span class="spine">
       ${svgIcon(g.icon,'ico')}
       <span class="nm">${g.name}</span>
@@ -836,6 +1411,10 @@ document.addEventListener('keydown', e => {
   if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 });
+
+/* One control, one shared key. PSTheme writes ps:theme, which both games
+   read, so choosing here changes the whole platform. */
+if (window.PSTheme) PSTheme.bindControl($('themeSeg'));
 
 $('aboutBtn').addEventListener('click', () => openSheet('aboutSheet'));
 $('settingsBtn').addEventListener('click', () => { fillSettings(); openSheet('settingsSheet'); });

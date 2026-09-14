@@ -695,7 +695,20 @@ function regionName(id){
 }
 
 /* ---------------- UI helpers ---------------- */
-function show(el,on){ el.classList.toggle('on', !!on); }
+/* The two full-page views are the only things that cover the globe completely,
+   and the corner bar sits ON TOP of them (z-index 16 against their 12). Its ink
+   therefore has to follow whichever ground is underneath, so every change of
+   view stamps or clears `paged` on #app and one CSS rule swaps the bar's whole
+   colour ramp. This helper is the single place any .full view is toggled, which
+   is why the flag lives here rather than being inferred from the DOM with
+   :has() -- a selector whose failure mode is invisible icons is not one to rely
+   on. syncPaged() also runs once at load, because #introView starts `on` in the
+   markup without ever passing through show(). */
+function syncPaged(){
+  var app = document.getElementById('app');
+  if(app) app.classList.toggle('paged', !!document.querySelector('.full.on'));
+}
+function show(el,on){ el.classList.toggle('on', !!on); syncPaged(); }
 function refreshQuit(){
   var on = (S.mode === 'play' || S.mode === 'reveal' || S.mode === 'learn' || S.mode === 'bridge');
   var b = $('quitBtn');
@@ -977,6 +990,17 @@ function buildShareCard(){
     var ctx = cv.getContext('2d');
     if(!ctx) return;
     ctx.scale(R, R);
+    /* EVERY COLOUR IN THIS CARD IS FIXED, AND ON PURPOSE.
+       It is a PNG the player posts somewhere else. It is read on a timeline
+       belonging to someone who never chose a Sojourner theme, next to other
+       people's cards, so the thing that has to stay constant is the brand, not
+       the author's preference -- a run shared at breakfast and the same run
+       shared at night should be the same picture. It is also built from the
+       globe's own vocabulary: the tier colours in TIERS and the five round
+       shapes are the stage's palette, and they are correct only on the stage's
+       ground. So the card is stage, permanently, and nothing here subscribes to
+       PSTheme.onChange. Nothing else in this file paints colour into a canvas;
+       partC.js is the WebGL scene and is frozen for the same reason. */
     ctx.fillStyle = '#0C0B0A'; ctx.fillRect(0, 0, W, H);
 
     var mono = '"IBM Plex Mono", ui-monospace, Menlo, monospace';
@@ -1744,6 +1768,13 @@ $('tglSound').addEventListener('click', function(){
   SET.sound = !SET.sound; saveSettings(); syncSettingsUI();
   if(!SET.sound) soundStop(); else soundStart();
 });
+/* The theme is NOT part of SET and is deliberately not saved with it: it lives
+   at ps:theme, the one key the shell and both games share, so a player who
+   picks light here finds the front door and Word Chain light too. PSTheme owns
+   the storage, the <html> attribute, the status-bar colour and aria-pressed on
+   these three buttons; there is nothing for saveSettings() to do. */
+if(window.PSTheme) PSTheme.bindControl($('themeSeg'));
+syncPaged();
 function refreshDistances(){
   var r = S.results[S.results.length-1];
   if(S.mode === 'reveal' && r) $('rvDist').textContent = r.exact ? '' : fmtKm(r.km) + ' away';

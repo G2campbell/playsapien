@@ -1,184 +1,347 @@
 /* ===========================================================================
-   PlaySapien design tokens.
+   PlaySapien design tokens — one language, three surfaces.
 
-   The audit (docs/INTEGRATION-AUDIT.md S5) found that the two games use the
-   SAME twelve colours under DIFFERENT names, and worse, that two of those
-   names mean opposite things:
+   THE CONTRACT
 
-       Sojourner     --ink:#0C0B0A  is the BACKGROUND, --paper:#F0E8DA the TEXT
-       Word Chain    --ink:#1F1A14  is the TEXT,       --paper:#FAF9F7 the BACKGROUND
+   Every surface (the shell and each game) defines the SAME role names. A
+   surface differs only in the values it gives them. So a component written
+   against `--bg` / `--fg` / `--accent` is portable, and a reader of any
+   stylesheet in this repo knows what a name means without looking it up.
 
-   So a naive shared stylesheet silently inverts one game. This file fixes that
-   without touching a single one of the several hundred `var(--ink)` call sites
-   in either game, because it is built in two layers.
+   Three themes everywhere: light, dark, and system. One mechanism:
 
-   ---------------------------------------------------------------------------
-   LAYER 1 -- THE PALETTE. Facts about the brand. These never change with the
-   theme. #0C0B0A is the same near-black whether you are in Sojourner at
-   midnight or Word Chain in dark mode; what changes is what it is USED for.
+     1. The choice lives in localStorage under `ps:theme` — ONE key, shared by
+        all three surfaces, because they are one origin. Choose dark in Word
+        Chain and the shell is dark when you navigate back to it.
+        Values: "light" | "dark" | "system".
+     2. A pre-paint inline script stamps data-theme="light"|"dark" on <html>,
+        or removes the attribute for "system". It must run BEFORE first paint
+        or the page flashes the wrong theme.
+     3. CSS resolves in three blocks, in this order:
+          :root                                     light (the base)
+          @media (prefers-color-scheme: dark)
+            :root:not([data-theme="light"])          system, following dark
+          :root[data-theme="dark"]                   explicit dark, wins
+        The `:not([data-theme="light"])` is what lets an explicit light choice
+        beat a dark system. Leave it out and "light" silently stops working on
+        a dark machine.
 
-   LAYER 2 -- THE ROLES. --bg, --fg, --line, --accent. These DO change with the
-   theme, and they are what a surface should actually reference.
-   ---------------------------------------------------------------------------
+   THE ROLE NAMES
 
-   A surface then picks how it relates to the theme, and there are three honest
-   answers rather than one:
+     Ground        --bg          the page
+                   --bg-raise    above the page: sheets, cards, bars
+                   --bg-sink     below it: wells, tracks, keycaps
+                   --bg-edge     the far end of the ground ramp, for vignettes
+     Text          --fg          primary
+                   --fg-2        secondary
+                   --fg-3        tertiary, hints
+                   --fg-on-accent  text sitting on --accent
+     Rules         --line        hairline
+                   --line-2      a rule you are meant to notice
+     Colour        --accent      the surface's signature, SAFE FOR TEXT
+                   --accent-soft the same colour as a FILL — decorative only,
+                                 never text; it is not contrast-checked
+                   --good        success / correct
+                   --warn        error / caution
+     Effects       --shadow  --scrim
+                   --texture-ink    colour of the paper grain overlay
+                   --texture-alpha  how strongly the grain shows
+     Stage         --stage       a ground that stays DARK IN BOTH THEMES
+                   --stage-fg    text that sits on it
 
-       .theme-auto    follows the system, and an explicit [data-theme] wins.
-                      Word Chain.
-       .theme-dark    pinned dark, always. Sojourner -- it is a lit globe in a
-                      dark room, and a "light mode" for it is not a thing that
-                      exists.
-       .theme-light   pinned light, always. The shell -- the brief is a sheet
-                      of cold-press watercolour paper.
+   WHY --stage EXISTS
 
-   Pinning is not a failure to implement theming. Sojourner being permanently
-   dark is a design decision; the bug the audit found was that it never said
-   `color-scheme:dark`, so the browser painted its native controls light on a
-   black page. That is fixed in the game's own :root.
+   Sojourner is a lit globe. Its terrain, borders and region fills are a WebGL
+   scene whose colours are baked into textures, not CSS — and they are designed
+   against black. A light theme that lightened the globe's ground would wreck
+   the artwork. So the globe keeps a dark stage in both themes while the chrome
+   around it — bar, sheets, prompts, settings — goes light. Dark stage, light
+   room, like a gallery. Any surface with artwork that must not re-theme uses
+   the same pair.
 
-   Legacy names are mapped onto roles at the bottom of each surface's :root, so
-   existing CSS keeps working unchanged and new CSS can use the role names. The
-   two can be migrated apart at leisure, or never.
+   CONTRAST
+
+   Every token in the text group clears 4.5:1 against the ground it is used on,
+   verified by `packages/tokens/check-contrast.mjs`, which runs in CI. Run it
+   after changing any value here. `--accent-soft` is deliberately exempt: it is
+   a fill, and the checker skips it by name.
+
+   A NOTE ON THE LIGHT SHELL. Its ground #C5C6C1 is a mid-tone, so there is
+   little luminance headroom between primary and tertiary text. --fg-2 and
+   --fg-3 are therefore separated by HUE rather than by lightness — one stays
+   blue, one goes neutral. They read as different weights without either
+   dropping below 4.5:1. This is a constraint of the anchor colour, not an
+   oversight.
    =========================================================================== */
 
+/* ---------------------------------------------------------------- type ---- */
 :root {
-  /* ---------------------------------------------------------------- palette */
-  /* the dark end: Sojourner's ground, Word Chain's dark mode */
-  --p-ink-900: #0C0B0A;   /* near-black                                       */
-  --p-ink-800: #171412;   /* raised surface on black                          */
-  --p-ink-700: #221D19;   /* Sojourner's third step                           */
-  --p-ink-650: #241C16;   /* Word Chain's -- close to 700 but NOT equal, and
-                             merging them would shift one game's panel tint    */
-  --p-ink-600: #38302A;   /* hairline on black                                */
-  --p-ink-500: #4C423A;   /* stronger rule on black                           */
-
-  /* the light end: the cream both games share, and the shell's paper */
-  --p-cream-100: #F0E8DA; /* the cream. Sojourner's text, Word Chain's dark fg */
-  --p-cream-200: #C3B9AD;
-  --p-cream-300: #A99D8F;
-  --p-paper-50:  #FAF9F7; /* Word Chain light ground                          */
-  --p-paper-100: #EFEDE8;
-  --p-paper-150: #F3EEE2; /* the shell's warmer sheet                         */
-  --p-paper-200: #FCF9F1;
-  --p-paper-300: #E4DAC5;
-  --p-paper-400: #D8CCB2;
-
-  /* warm neutrals on light */
-  --p-warm-900: #1F1A14;  /* Word Chain light text                            */
-  --p-warm-700: #453C31;
-  --p-warm-500: #6E6152;
-  --p-warm-300: #DAD5CB;
-  --p-warm-200: #BFB7A9;
-
-  /* accents */
-  --p-amber:     #E0A44A; /* Sojourner's amber == Word Chain's dark accent     */
-  --p-amber-dim: #8E6B2C;
-  --p-verdigris: #59B9A4; /* == Word Chain's dark --good                      */
-  --p-rust:      #9A4A24; /* Word Chain's light accent                        */
-  --p-green:     #3F6B4A; /* Word Chain's light --good                        */
-  --p-signal:    #E8734A;
-  --p-clay:      #D4B072;
-  --p-clay-deep: #C29C57;
-  --p-clay-soft: #E4CA96;
-
-  /* the shell's letterpress inks, sampled from the SapoSapien proofs */
-  --p-navy:      #153C5E;
-  --p-navy-deep: #0C2740;
-  --p-tan:       #B69A6E;
-  --p-tan-deep:  #8E7247;
-
-  /* ------------------------------------------------------------ typography */
-  /* Byte-identical in all three surfaces already -- the one thing that needed
-     no negotiation. Audit S10: they were requested from Google Fonts under
-     three DIFFERENT urls, so navigating shell -> game re-downloaded rather
-     than hitting cache. One union url now, in each surface's <head>. */
   --f-disp:   "Fraunces", Georgia, "Times New Roman", serif;
   --f-body:   "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   --f-mono:   "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --f-script: "Petit Formal Script", "Snell Roundhand", "Apple Chancery", cursive;
 
-  /* Sojourner sets display headings at 700, Word Chain and the shell at 900.
-     That is deliberate, not drift: a serif at 900 on a black ground closes up
-     and looks heavy, and Sojourner's headings sit on black. Both weights are
-     in the union font url so the choice stays free. */
+  /* Sojourner sets display headings at 700, the platform and Word Chain at
+     900. Deliberate: a serif at 900 on a black ground closes up, and
+     Sojourner's headings sit on black. Both are in the union font url. */
   --w-disp-game:     700;
   --w-disp-platform: 900;
 
-  /* ---------------------------------------------------------------- metrics */
+  /* ------------------------------------------------------------ metrics -- */
   --bar-h: 58px;
-  --icon-btn: 38px;          /* all three already agreed on this              */
-  --icon-stroke: 1.8;        /* audit S7: About was 1.9 in Sojourner and 2 in
-                                the other two -- a visible weight difference
-                                on a glyph that is otherwise identical        */
-  --corner-gap: 4px;         /* was 9 / 2 / 1 across the three                */
+  --icon-btn: 38px;
+  --icon-stroke: 1.8;
+  --corner-gap: 4px;
   --sheet-radius: 20px;
   --sheet-ease: transform .42s cubic-bezier(.22,.9,.3,1);
 }
 
 /* ===========================================================================
-   LAYER 2 -- roles.
+   PLAYSAPIEN — the shell.
 
-   Light is the base. A surface that pins light needs nothing further; one that
-   pins dark or follows the system gets the dark block below.
+   Sampled from the letterpress proof in "Sapo Sapien Designs/Play Sapien
+   01.png": cool grey rag paper, steel-blue foil on the rings and bars, a
+   near-black navy for SAPIEN, and a warm taupe outline on PLAY. Those four
+   are the whole brand.
    =========================================================================== */
 
-:root,
-.theme-light {
-  --bg:       var(--p-paper-50);
-  --bg-2:     var(--p-paper-100);
-  --bg-3:     var(--p-paper-300);
-  --fg:       var(--p-warm-900);
-  --fg-2:     var(--p-warm-700);
-  --fg-3:     var(--p-warm-500);
-  --line:     var(--p-warm-300);
-  --line-2:   var(--p-warm-200);
-  --accent:   var(--p-rust);
-  --good:     var(--p-green);
-  --shadow:   0 18px 50px rgba(52,40,20,.2);
-  color-scheme: light;
+.ps-shell {
+  /* the proof's own inks, theme-independent */
+  --brand-steel:      #5A7085;   /* the foil on the rings and bars           */
+  --brand-steel-deep: #2F434C;   /* its shadowed side                        */
+  --brand-navy:       #16242E;   /* SAPIEN                                   */
+  --brand-taupe:      #9D8D85;   /* the PLAY outline                         */
+  --brand-paper:      #C5C6C1;   /* the sheet                                */
+
+  --bg:        #C5C6C1;
+  --bg-raise:  #D6D7D3;
+  --bg-sink:   #B3B4AF;
+  --bg-edge:   #AFB0AA;
+  --fg:        #213946;
+  --fg-2:      #3D5465;          /* blue-leaning                            */
+  --fg-3:      #485259;          /* neutral-leaning — see the note above     */
+  --fg-on-accent: #EDEEEA;
+  --line:      #ABADA7;
+  --line-2:    #94968F;
+  --accent:    #3F5569;
+  --accent-soft: #5A7085;        /* fill only                                */
+  --good:      #325843;
+  --warn:      #863921;
+  --shadow:    0 18px 50px rgba(33,57,70,.22);
+  --scrim:     rgba(33,57,70,.30);
+  --texture-ink:   #4B4F4A;
+  --texture-alpha: .40;
 }
 
-/* One block, three selectors, so the dark values are written once. Adding a
-   fourth surface means adding a selector here, not copying twelve colours. */
-.theme-dark,
-.theme-auto[data-theme="dark"],
-:root[data-theme="dark"] {
-  --bg:       var(--p-ink-900);
-  --bg-2:     var(--p-ink-800);
-  --bg-3:     var(--p-ink-700);
-  --fg:       var(--p-cream-100);
-  --fg-2:     var(--p-cream-200);
-  --fg-3:     var(--p-cream-300);
-  --line:     var(--p-ink-600);
-  --line-2:   var(--p-ink-500);
-  --accent:   var(--p-amber);
-  --good:     var(--p-verdigris);
-  --shadow:   0 18px 50px rgba(0,0,0,.55);
-  color-scheme: dark;
+.ps-shell[data-theme="dark"],
+.ps-shell.t-dark {
+  --bg:        #3D352A;
+  --bg-raise:  #4A4137;
+  --bg-sink:   #2F2921;
+  --bg-edge:   #2A241D;
+  --fg:        #EDE7DC;
+  --fg-2:      #C9BFAF;
+  --fg-3:      #BCAF9C;
+  --fg-on-accent: #1A2229;
+  --line:      #554B3E;
+  --line-2:    #6B5F4F;
+  --accent:    #9FB6C9;
+  --accent-soft: #7A93A8;
+  --good:      #7FBF9B;
+  --warn:      #F29C74;
+  --shadow:    0 18px 50px rgba(0,0,0,.48);
+  --scrim:     rgba(20,16,11,.58);
+  --texture-ink:   #0E0B07;
+  --texture-alpha: .34;
 }
 
-/* System preference, but only where the surface follows it and the player has
-   not chosen otherwise. `:not([data-theme="light"])` is what lets an explicit
-   light choice win over a dark system -- the pattern Word Chain already had
-   and the only one of the three that was correct. */
 @media (prefers-color-scheme: dark) {
-  .theme-auto:not([data-theme="light"]),
-  :root:not([data-theme="light"]):not(.theme-light) {
-    --bg:     var(--p-ink-900);
-    --bg-2:   var(--p-ink-800);
-    --bg-3:   var(--p-ink-700);
-    --fg:     var(--p-cream-100);
-    --fg-2:   var(--p-cream-200);
-    --fg-3:   var(--p-cream-300);
-    --line:   var(--p-ink-600);
-    --line-2: var(--p-ink-500);
-    --accent: var(--p-amber);
-    --good:   var(--p-verdigris);
-    --shadow: 0 18px 50px rgba(0,0,0,.55);
-    color-scheme: dark;
+  .ps-shell:not([data-theme="light"]) {
+    --bg:        #3D352A;
+    --bg-raise:  #4A4137;
+    --bg-sink:   #2F2921;
+    --bg-edge:   #2A241D;
+    --fg:        #EDE7DC;
+    --fg-2:      #C9BFAF;
+    --fg-3:      #BCAF9C;
+    --fg-on-accent: #1A2229;
+    --line:      #554B3E;
+    --line-2:    #6B5F4F;
+    --accent:    #9FB6C9;
+    --accent-soft: #7A93A8;
+    --good:      #7FBF9B;
+    --warn:      #F29C74;
+    --shadow:    0 18px 50px rgba(0,0,0,.48);
+    --scrim:     rgba(20,16,11,.58);
+    --texture-ink:   #0E0B07;
+    --texture-alpha: .34;
   }
 }
 
-/* A surface that pins must beat the media query regardless of source order. */
-.theme-light { color-scheme: light }
+/* ===========================================================================
+   SOJOURNER — ink and amber.
+
+   Dark is the original and is unchanged. Light is its inverse: the cream
+   becomes the ground, the near-black becomes the text. Amber cannot simply
+   invert — #E0A44A on cream is 1.8:1 — so the light theme darkens it to a
+   burnt gold for text and keeps the bright amber as a fill only.
+
+   --stage stays #0C0B0A in both, because the globe does.
+   =========================================================================== */
+
+.sj-game {
+  --stage:     #0C0B0A;          /* the globe's ground, both themes          */
+  --stage-fg:  #F0E8DA;
+  --stage-line: #38302A;
+
+  --bg:        #F0E8DA;
+  --bg-raise:  #FAF5EB;
+  --bg-sink:   #E0D5C2;
+  --bg-edge:   #D8CBB4;
+  --fg:        #0C0B0A;
+  --fg-2:      #3A332B;
+  --fg-3:      #5E5448;
+  --fg-on-accent: #F7F2E7;
+  --line:      #CFC3AE;
+  --line-2:    #B2A48C;
+  --accent:    #8A5E16;
+  --accent-soft: #E0A44A;        /* fill only                                */
+  --good:      #26705F;
+  --warn:      #A63D17;
+  --shadow:    0 18px 50px rgba(40,32,18,.18);
+  --scrim:     rgba(30,24,14,.42);
+  --texture-ink:   #6B5E48;
+  --texture-alpha: .14;
+}
+
+.sj-game[data-theme="dark"],
+.sj-game.t-dark {
+  --bg:        #0C0B0A;
+  --bg-raise:  #171412;
+  --bg-sink:   #221D19;
+  --bg-edge:   #050504;
+  --fg:        #F0E8DA;
+  --fg-2:      #C3B9AD;
+  --fg-3:      #A99D8F;
+  --fg-on-accent: #1A1206;
+  --line:      #38302A;
+  --line-2:    #4C423A;
+  --accent:    #E0A44A;
+  --accent-soft: #8E6B2C;
+  --good:      #59B9A4;
+  --warn:      #E8734A;
+  --shadow:    0 18px 50px rgba(0,0,0,.55);
+  --scrim:     rgba(6,5,4,.62);
+  --texture-ink:   #000000;
+  --texture-alpha: .10;
+}
+
+@media (prefers-color-scheme: dark) {
+  .sj-game:not([data-theme="light"]) {
+    --bg:        #0C0B0A;
+    --bg-raise:  #171412;
+    --bg-sink:   #221D19;
+    --bg-edge:   #050504;
+    --fg:        #F0E8DA;
+    --fg-2:      #C3B9AD;
+    --fg-3:      #A99D8F;
+    --fg-on-accent: #1A1206;
+    --line:      #38302A;
+    --line-2:    #4C423A;
+    --accent:    #E0A44A;
+    --accent-soft: #8E6B2C;
+    --good:      #59B9A4;
+    --warn:      #E8734A;
+    --shadow:    0 18px 50px rgba(0,0,0,.55);
+    --scrim:     rgba(6,5,4,.62);
+    --texture-ink:   #000000;
+    --texture-alpha: .10;
+  }
+}
+
+/* ===========================================================================
+   WORD CHAIN — rose and plum.
+
+   Was a clay ochre, which sat too close to Sojourner's amber; side by side on
+   the shell's rail the two games read as one. This palette is deliberately in
+   a different family so each game keeps its own identity.
+   =========================================================================== */
+
+.wc-game {
+  --bg:        #E8D1DA;
+  --bg-raise:  #F5E6EC;
+  --bg-sink:   #D8BCC8;
+  --bg-edge:   #D0B0BF;
+  --fg:        #33262C;
+  --fg-2:      #57444C;
+  --fg-3:      #6B535D;
+  --fg-on-accent: #FBF2F6;
+  --line:      #CFB2BF;
+  --line-2:    #B593A2;
+  --accent:    #8E3A5A;
+  --accent-soft: #C77E98;        /* fill only                                */
+  --good:      #35603F;
+  --warn:      #9A3520;
+  --shadow:    0 18px 50px rgba(60,47,52,.20);
+  --scrim:     rgba(51,38,44,.44);
+  --texture-ink:   #6B4E59;
+  --texture-alpha: .10;
+}
+
+.wc-game[data-theme="dark"],
+.wc-game.t-dark {
+  --bg:        #3C2F34;
+  --bg-raise:  #4A3A41;
+  --bg-sink:   #2E2429;
+  --bg-edge:   #251D21;
+  --fg:        #F2E6EB;
+  --fg-2:      #D2BDC6;
+  --fg-3:      #BEA4B1;
+  --fg-on-accent: #2A1C22;
+  --line:      #55444B;
+  --line-2:    #6B565E;
+  --accent:    #E8A6BE;
+  --accent-soft: #B4728B;
+  --good:      #8FC6A3;
+  --warn:      #E8977E;
+  --shadow:    0 18px 50px rgba(0,0,0,.46);
+  --scrim:     rgba(20,14,17,.60);
+  --texture-ink:   #150F12;
+  --texture-alpha: .10;
+}
+
+@media (prefers-color-scheme: dark) {
+  .wc-game:not([data-theme="light"]) {
+    --bg:        #3C2F34;
+    --bg-raise:  #4A3A41;
+    --bg-sink:   #2E2429;
+    --bg-edge:   #251D21;
+    --fg:        #F2E6EB;
+    --fg-2:      #D2BDC6;
+    --fg-3:      #BEA4B1;
+    --fg-on-accent: #2A1C22;
+    --line:      #55444B;
+    --line-2:    #6B565E;
+    --accent:    #E8A6BE;
+    --accent-soft: #B4728B;
+    --good:      #8FC6A3;
+    --warn:      #E8977E;
+    --shadow:    0 18px 50px rgba(0,0,0,.46);
+    --scrim:     rgba(20,14,17,.60);
+    --texture-ink:   #150F12;
+    --texture-alpha: .10;
+  }
+}
+
+/* ===========================================================================
+   color-scheme — so the browser paints native controls, scrollbars, range
+   thumbs and focus rings to match. Cheap, and its absence is what made
+   Sojourner's sliders render in light chrome on a black page.
+   =========================================================================== */
+.ps-shell, .sj-game, .wc-game { color-scheme: light }
+.ps-shell[data-theme="dark"], .sj-game[data-theme="dark"], .wc-game[data-theme="dark"] { color-scheme: dark }
+@media (prefers-color-scheme: dark) {
+  .ps-shell:not([data-theme="light"]),
+  .sj-game:not([data-theme="light"]),
+  .wc-game:not([data-theme="light"]) { color-scheme: dark }
+}

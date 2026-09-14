@@ -8,15 +8,15 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><style>
 @font-face{font-family:Fr;src:url(data:font/woff2;base64,${f900}) format('woff2');font-weight:900}
 @font-face{font-family:Fr;src:url(data:font/woff2;base64,${f400}) format('woff2');font-weight:400}
 *{margin:0;box-sizing:border-box}
-body{width:1200px;height:630px;background:#D4B072;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;font-family:Fr,serif;color:#1F1A14;overflow:hidden}
+body{width:1200px;height:630px;background:#EFCBDA;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;font-family:Fr,serif;color:#33262C;overflow:hidden}
 .mark{margin-bottom:34px}
 h1{font-weight:900;font-size:132px;letter-spacing:-.024em;line-height:1}
 p{font-weight:400;font-size:44px;margin-top:16px;opacity:.86}
 .chain{display:flex;gap:14px;margin-top:52px;font-weight:900;font-size:28px;letter-spacing:.14em;opacity:.5}
 .chain span:nth-child(even){opacity:.45;font-weight:400}
 </style></head><body>
-<div class="mark"><svg width="118" height="118" viewBox="0 0 24 24" fill="none" stroke="#1F1A14"
+<div class="mark"><svg width="118" height="118" viewBox="0 0 24 24" fill="none" stroke="#33262C"
   stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
   <path d="M10.4 13.6a4.6 4.6 0 0 0 6.94.5l2.76-2.76a4.6 4.6 0 0 0-6.5-6.5l-1.58 1.57"/>
   <path d="M13.6 10.4a4.6 4.6 0 0 0-6.94-.5L3.9 12.66a4.6 4.6 0 0 0 6.5 6.5l1.57-1.57"/></svg></div>

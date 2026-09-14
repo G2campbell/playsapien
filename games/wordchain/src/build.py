@@ -59,20 +59,32 @@ inner = style + "\n" + body + "\n" + boot_for(ARTIFACT) + "<script>\n" + app + "
 
 io.open('artifact.html', 'w', encoding='utf-8').write(inner)
 
+# The favicon is FIXED in the light rose in both themes, like the share card and
+# og.png: it is a public mark, and the browser gives it no theme to follow.
+# %23EFCBDA is light --clay, %2333262C is light --fg (9.78:1). Keep in step with
+# CARD_BG / CARD_INK in part-c-app.js and with og.js.
 ICON = ("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'"
-        "%3E%3Crect width='24' height='24' rx='5' fill='%23D4B072'/%3E%3Cg fill='none'"
-        " stroke='%231F1A14' stroke-width='1.9' stroke-linecap='round'%3E"
+        "%3E%3Crect width='24' height='24' rx='5' fill='%23EFCBDA'/%3E%3Cg fill='none'"
+        " stroke='%2333262C' stroke-width='1.9' stroke-linecap='round'%3E"
         "%3Cpath d='M10.4 13.6a4.6 4.6 0 0 0 6.94.5l2.76-2.76a4.6 4.6 0 0 0-6.5-6.5l-1.58 1.57'/%3E"
         "%3Cpath d='M13.6 10.4a4.6 4.6 0 0 0-6.94-.5L3.9 12.66a4.6 4.6 0 0 0 6.5 6.5l1.57-1.57'/%3E"
         "%3C/g%3E%3C/svg%3E")
 
 head = (
-  '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+  # class="wc-game" selects the Word Chain palette in the inlined tokens.css.
+  # PSTheme.init('wc-game') adds it too, but having it in the markup means the
+  # page is never unstyled for the one frame before script runs, and stays
+  # correct if localStorage throws. (The artifact build has no <html> of its
+  # own, so there the class comes from PSTheme.init alone.)
+  '<!doctype html><html lang="en" class="wc-game"><head><meta charset="utf-8">'
   '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
   '<meta name="description" content="Eight words, every neighbouring pair a compound. '
   'First letters only. The clock is the score.">'
-  '<meta name="theme-color" content="#D4B072" media="(prefers-color-scheme: light)">'
-  '<meta name="theme-color" content="#0C0B0A" media="(prefers-color-scheme: dark)">'
+  # ONE theme-color, no media variants: PSTheme (packages/tokens/theme.js) rewrites
+  # this tag's content on every theme change, and it takes the first match. Two
+  # media-scoped tags would leave the other one stale and fighting it. The value
+  # here is the light .wc-game ground, which is what "system + light" resolves to.
+  '<meta name="theme-color" content="#E8D1DA">'
   '<meta property="og:type" content="website">'
   '<meta property="og:url" content="' + SITE + '/">'
   '<meta property="og:image" content="' + SITE + '/og.png">'

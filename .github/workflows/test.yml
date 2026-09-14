@@ -32,3 +32,14 @@ jobs:
         working-directory: packages/sdk
       - name: the bundle must build
         run: npx --yes esbuild packages/sdk/src/index.js --bundle --format=esm --minify --outfile=/tmp/sdk.js
+
+  tokens:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: every text token clears 4.5:1 on every ground
+        run: node packages/tokens/check-contrast.mjs
+      - name: the inlined copies have not drifted from the canonical files
+        run: node packages/tokens/check-inline.mjs
