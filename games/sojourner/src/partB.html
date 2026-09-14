@@ -1,0 +1,333 @@
+<div id="app">
+  <div id="glwrap"></div>
+  <div id="vig"></div>
+
+  <div class="topbar" id="topbar" style="display:none">
+    <div class="tb-left">
+      <div class="eyebrow" id="roundLabel">Round 1 of 5</div>
+      <div class="mult" id="multLabel">&times;1 &mdash; up to 100 points</div>
+    </div>
+  </div>
+
+  <div class="prompt" id="promptBox" style="display:none">
+    <div class="prompt-chip">
+      <div class="find" id="promptFind">Find</div>
+      <h1 id="promptName">&nbsp;</h1>
+      <div class="chip-foot">
+        <div class="shapes" id="shapes"></div>
+        <div class="clock" id="clock" hidden>2:00</div>
+        <div class="chip-score"><span id="tally">0</span><span class="of" id="tallyOf">/1000</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="reticle">
+    <svg width="156" height="156" viewBox="0 0 156 156">
+      <g class="ret-tick">
+        <line x1="78" y1="4" x2="78" y2="16"/><line x1="78" y1="140" x2="78" y2="152"/>
+        <line x1="4" y1="78" x2="16" y2="78"/><line x1="140" y1="78" x2="152" y2="78"/>
+      </g>
+      <circle class="ret-ring" cx="78" cy="78" r="58"/>
+      <circle class="ret-arc" id="retArc" cx="78" cy="78" r="58"
+              stroke-dasharray="364.42" stroke-dashoffset="364.42"/>
+      <circle class="ret-dot" cx="78" cy="78" r="3.4"/>
+    </svg>
+  </div>
+
+  <div class="corner">
+    <button class="iconbtn" id="helpBtn" aria-label="About" title="About">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor"
+           stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9">
+        <circle cx="12" cy="12" r="9"/>
+        <path d="M9.2 9.2a2.9 2.9 0 1 1 4 2.7c-.8.35-1.2 1-1.2 1.8v.4"/>
+        <line x1="12" y1="17.4" x2="12" y2="17.4"/>
+      </svg>
+    </button>
+    <button class="iconbtn" id="makeBtn" aria-label="Make a map puzzle" title="Make a map puzzle">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor"
+           stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8">
+        <circle cx="10.4" cy="10.4" r="7.4"/>
+        <ellipse cx="10.4" cy="10.4" rx="3.1" ry="7.4"/>
+        <path d="M3 10.4h14.8"/>
+        <path d="M18 17.2v4.4M15.8 19.4h4.4"/>
+      </svg>
+    </button>
+    <button class="iconbtn" id="friendsBtn" aria-label="Friends" title="Friends">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor"
+           stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8">
+        <circle cx="9" cy="8" r="3.4"/>
+        <path d="M2.8 19.4a6.2 6.2 0 0 1 12.4 0"/>
+        <path d="M16.2 5.1a3.4 3.4 0 0 1 0 6.1"/>
+        <path d="M18 14.4a6.2 6.2 0 0 1 3.2 5"/>
+      </svg>
+    </button>
+    <button class="iconbtn" id="settingsBtn" aria-label="Settings" title="Settings">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor"
+           stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8">
+        <circle cx="12" cy="12" r="3.2"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+    <button class="iconbtn" id="profileBtn" aria-label="Profile" title="Profile">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor"
+           stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8">
+        <circle cx="12" cy="8" r="4"/>
+        <path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>
+      </svg>
+    </button>
+  </div>
+
+  <button class="quitbtn" id="quitBtn" hidden>&times;&nbsp; Quit round</button>
+
+  <div class="hint" id="hint">Press &amp; hold to lock in</div>
+
+  <div class="timeup" id="timeup" hidden>Time&rsquo;s up</div>
+
+  <div class="askwrap" id="askWrap" hidden>
+    <div class="ask" role="dialog" aria-modal="true" aria-labelledby="askTitle">
+      <h2 id="askTitle">Leave this round?</h2>
+      <p id="askBody">You are part way through today&rsquo;s five. Leaving now discards
+        the rounds you have played so far.</p>
+      <div class="askrow">
+        <button class="btn ghost sm" id="askNo">Keep playing</button>
+        <button class="btn sm" id="askYes">Leave</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- reveal -->
+  <div class="sheet" id="revealSheet">
+    <div class="rv-top">
+      <div class="rv-id">
+        <div class="rv-round" id="rvRound"></div>
+        <h2 class="rv-name" id="rvName"></h2>
+      </div>
+      <div class="rv-pts"><span id="rvPts">0</span><small id="rvCalc"></small></div>
+    </div>
+    <div class="legend">
+      <span id="rvLegend" style="display:contents"></span>
+      <span class="dist" id="rvDist"></span>
+      <span class="bonus" id="rvBonus" style="display:none"></span>
+    </div>
+    <div class="rv-more" id="rvMore" hidden></div>
+    <div class="rv-foot">
+      <div class="shapes" id="rvShapes"></div>
+      <div class="chip-score"><span id="rvTally">0</span><span class="of">/1000</span></div>
+    </div>
+    <button class="btn" id="nextBtn">Next round</button>
+  </div>
+
+  <!-- story -->
+  <div class="sheet story" id="storySheet">
+    <div class="st-head">
+      <span id="stShape"></span>
+      <span class="st-round" id="stRound"></span>
+      <span class="st-count" id="stCount"></span>
+    </div>
+    <div class="st-body" id="stBody">
+      <h2 class="rv-name" id="stName"></h2>
+      <p class="st-fact" id="stFact"></p>
+      <a class="st-src" id="stSource" target="_blank" rel="noopener"></a>
+      <div class="st-more" id="stMore"></div>
+    </div>
+    <div class="st-foot">
+      <div class="st-nav">
+        <button class="btn ghost sm" id="stPrev">&larr;&nbsp; Previous</button>
+        <button class="btn ghost sm" id="stNext">Next &nbsp;&rarr;</button>
+      </div>
+      <button class="btn sm" id="stReview" style="width:100%; display:none">Review the sprint</button>
+      <button class="btn ghost sm" id="stBack" style="width:100%">Back to your score</button>
+    </div>
+  </div>
+
+  <!-- results -->
+  <div class="sheet" id="bridgeSheet">
+    <div class="br-label">Phase one score</div>
+    <div class="br-score"><span id="brP1">0</span><small>of 750</small></div>
+    <p class="br-say">Now a one minute sprint &mdash; get ready</p>
+    <button class="btn" id="brGo">Start the sprint</button>
+  </div>
+
+  <div class="sheet story" id="reviewSheet">
+    <div class="st-head">
+      <span class="st-round" id="rvwTitle">Review</span>
+      <span class="st-count" id="rvwCount"></span>
+    </div>
+    <div class="st-body" id="rvwBody">
+      <div class="rvw-list" id="rvwList"></div>
+    </div>
+    <div class="st-foot">
+      <p class="note" style="margin:0 0 10px">Tap a place to fly to it.</p>
+      <button class="btn ghost sm" id="rvwBack" style="width:100%">Back to your score</button>
+    </div>
+  </div>
+
+  <div class="full" id="resultsView">
+    <div class="wrap">
+      <div class="brandline" id="resDate"></div>
+      <div class="score-big"><span id="resScore">0</span><span class="den" id="resScoreDen"> / 1000</span></div>
+      <div class="res-shapes" id="resShapes"></div>
+      <div class="quizsum" id="quizSum" hidden></div>
+      <div class="breakdown" id="resRows"></div>
+      <div style="height:22px"></div>
+      <button class="btn" id="shareBtn">Copy score to share</button>
+      <textarea class="share-box" id="shareBox" rows="5" readonly style="display:none"></textarea>
+      <div style="height:10px"></div>
+      <button class="btn ghost" id="factsBtn">Visit &amp; Learn about these places</button>
+      <div style="height:10px"></div>
+      <button class="btn ghost" id="homeBtn">Back to the main page</button>
+      <div style="height:26px"></div>
+      <p class="note" id="resNote"></p>
+    </div>
+  </div>
+
+  <!-- intro -->
+  <div class="full on" id="introView">
+    <div class="wrap">
+      <h1 class="brandmark">Sojourner</h1>
+      <p class="tagline">A game of geography.</p>
+
+      <div class="levelset" id="levelRow"></div>
+
+      <figure class="emblem">
+        <img id="emblemImg" alt="Two hemispheres, Africa picked out">
+        <figcaption class="brandline">Daily &middot; <span id="introDate"></span></figcaption>
+      </figure>
+
+      <div class="playset" id="playRow"></div>
+
+      <p class="setline">Wanderer draws every border; Globetrotter draws none. Use
+         <button class="inlink" id="setLink">settings <svg viewBox="0 0 24 24"
+           width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/>
+           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+         </svg></button> to set your focus country, the look of the globe, and more.</p>
+    </div>
+  </div>
+
+  <div class="scrim" id="scrim"></div>
+
+  <div class="sheet panel" id="settingsSheet">
+    <div class="sh-head"><h2>Settings</h2><button class="donebtn" id="setDone">Done</button></div>
+
+    <div class="setrow">
+      <div class="setlabel">Focus country</div>
+      <select class="selectbox" id="selFocus"></select>
+      <p class="sethint">In the Countries game this country is asked region by region, with its
+        internal borders drawn. Everywhere else is asked as a whole country. Only countries whose
+        every region is in the game can be chosen.</p>
+    </div>
+
+    <div class="setrow" id="rowLeave" style="display:none">
+      <div class="setlabel">Practice round in progress</div>
+      <button class="btn ghost sm" id="leaveBtn" style="width:100%">Leave practice, back to the Daily Challenge</button>
+    </div>
+
+    <div class="setrow">
+      <div class="setlabel">Globe style</div>
+      <div class="seg grid" id="segStyle"></div>
+      <p class="sethint" id="styleHint"></p>
+    </div>
+
+    <div class="setrow">
+      <div class="setlabel">Units</div>
+      <div class="seg" id="segUnits">
+        <button type="button" data-v="km">Kilometres</button>
+        <button type="button" data-v="mi">Miles</button>
+      </div>
+    </div>
+
+    <div class="setrow">
+      <div class="setlabel">Timing</div>
+      <input class="rng" type="range" id="rngTiming" min="80" max="130" step="5" value="100">
+      <div class="rnglab"><span>Slower</span><span>Faster</span></div>
+      <p class="sethint">How far the globe turns for a given swipe, and how long a press
+        has to be held before it locks in.</p>
+    </div>
+
+    <div class="setrow">
+      <div class="setlabel">Sound</div>
+      <button class="toggle" id="tglSound" role="switch" aria-checked="false"><i></i></button>
+      <p class="sethint">A rising tone while you press and hold, and a chime when the ring fills.</p>
+    </div>
+  </div>
+
+  <div class="sheet panel" id="helpSheet">
+    <div class="sh-head"><h2>How to play</h2><button class="donebtn" id="helpDone">Close</button></div>
+    <p class="lede" style="margin-top:0">Five rounds of testing your knowledge of geography. One per day
+       (for now), and an opportunity to learn something interesting about each location.
+       Each round should be a little harder, and so, is worth a bit more. Have fun.</p>
+    <ol class="steps">
+      <li><b>01</b><span>Drag to spin the globe. Pinch or scroll to zoom in.</span></li>
+      <li><b>02</b><span>Press and hold on the place you think it is. The ring fills, then your answer locks.</span></li>
+      <li><b>03</b><span>Closer is worth more, and the right country is worth something even from far away.</span></li>
+    </ol>
+    <div class="eyebrow" style="margin-bottom:18px">Each round has a shape and a multiplier</div>
+    <div class="ladder" id="introLadder"></div>
+    <div class="note">A perfect run is 1000.</div>
+    <hr class="hrule">
+    <h3 class="sh-sec">Why Sojourner</h3>
+    <p class="note">Named for Sojourner Truth, who was born Isabella
+      Baumfree and renamed herself in 1843 &mdash; Sojourner because she was to travel up and down the
+      land, Truth because she was to declare it.
+      <a href="https://www.loc.gov/exhibits/odyssey/educate/truth.html" target="_blank" rel="noopener"
+         style="color:var(--verdigris);text-decoration:none;border-bottom:1px solid rgba(89,185,164,.35)">Library of Congress</a></p>
+    <hr class="hrule">
+    <h3 class="sh-sec">The two globes</h3>
+    <p class="note">The emblem on the front page follows a chart W.&nbsp;E.&nbsp;B. Du Bois made
+      for the Exhibit of American Negroes at the 1900 Exposition Universelle in Paris. He and his
+      students and alumni at Atlanta University drew close to sixty charts, graphs and maps by
+      hand, in ink and gouache, to set out the condition of Black America for a European audience.
+      The opening plate of <i>The Georgia Negro: A Social Study</i> is a pair of hemispheres
+      tracing the routes of the African slave trade, with Georgia starred. The originals, grown
+      brittle, are held and digitised by the Library of Congress.
+      <a href="https://www.loc.gov/pictures/item/2013650420/" target="_blank" rel="noopener"
+         style="color:var(--verdigris);text-decoration:none;border-bottom:1px solid rgba(89,185,164,.35)">The plate</a> &middot;
+      <a href="https://www.loc.gov/pictures/collection/anedub/" target="_blank" rel="noopener"
+         style="color:var(--verdigris);text-decoration:none;border-bottom:1px solid rgba(89,185,164,.35)">The collection</a></p>
+    <p class="note" style="margin-top:10px; color:var(--paper-faint)">What you see here is not a
+      reproduction of that plate. The continents are projected from this game&rsquo;s own map and
+      coloured in its own palette; what is borrowed is the composition, and the lines.</p>
+    <hr class="hrule">
+    <div class="legal">
+      <a href="privacy.html" target="_blank" rel="noopener">Privacy</a>
+      <a href="terms.html" target="_blank" rel="noopener">Terms of use</a>
+    </div>
+    <div class="edition" id="buildTag">G2 Edition 3.7</div>
+  </div>
+
+  <div class="sheet panel" id="makeSheet">
+    <div class="sh-head"><h2>Make a puzzle</h2><button class="donebtn" id="makeDone">Close</button></div>
+    <p class="soon">Coming soon.</p>
+    <p class="sethint">Build your own map puzzle &mdash; choose the places, set the order, and
+      send it to a friend or put it up for everyone. The same workshop Word Chain has for
+      chains.</p>
+  </div>
+
+  <div class="sheet panel" id="friendsSheet">
+    <div class="sh-head"><h2>Friends</h2><button class="donebtn" id="friendsDone">Close</button></div>
+    <p class="soon">Coming soon.</p>
+    <p class="sethint">Follow the people you play against, compare today&rsquo;s run, and keep a
+      private league going. Shared with Word Chain, so a friend is a friend across both games.</p>
+  </div>
+
+  <div class="sheet panel" id="profileSheet">
+    <div class="sh-head"><h2>Profile</h2><button class="donebtn" id="profDone">Close</button></div>
+    <p class="soon">Coming soon.</p>
+    <p class="sethint">A profile will let you put a name on the leaderboard, keep your run of
+      daily scores, and pick up where you left off on another device.</p>
+  </div>
+
+  <div class="sheet" id="learnSheet">
+    <div class="st-head">
+      <span class="st-round" id="lnKind">Place</span>
+      <span class="st-count" id="lnClose" style="cursor:pointer">Close</span>
+    </div>
+    <h2 class="rv-name" id="lnName"></h2>
+    <p class="st-fact" id="lnFact"></p>
+    <a class="st-src" id="lnSource" target="_blank" rel="noopener"></a>
+    <div class="st-more" id="lnMore"></div>
+  </div>
+
+  <div id="toast">Copied</div>
+</div>

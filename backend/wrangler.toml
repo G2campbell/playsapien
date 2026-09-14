@@ -1,0 +1,51 @@
+# PlaySapien API worker.
+#
+# The whole platform lives on one origin (playsapien.com) with the games under
+# path prefixes, which is what lets a single HttpOnly cookie cover the shell and
+# both games. That layout is also why this Worker is mounted on a route rather
+# than a workers.dev subdomain: a cookie set on a *.workers.dev host would be
+# useless to the games.
+
+name = "playsapien-api"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+# nodejs_compat is NOT enabled and is not needed: nothing in src/ imports a node
+# module. Everything is WebCrypto and the fetch API.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "playsapien"
+# Replace with the id printed by `wrangler d1 create playsapien`.
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[vars]
+# Where the browser is sent back to after a Google round trip, and the origin
+# used to build the sign-in link inside the code email.
+APP_ORIGIN = "https://playsapien.com"
+# Extra origins allowed to call the API with credentials. Same-origin calls do
+# not need this at all; it exists for local development against a Pages dev
+# server. Comma separated, exact origins, no wildcards -- a wildcard cannot be
+# combined with credentialed CORS anyway.
+ALLOWED_ORIGINS = "http://localhost:8788,http://127.0.0.1:8788"
+# Your Google OAuth client id. Not a secret (it ships in the redirect URL), so
+# it lives here rather than in the secret store.
+GOOGLE_CLIENT_ID = ""
+# Cloudflare Access, for /api/admin/*. Both must be set for admin to open at
+# all -- see routes/admin.js for why that failure mode is deliberate.
+ACCESS_TEAM_DOMAIN = ""   # e.g. "yourteam.cloudflareaccess.com"
+ACCESS_AUD = ""           # the Application Audience tag from the Access app
+# From address for the sign-in mail. Must be a domain verified in Resend.
+MAIL_FROM = "PlaySapien <hello@playsapien.com>"
+
+# Secrets, set with `wrangler secret put NAME` -- never in this file:
+#   LOGIN_CODE_PEPPER      random 32+ bytes, mixed into the login-code hash
+#   OAUTH_STATE_SECRET     random 32+ bytes, signs the short-lived PKCE cookie
+#   GOOGLE_CLIENT_SECRET   from the Google Cloud console
+#   RESEND_API_KEY         from resend.com
+
+# Housekeeping only: expired login codes and dead sessions. The nightly chain
+# assessment from SUBMISSION-PIPELINE.md is not wired up yet -- see README.
+[triggers]
+crons = ["17 4 * * *"]

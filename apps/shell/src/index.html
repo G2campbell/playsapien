@@ -1,0 +1,1027 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PlaySapien</title>
+<meta name="description" content="Daily sapo-challenges to play, share, and see where your multiple intellisenses rank you.">
+<meta name="theme-color" content="#F3EEE2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Petit+Formal+Script&display=swap">
+<style>
+/* ===========================================================================
+   PlaySapien -- the platform landing page.
+
+   The whole sheet is meant to read as one piece of very heavy cold-press
+   watercolour paper, with the SapoSapien nyansapo mark debossed into it. The
+   paper is built from two turbulence layers (fibre + tooth) plus a few pale
+   washes; nothing is an image file, so this page is a single portable file.
+
+   The gallery is the 21st.dev hover-expand rail, converted to CLICK. Collapsed
+   panels show the game's icon and its name set vertically along the spine.
+   Below 760px the same markup becomes a vertical accordion.
+
+   To add a game: add one object to GAMES at the bottom. Nothing else.
+   =========================================================================== */
+:root{
+  /* ink: sampled from the SapoSapien letterpress proofs */
+  --navy:#153C5E; --navy-deep:#0C2740; --navy-mid:#2A5A80; --navy-faint:rgba(21,60,94,.55);
+  --tan:#B69A6E; --tan-soft:#D0BC98; --tan-deep:#8E7247;
+  /* paper */
+  --paper:#F3EEE2; --paper-hi:#FCF9F1; --paper-lo:#E4DAC5; --paper-edge:#D8CCB2;
+  --line:rgba(21,60,94,.15); --line-2:rgba(21,60,94,.28);
+  --f-disp:"Fraunces",Georgia,"Times New Roman",serif;
+  --f-body:"Public Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --f-script:"Petit Formal Script","Snell Roundhand","Apple Chancery",cursive;
+  --bar-h:58px;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; min-height:100%; color:var(--navy); background:var(--paper);
+  font-family:var(--f-body); font-size:16px; line-height:1.55;
+  -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent;
+}
+
+/* ---------- the sheet ------------------------------------------------------
+   Layer 1  fine fibre grain      (high-frequency turbulence, multiplied)
+   Layer 2  cold-press tooth      (low-frequency turbulence, soft-light)
+   Layer 3  pale washes + vignette (radial gradients)
+   -------------------------------------------------------------------------- */
+body::before,body::after{content:""; position:fixed; inset:0; pointer-events:none; z-index:0}
+body::before{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23f)' opacity='0.55'/%3E%3C/svg%3E");
+  mix-blend-mode:multiply; opacity:.34;
+}
+body::after{
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='t'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.035 0.05' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='420' height='420' filter='url(%23t)' opacity='0.8'/%3E%3C/svg%3E");
+  mix-blend-mode:soft-light; opacity:.5;
+}
+.washes{
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:
+    radial-gradient(58% 42% at 18% 12%, rgba(255,255,255,.85), transparent 70%),
+    radial-gradient(52% 38% at 86% 28%, rgba(214,196,160,.30), transparent 72%),
+    radial-gradient(64% 46% at 50% 104%, rgba(184,166,132,.26), transparent 70%),
+    radial-gradient(120% 86% at 50% 46%, transparent 52%, rgba(120,104,74,.16) 100%);
+}
+.page{position:relative; z-index:1}
+
+/* ---------- fixed top bar -------------------------------------------------- */
+.bar{
+  position:fixed; top:0; left:0; right:0; z-index:40;
+  min-height:calc(var(--bar-h) + env(safe-area-inset-top));
+  padding:calc(env(safe-area-inset-top) + 9px) 14px 9px;
+  display:flex; align-items:center; gap:11px;
+  background:rgba(243,238,226,.86);
+  -webkit-backdrop-filter:saturate(150%) blur(12px); backdrop-filter:saturate(150%) blur(12px);
+  border-bottom:1px solid var(--line);
+}
+.bar-brand{display:flex; align-items:center; gap:9px; min-width:0}
+.bar-brand .mk{width:38px; flex:none; display:block; --mk-w:9.4}
+.bar-name{
+  font-family:var(--f-disp); font-weight:600; font-size:17.5px; letter-spacing:-.014em;
+  white-space:nowrap; color:var(--navy);
+}
+.bar-name b{font-weight:900}
+.spacer{flex:1}
+.corner{display:flex; gap:1px}
+.iconbtn{
+  width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  cursor:pointer; color:var(--navy); opacity:.6; background:transparent; border:none; flex:none;
+  transition:opacity .16s, background .16s;
+}
+.iconbtn:hover{opacity:1; background:rgba(21,60,94,.08)}
+.iconbtn:focus-visible{outline:2px solid var(--tan-deep); outline-offset:2px; opacity:1}
+
+/* ---------- hero ----------------------------------------------------------- */
+.hero{
+  padding:calc(var(--bar-h) + env(safe-area-inset-top) + 32px) 20px 4px;
+  text-align:center; display:flex; flex-direction:column; align-items:center;
+}
+.crest{width:min(244px,60vw); margin:0 0 8px}
+.crest svg{--mk-w:6.5}
+.crest svg{width:100%; display:block}
+.wordmark{
+  font-family:var(--f-disp); font-weight:900; font-variation-settings:"opsz" 128;
+  font-size:clamp(42px,10.5vw,70px); line-height:.96; letter-spacing:-.03em;
+  margin:0; color:var(--navy);
+  text-shadow:0 1px 0 rgba(255,255,255,.75), 0 -1px 0 rgba(12,39,64,.1);
+}
+.wordmark i{font-style:normal; color:var(--tan-deep)}
+.tagline{
+  font-family:var(--f-script); font-weight:400;
+  font-size:clamp(20px,4.2vw,27px); line-height:1.46; letter-spacing:.006em;
+  margin:12px 0 0; max-width:34ch; color:var(--navy); opacity:.92; text-wrap:balance;
+}
+.datum{
+  font-family:var(--f-mono); font-size:11px; letter-spacing:.19em; text-transform:uppercase;
+  color:var(--navy); opacity:.5; margin:20px 0 0;
+}
+.rule{
+  width:min(560px,82%); height:1px; margin:20px auto 0; border:0;
+  background:linear-gradient(90deg,transparent,var(--line-2) 22%,var(--line-2) 78%,transparent);
+}
+
+/* ---------- gallery -------------------------------------------------------- */
+.gallery{padding:32px 16px 8px}
+.rail-head{
+  display:flex; align-items:baseline; justify-content:center; gap:10px; margin:0 0 22px;
+  font-family:var(--f-mono); font-size:11px; letter-spacing:.19em; text-transform:uppercase;
+  color:var(--navy); opacity:.52;
+}
+.rail{
+  display:flex; gap:6px; justify-content:center; align-items:stretch;
+  max-width:1180px; margin:0 auto;
+}
+.panel{
+  position:relative; flex:none; width:5.6rem; height:24rem;
+  border:none; padding:0; margin:0; cursor:pointer; overflow:hidden;
+  border-radius:22px; background:var(--field); color:var(--fg);
+  box-shadow:0 1px 0 rgba(255,255,255,.6), 0 14px 34px -16px rgba(40,32,18,.55),
+             inset 0 0 0 1px rgba(0,0,0,.1);
+  transition:width .44s cubic-bezier(.4,0,.2,1), box-shadow .3s;
+  -webkit-appearance:none; appearance:none; text-align:left;
+}
+.panel:focus-visible{outline:2px solid var(--navy); outline-offset:3px}
+.panel.on{width:26rem; box-shadow:0 2px 0 rgba(255,255,255,.6), 0 26px 54px -18px rgba(40,32,18,.6), inset 0 0 0 1px rgba(0,0,0,.12)}
+.panel::after{ /* wash so every panel shares the paper's light */
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:radial-gradient(112% 78% at 50% 8%, rgba(255,255,255,.16), transparent 62%),
+             linear-gradient(180deg, transparent 56%, rgba(0,0,0,.18) 100%);
+}
+
+/* spine: what a collapsed panel shows */
+.spine{
+  position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+  gap:16px; padding:20px 0 22px; opacity:1; transition:opacity .2s .16s;
+}
+.panel.on .spine{opacity:0; transition:opacity .14s}
+.spine .ico{width:30px; height:30px; flex:none; color:var(--accent)}
+.spine .nm{
+  writing-mode:vertical-rl; transform:rotate(180deg);
+  font-family:var(--f-disp); font-weight:600; font-size:19px; letter-spacing:.028em;
+  white-space:nowrap; color:var(--fg); opacity:.94;
+}
+.spine .nb{
+  font-family:var(--f-mono); font-size:10px; letter-spacing:.16em; color:var(--fg);
+  opacity:.45; writing-mode:vertical-rl; transform:rotate(180deg);
+}
+
+/* face: what an open panel shows */
+.face{
+  position:absolute; inset:0; z-index:2; padding:26px 28px 28px;
+  display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-end;
+  opacity:0; transform:translateY(9px); pointer-events:none;
+  transition:opacity .26s, transform .34s;
+}
+.panel.on .face{opacity:1; transform:none; pointer-events:auto; transition-delay:.16s}
+.face .mark{
+  position:absolute; top:24px; left:28px; width:44px; height:44px; color:var(--accent);
+}
+.face .ghost{ /* oversized watermark of the game's own icon */
+  position:absolute; right:-16%; top:6%; width:76%; color:var(--accent);
+  opacity:.1; pointer-events:none;
+}
+.face .kick{
+  font-family:var(--f-mono); font-size:10.5px; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--accent); margin:0 0 10px;
+}
+.face h2{
+  font-family:var(--f-disp); font-weight:900; font-variation-settings:"opsz" 96;
+  font-size:clamp(31px,3.2vw,39px); line-height:1; letter-spacing:-.024em; margin:0; color:var(--fg);
+}
+.face .blurb{
+  font-family:var(--f-disp); font-weight:400; font-size:17px; line-height:1.34;
+  margin:10px 0 0; max-width:23ch; color:var(--fg); opacity:.84; text-wrap:balance;
+}
+.face .play{
+  display:inline-flex; align-items:center; gap:9px; margin-top:20px;
+  font-family:var(--f-body); font-weight:600; font-size:14.5px; letter-spacing:.01em;
+  text-decoration:none; color:var(--field); background:var(--fg);
+  padding:12px 20px; border-radius:999px; transition:transform .12s, opacity .16s;
+}
+.face .play:hover{opacity:.86}
+.face .play:active{transform:scale(.975)}
+.face .play svg{width:16px; height:16px}
+.panel.soon{cursor:default}
+.panel.soon .face .play{display:none}
+.panel.soon{box-shadow:0 1px 0 rgba(255,255,255,.6), inset 0 0 0 1.5px var(--line-2)}
+.panel.soon::after{background:none}
+.rail-foot{
+  text-align:center; margin:20px 0 0; font-family:var(--f-mono); font-size:11px;
+  letter-spacing:.15em; text-transform:uppercase; color:var(--navy); opacity:.4;
+}
+
+/* ---------- footer --------------------------------------------------------- */
+footer{
+  margin-top:44px; padding:26px 20px calc(env(safe-area-inset-bottom) + 34px);
+  border-top:1px solid var(--line); text-align:center;
+}
+footer .mk{width:78px; margin:0 auto 12px; display:block; opacity:.46; --mk-w:8.6}
+footer p{
+  font-family:var(--f-mono); font-size:11px; letter-spacing:.15em; text-transform:uppercase;
+  color:var(--navy); opacity:.5; margin:0; line-height:2;
+}
+footer a{color:inherit; text-decoration:none; border-bottom:1px solid var(--line-2)}
+footer a:hover{opacity:1}
+
+/* ---------- the rail becomes an accordion on a phone ----------------------- */
+@media (max-width:759px){
+  .rail{flex-direction:column; gap:8px; max-width:520px}
+  .panel{width:100%; height:5.1rem; transition:height .44s cubic-bezier(.4,0,.2,1), box-shadow .3s}
+  .panel.on{width:100%; height:21.5rem}
+  .spine{flex-direction:row; justify-content:flex-start; gap:15px; padding:0 22px}
+  .spine .nm{writing-mode:horizontal-tb; transform:none; font-size:21px; letter-spacing:-.008em}
+  .spine .nb{writing-mode:horizontal-tb; transform:none; margin-left:auto}
+  .face{padding:22px 24px 24px}
+  .face .mark{top:20px; left:24px; width:38px; height:38px}
+  .face .ghost{width:66%; right:-12%}
+  .datum{letter-spacing:.12em; font-size:10.5px; max-width:30ch}
+}
+@media (min-width:760px) and (max-width:1000px){
+  .panel{height:22.5rem; width:5rem}
+  .panel.on{width:21.5rem}
+}
+@media (prefers-reduced-motion:reduce){
+  .panel,.spine,.face{transition-duration:.01ms !important}
+}
+
+/* ---------- account layer -------------------------------------------------
+   Sheets, borrowed wholesale from the two games so the platform's chrome and
+   the games' chrome are one idea. Same 20px top radius, same 86% max height,
+   same 38x4 grab handle, same easing -- the audit found both games already
+   agreed on all four, which made this an easy thing to match rather than
+   invent. Light palette, because the shell is deliberately a sheet of paper.
+   -------------------------------------------------------------------------- */
+.scrim{
+  position:fixed; inset:0; z-index:50; background:rgba(21,60,94,.28);
+  opacity:0; pointer-events:none; transition:opacity .3s;
+  -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px);
+}
+.scrim.on{opacity:1; pointer-events:auto}
+.sheet{
+  position:fixed; left:0; right:0; bottom:0; z-index:51;
+  max-height:86%; overflow-y:auto; overscroll-behavior:contain;
+  background:var(--paper-hi); border-radius:20px 20px 0 0;
+  border-top:1px solid var(--line-2);
+  box-shadow:0 -18px 50px rgba(21,60,94,.18);
+  padding:20px 20px calc(24px + env(safe-area-inset-bottom));
+  transform:translateY(102%); transition:transform .42s cubic-bezier(.22,.9,.3,1);
+}
+.sheet.on{transform:none}
+.sheet::before{
+  content:''; display:block; width:38px; height:4px; border-radius:99px;
+  background:var(--line-2); margin:-6px auto 14px;
+}
+@media (min-width:680px){
+  .sheet{
+    left:50%; right:auto; bottom:auto; top:50%; width:min(560px,92vw);
+    transform:translate(-50%,-46%) scale(.98); opacity:0;
+    border-radius:18px; border:1px solid var(--line-2); max-height:84vh;
+  }
+  .sheet.on{transform:translate(-50%,-50%); opacity:1}
+  .sheet::before{display:none}
+}
+.sh-head{display:flex; align-items:baseline; gap:12px; margin-bottom:20px}
+.sh-head h2{
+  font-family:var(--f-disp); font-weight:900; font-size:24px; letter-spacing:-.02em;
+  margin:0; color:var(--navy);
+}
+.sh-head .sh-sub{
+  font-family:var(--f-mono); font-size:10.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--navy); opacity:.45; margin-left:auto;
+}
+.sheet p{font-size:14.5px; line-height:1.62; color:var(--navy); opacity:.86; margin:0 0 12px; max-width:56ch}
+.sheet p.hint{font-size:13px; opacity:.6; line-height:1.55}
+.sheet a{color:var(--navy); text-decoration-color:var(--tan-deep); text-underline-offset:2px}
+
+.setrow{
+  display:flex; align-items:center; gap:14px; padding:15px 0;
+  border-bottom:1px solid var(--line);
+}
+.setrow:last-child{border-bottom:0}
+.setrow .col{flex:1; min-width:0}
+.setlabel{font-size:15px; font-weight:500; color:var(--navy); display:block}
+.sethint{font-size:13px; line-height:1.5; color:var(--navy); opacity:.58; margin:3px 0 0; max-width:52ch}
+
+.fld{
+  width:100%; box-sizing:border-box; font:inherit; font-size:16px; /* 16px: iOS zooms below it */
+  padding:11px 13px; border-radius:10px; border:1px solid var(--line-2);
+  background:var(--paper-hi); color:var(--navy); margin:0 0 10px;
+}
+.fld:focus{outline:2px solid var(--tan-deep); outline-offset:1px; border-color:transparent}
+.fld.code{
+  font-family:var(--f-mono); font-size:23px; letter-spacing:.34em; text-align:center;
+  padding:12px 13px;
+}
+.btn{
+  font:inherit; font-size:14.5px; font-weight:600; cursor:pointer;
+  padding:11px 20px; border-radius:999px; border:1px solid transparent;
+  background:var(--navy); color:var(--paper-hi); transition:opacity .16s;
+}
+.btn:hover{opacity:.88}
+.btn:disabled{opacity:.45; cursor:default}
+.btn.ghost{background:transparent; color:var(--navy); border-color:var(--line-2)}
+.btn.wide{display:block; width:100%}
+.btn.google{
+  background:var(--paper-hi); color:var(--navy); border-color:var(--line-2);
+  display:flex; align-items:center; justify-content:center; gap:10px; width:100%;
+}
+.btn.google svg{width:17px; height:17px; flex:none}
+.btnrow{display:flex; gap:9px; flex-wrap:wrap; margin-top:4px}
+.or{
+  display:flex; align-items:center; gap:12px; margin:16px 0;
+  font-family:var(--f-mono); font-size:10px; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--navy); opacity:.4;
+}
+.or::before,.or::after{content:''; flex:1; height:1px; background:var(--line)}
+.note{
+  font-size:13px; line-height:1.5; margin:10px 0 0; padding:10px 12px;
+  border-radius:9px; background:rgba(182,154,110,.16); color:var(--navy);
+}
+.note.bad{background:rgba(154,74,36,.12)}
+
+/* the cross-game profile block */
+.pf{display:flex; align-items:center; gap:14px; margin-bottom:4px}
+.pf .av{
+  width:52px; height:52px; border-radius:50%; flex:none; display:grid; place-items:center;
+  background:var(--navy); color:var(--paper-hi);
+  font-family:var(--f-disp); font-weight:900; font-size:22px;
+}
+.pf .who{min-width:0}
+.pf .who strong{display:block; font-family:var(--f-disp); font-size:19px; font-weight:600; color:var(--navy)}
+.pf .who span{font-size:13px; color:var(--navy); opacity:.55}
+.stats{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); border-radius:12px; overflow:hidden; margin:18px 0 4px}
+.stat{background:var(--paper-hi); padding:14px 10px; text-align:center}
+.stat b{display:block; font-family:var(--f-disp); font-weight:900; font-size:27px; line-height:1; color:var(--navy)}
+.stat span{
+  display:block; margin-top:5px; font-family:var(--f-mono); font-size:9.5px;
+  letter-spacing:.15em; text-transform:uppercase; color:var(--navy); opacity:.5;
+}
+.gstat{display:flex; align-items:center; gap:11px; padding:13px 0; border-bottom:1px solid var(--line); font-size:14.5px; color:var(--navy)}
+.gstat:last-child{border-bottom:0}
+.gstat .gi{width:21px; height:21px; flex:none; opacity:.65}
+.gstat .gn{flex:1; font-weight:500}
+.gstat .gv{font-family:var(--f-mono); font-size:12.5px; opacity:.62; letter-spacing:.04em}
+
+/* friends */
+.frow{display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--line)}
+.frow:last-child{border-bottom:0}
+.frow .av{width:34px; height:34px; border-radius:50%; flex:none; display:grid; place-items:center;
+  background:var(--tan-soft); color:var(--navy); font-family:var(--f-disp); font-weight:600; font-size:14px}
+.frow .fn{flex:1; min-width:0; font-size:14.5px; color:var(--navy)}
+.frow .fn em{display:block; font-style:normal; font-size:12.5px; opacity:.55}
+.frow .fs{font-family:var(--f-mono); font-size:13px; color:var(--navy); opacity:.7}
+.codebox{
+  display:flex; align-items:center; gap:10px; margin:6px 0 2px;
+  padding:12px 14px; border-radius:11px; border:1px dashed var(--line-2);
+  background:rgba(255,255,255,.5);
+}
+.codebox code{
+  font-family:var(--f-mono); font-size:19px; letter-spacing:.22em; color:var(--navy); flex:1;
+}
+.empty{
+  text-align:center; padding:26px 10px; font-size:14px; line-height:1.6;
+  color:var(--navy); opacity:.55; max-width:40ch; margin:0 auto;
+}
+
+/* today's status, printed on each game card */
+.status{
+  display:flex; align-items:center; gap:7px; margin-top:14px;
+  font-family:var(--f-mono); font-size:10px; letter-spacing:.15em; text-transform:uppercase;
+  color:var(--fg); opacity:.62;
+}
+.status .dot{width:6px; height:6px; border-radius:50%; background:currentColor; flex:none; opacity:.5}
+.status.done .dot{background:var(--accent); opacity:1}
+.status.done{opacity:.85}
+
+@media (prefers-reduced-motion:reduce){
+  .sheet,.scrim{transition-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+<div class="washes"></div>
+
+<!-- One definition of the mark; every instance is a <use>. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="nyansapo" viewBox="0 0 260 164">
+    <g fill="none" stroke-linecap="round" stroke-width="var(--mk-w,7.4)">
+      <g id="ny-half">
+        <path d="M 131.05 117.24 A 46 46 0 1 0 121.65 40.66 C 129.36 44.42 137.49 66.36 141.96 66.36 L 248.22 66.36" stroke="var(--mk-ink,#153C5E)"/>
+        <path d="M 11.78 66.36 L 108.86 66.36 C 116.86 66.36 119.22 61.90 121.72 54.40" stroke="var(--mk-accent,#B69A6E)"/>
+      </g>
+      <use href="#ny-half" transform="rotate(180 130 82)"/>
+    </g>
+  </symbol>
+</svg>
+
+<div class="page">
+
+  <header class="bar">
+    <div class="bar-brand">
+      <svg class="mk" viewBox="0 0 260 164" aria-hidden="true"><use href="#nyansapo"/></svg>
+      <span class="bar-name">Play<b>Sapien</b></span>
+    </div>
+    <div class="spacer"></div>
+    <nav class="corner" aria-label="Account">
+      <button class="iconbtn" type="button" id="aboutBtn" aria-label="About">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.2 9.2a2.9 2.9 0 1 1 4 2.7c-.8.35-1.2 1-1.2 1.8v.4"/><line x1="12" y1="17.4" x2="12" y2="17.4"/></svg>
+      </button>
+      <button class="iconbtn" type="button" id="friendsBtn" aria-label="Friends">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M2.8 19.4a6.2 6.2 0 0 1 12.4 0"/><path d="M16.2 5.1a3.4 3.4 0 0 1 0 6.1"/><path d="M18 14.4a6.2 6.2 0 0 1 3.2 5"/></svg>
+      </button>
+      <button class="iconbtn" type="button" id="settingsBtn" aria-label="Settings">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <button class="iconbtn" type="button" id="profileBtn" aria-label="Profile">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg>
+      </button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="crest"><svg viewBox="0 0 260 164" role="img" aria-label="The nyansapo wisdom knot"><use href="#nyansapo"/></svg></div>
+      <h1 class="wordmark">Play<i>Sapien</i></h1>
+      <p class="tagline">Daily sapo-challenges to play, share, and see where your multiple intellisenses rank you.</p>
+      <p class="datum" id="datum">&nbsp;</p>
+      <hr class="rule">
+    </section>
+
+    <section class="gallery" aria-labelledby="railhead">
+      <p class="rail-head" id="railhead">The games</p>
+      <div class="rail" id="rail" aria-label="Games"></div>
+      <p class="rail-foot" id="railfoot">Click a card to open it</p>
+      <noscript><p class="rail-foot">Sojourner &middot; Word Chain</p></noscript>
+    </section>
+  </main>
+
+  <footer>
+    <svg class="mk" viewBox="0 0 260 164" aria-hidden="true"><use href="#nyansapo"/></svg>
+    <p>PlaySapien is a SapoSapien project</p>
+    <p><a href="/about/">About</a> &nbsp;&middot;&nbsp; <a href="/privacy/">Privacy</a> &nbsp;&middot;&nbsp; <a href="/terms/">Terms</a></p>
+  </footer>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<!-- About ------------------------------------------------------------------ -->
+<section class="sheet" id="aboutSheet" role="dialog" aria-modal="true" aria-labelledby="aboutTitle" hidden>
+  <div class="sh-head"><h2 id="aboutTitle">PlaySapien</h2><span class="sh-sub">About</span></div>
+  <p>A small workshop of daily puzzles. One a day, each one a different kind of
+     thinking &mdash; a globe, a chain of words, and whatever is next on the bench.</p>
+  <p>The name is the nyansapo, the Akan wisdom knot: <em>&ldquo;wisdom knot &mdash; wisdom
+     comes from a knot that cannot be untied by force.&rdquo;</em> It is the mark at the
+     top of every page.</p>
+  <p class="hint">Every game keeps your progress on your own device. An account is
+     optional, and only exists so a streak survives a new phone and so a friend can
+     see how you did today.</p>
+  <div class="btnrow">
+    <a class="btn ghost" href="/about/">The longer version</a>
+    <a class="btn ghost" href="/privacy/">Privacy</a>
+  </div>
+</section>
+
+<!-- Profile / sign-in ------------------------------------------------------- -->
+<section class="sheet" id="profileSheet" role="dialog" aria-modal="true" aria-labelledby="profileTitle" hidden>
+  <div class="sh-head"><h2 id="profileTitle">Profile</h2><span class="sh-sub" id="pfSub">Not signed in</span></div>
+
+  <!-- signed out: ask for an email -->
+  <div id="pfOut">
+    <p>Sign in to keep your streaks when you change phone, and to see how your
+       friends did today. Everything works without it &mdash; this only adds the
+       parts one device cannot do on its own.</p>
+
+    <button class="btn google" type="button" id="googleBtn">
+      <svg viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.83.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+      Continue with Google
+    </button>
+
+    <div class="or">or</div>
+
+    <form id="emailForm" autocomplete="on">
+      <label class="setlabel" for="emailIn">Your email</label>
+      <p class="sethint" style="margin-bottom:9px">We send a six-digit code. No password to make up or forget.</p>
+      <input class="fld" type="email" id="emailIn" name="email" inputmode="email"
+             autocomplete="email" placeholder="you@example.com" required>
+      <button class="btn wide" type="submit" id="emailBtn">Send me a code</button>
+    </form>
+
+    <!-- step two: the code -->
+    <form id="codeForm" hidden autocomplete="off">
+      <label class="setlabel" for="codeIn">Enter the code</label>
+      <p class="sethint" style="margin-bottom:9px">Six digits, sent to <b id="codeAddr"></b>. It expires in ten minutes.</p>
+      <input class="fld code" type="text" id="codeIn" name="one-time-code" inputmode="numeric"
+             autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required>
+      <button class="btn wide" type="submit" id="codeBtn">Sign in</button>
+      <div class="btnrow" style="margin-top:10px">
+        <button class="btn ghost" type="button" id="backBtn">Use a different address</button>
+        <button class="btn ghost" type="button" id="resendBtn">Send again</button>
+      </div>
+    </form>
+    <div class="note" id="pfNote" hidden></div>
+  </div>
+
+  <!-- signed in: the cross-game profile -->
+  <div id="pfIn" hidden>
+    <div class="pf">
+      <div class="av" id="pfAv">&nbsp;</div>
+      <div class="who"><strong id="pfName">&nbsp;</strong><span id="pfMail">&nbsp;</span></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><b id="stStreak">0</b><span>Day streak</span></div>
+      <div class="stat"><b id="stPlayed">0</b><span>Puzzles</span></div>
+      <div class="stat"><b id="stBest">0</b><span>Best run</span></div>
+    </div>
+    <p class="hint" style="margin:14px 0 2px">Per game</p>
+    <div id="pfGames"></div>
+    <div class="setrow">
+      <div class="col">
+        <label class="setlabel" for="nameIn">Display name</label>
+        <p class="sethint">What your friends see on a leaderboard.</p>
+      </div>
+    </div>
+    <input class="fld" type="text" id="nameIn" maxlength="32" placeholder="Your name">
+    <div class="btnrow">
+      <button class="btn" type="button" id="saveNameBtn">Save</button>
+      <button class="btn ghost" type="button" id="signOutBtn">Sign out</button>
+    </div>
+  </div>
+</section>
+
+<!-- Friends ----------------------------------------------------------------- -->
+<section class="sheet" id="friendsSheet" role="dialog" aria-modal="true" aria-labelledby="friendsTitle" hidden>
+  <div class="sh-head"><h2 id="friendsTitle">Friends</h2><span class="sh-sub">Across every game</span></div>
+  <div id="frOut" hidden>
+    <p class="empty">Friends need an account, so there is something for a friend to
+      be friends <em>with</em>.<br><br>
+      <button class="btn" type="button" id="frSignIn">Sign in</button></p>
+  </div>
+  <div id="frIn" hidden>
+    <p class="hint">Send someone your code and you will both see how the other did,
+       in every game, every day. Nothing else is shared.</p>
+    <div class="codebox"><code id="myCode">------</code>
+      <button class="btn ghost" type="button" id="copyCode">Copy link</button></div>
+    <div class="or">or add theirs</div>
+    <form id="addForm">
+      <input class="fld" type="text" id="addIn" maxlength="8" placeholder="Their code"
+             autocapitalize="characters" autocomplete="off">
+      <button class="btn wide" type="submit">Add friend</button>
+    </form>
+    <div class="note" id="frNote" hidden></div>
+    <div id="frList"></div>
+  </div>
+</section>
+
+<!-- Settings ---------------------------------------------------------------- -->
+<section class="sheet" id="settingsSheet" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
+  <div class="sh-head"><h2 id="settingsTitle">Settings</h2><span class="sh-sub">Platform</span></div>
+  <div class="setrow">
+    <div class="col">
+      <span class="setlabel">Reduced motion</span>
+      <p class="sethint">Follows your system setting. Turn it on in your operating
+        system and every animation here stops.</p>
+    </div>
+    <span class="gv" id="rmState">&mdash;</span>
+  </div>
+  <div class="setrow">
+    <div class="col">
+      <span class="setlabel">Each game keeps its own settings</span>
+      <p class="sethint">Sound, theme and difficulty live inside the game they belong
+        to, because they mean different things in each. Open a game and use its own
+        settings button.</p>
+    </div>
+  </div>
+  <div class="setrow">
+    <div class="col">
+      <span class="setlabel">This device</span>
+      <p class="sethint" id="devLine">&mdash;</p>
+    </div>
+  </div>
+  <div class="setrow">
+    <div class="col">
+      <span class="setlabel">Sync</span>
+      <p class="sethint" id="syncLine">&mdash;</p>
+    </div>
+  </div>
+  <p class="hint" style="margin-top:16px">
+    <a href="/privacy/">Privacy</a> &nbsp;&middot;&nbsp;
+    <a href="/terms/">Terms</a> &nbsp;&middot;&nbsp;
+    <a href="/about/">About</a>
+  </p>
+</section>
+
+<script>
+/* ===========================================================================
+   HOSTING -- one switch for every game link on the page.
+
+   'path'       playsapien.com/sojourner/        <- recommended
+   'subdomain'  sojourner.playsapien.com
+
+   Paths win because every game then shares ONE origin, which means one
+   localStorage: streaks, profile and the cross-game ranking the tagline
+   promises all just work, with no cookie/CORS plumbing. Subdomains are
+   separate origins -- each game would keep its own private copy of the
+   player, and you would need a sign-in service to stitch them back together.
+   Each game can still deploy on its own; see DEPLOY notes.
+   =========================================================================== */
+const SITE = { mode: 'path', domain: 'playsapien.com' };
+const gameUrl = g => g.url ? g.url
+  : SITE.mode === 'subdomain' ? `https://${g.slug}.${SITE.domain}/` : `/${g.slug}/`;
+
+/* --- icons ---------------------------------------------------------------- */
+const ICON = {
+  /* Word Chain's own brand mark: two links of a chain */
+  link:`<path d="M10.4 13.6a4.6 4.6 0 0 0 6.94.5l2.76-2.76a4.6 4.6 0 0 0-6.5-6.5l-1.58 1.57"/><path d="M13.6 10.4a4.6 4.6 0 0 0-6.94-.5L3.9 12.66a4.6 4.6 0 0 0 6.5 6.5l1.57-1.57"/>`,
+  /* Sojourner: a globe, meridians unlabelled */
+  globe:`<circle cx="12" cy="12" r="9"/><path d="M3.3 9h17.4M3.3 15h17.4"/><path d="M12 3c2.5 2.6 3.8 5.6 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>`,
+  /* placeholder for a game not built yet */
+  seed:`<path d="M12 21v-7"/><path d="M12 14c0-4 2.2-7.4 6-8.6-.4 4.4-2.6 7.4-6 8.6z"/><path d="M12 14C12 10 9.8 6.6 6 5.4c.4 4.4 2.6 7.4 6 8.6z"/>`
+};
+const svgIcon = (k, cls) =>
+  `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
+
+/* --- the games ------------------------------------------------------------
+   ADD A GAME: copy one block. `field`/`fg`/`accent` are that game's own
+   palette, so each card looks like the game it opens.
+   -------------------------------------------------------------------------- */
+const GAMES = [
+  {
+    slug:'sojourner', name:'Sojourner', kicker:'Daily geography', number:'No. 01',
+    blurb:'Five places. One unlabelled globe.',
+    icon:'globe', field:'#0C0B0A', fg:'#F0E8DA', accent:'#E0A44A'
+  },
+  {
+    slug:'wordchain', name:'Word Chain', kicker:'Daily word puzzle', number:'No. 02',
+    blurb:'Link every word to the next.',
+    icon:'link', field:'#D4B072', fg:'#1F1A14', accent:'#9A4A24'
+  },
+  {
+    slug:'', name:'More soon', kicker:'In the workshop', number:'No. 03',
+    blurb:'The next sapo-challenge is on the bench.',
+    icon:'seed', field:'transparent', fg:'#153C5E', accent:'#B69A6E', soon:true
+  }
+];
+
+/* --- render --------------------------------------------------------------- */
+const rail = document.getElementById('rail');
+rail.innerHTML = GAMES.map((g,i) => `
+  <div class="panel${g.soon ? ' soon' : ''}" data-slug="${g.slug}" tabindex="0"
+       aria-expanded="false" aria-label="${g.soon ? g.name : 'Open ' + g.name}" data-i="${i}"
+       style="--field:${g.field}; --fg:${g.fg}; --accent:${g.accent}">
+    <span class="spine">
+      ${svgIcon(g.icon,'ico')}
+      <span class="nm">${g.name}</span>
+      <span class="nb">${g.number}</span>
+    </span>
+    <span class="face">
+      ${svgIcon(g.icon,'ghost')}
+      ${svgIcon(g.icon,'mark')}
+      <span class="kick">${g.kicker}</span>
+      <h2>${g.name}</h2>
+      <p class="blurb">${g.blurb}</p>
+      ${g.soon ? '' : `<a class="play" href="${gameUrl(g)}">Play today
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h13"/><path d="M12 5l7 7-7 7"/></svg></a>`}
+    </span>
+  </div>`).join('');
+
+const panels = [...rail.querySelectorAll('.panel')];
+
+/* CLICK, not hover -- the one behavioural change from the 21st.dev original.
+   Clicking the open panel closes it, so the rail can rest fully collapsed. */
+let opened = false;                                // suppress the first scroll
+function open(i){
+  panels.forEach((p,j) => {
+    const on = j === i;
+    p.classList.toggle('on', on);
+    p.setAttribute('aria-expanded', on ? 'true' : 'false');
+  });
+  /* On a phone the rail is a stack, so bring the opened card into view -- but
+     never on the first call. open(0) runs at load, and scrolling then would
+     shove the crest and the wordmark off the top of the page before the
+     visitor has touched anything. */
+  if (opened && i > -1 && !matchMedia('(prefers-reduced-motion: reduce)').matches)
+    panels[i].scrollIntoView({ block:'nearest', behavior:'smooth' });
+  opened = true;
+}
+panels.forEach((p,i) => {
+  p.addEventListener('click', e => {
+    if (e.target.closest('.play')) return;          // let the link through
+    open(p.classList.contains('on') ? -1 : i);
+  });
+  p.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); p.click(); }
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault(); const n = panels[(i+1) % panels.length]; n.focus(); open(panels.indexOf(n));
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault(); const n = panels[(i-1+panels.length) % panels.length]; n.focus(); open(panels.indexOf(n));
+    } else if (e.key === 'Escape') { open(-1); }
+  });
+});
+open(0);
+
+/* --- today ---------------------------------------------------------------- */
+document.getElementById('datum').textContent =
+  new Date().toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'})
+  + '  ·  Today’s puzzles are live';
+
+if (matchMedia('(hover: none)').matches)
+  document.getElementById('railfoot').textContent = 'Tap a card to open it';
+</script>
+
+<script type="module">
+
+/* ===========================================================================
+   The account layer.
+
+   Loaded as a module from /sdk.js, which is one file shared by the shell and
+   both games -- the payoff of putting everything on one origin. If it fails to
+   load, or the backend is not deployed, this whole script is skipped and the
+   page is exactly what it was before: a landing page with a rail of games.
+   Nothing below is allowed to be load-bearing.
+   =========================================================================== */
+import PS from '/sdk.js';
+
+PS.init({ baseUrl: '/api' });
+
+const $ = id => document.getElementById(id);
+const GAME_NAMES = { sojourner: 'Sojourner', wordchain: 'Word Chain' };
+
+/* ---------- sheets --------------------------------------------------------
+   The games open sheets the same way; this is their openSheet/closeSheets with
+   a focus trap added, which the audit found neither game had. A keyboard user
+   could previously tab straight past the scrim into the page behind.
+   -------------------------------------------------------------------------- */
+const SHEETS = ['aboutSheet', 'profileSheet', 'friendsSheet', 'settingsSheet'];
+let lastFocus = null;
+
+function openSheet(id) {
+  lastFocus = document.activeElement;
+  SHEETS.forEach(s => {
+    const el = $(s), on = s === id;
+    el.hidden = !on;
+    if (on) requestAnimationFrame(() => el.classList.add('on'));
+    else el.classList.remove('on');
+  });
+  $('scrim').classList.add('on');
+  const el = $(id);
+  /* focus the first real control, not the dialog itself -- a screen reader
+     then reads the heading and lands somewhere useful. */
+  const first = el.querySelector('input:not([type=hidden]), button, a[href]');
+  if (first) setTimeout(() => first.focus(), 60);
+}
+
+function closeSheets() {
+  SHEETS.forEach(s => {
+    const el = $(s);
+    el.classList.remove('on');
+    setTimeout(() => { if (!el.classList.contains('on')) el.hidden = true; }, 420);
+  });
+  $('scrim').classList.remove('on');
+  if (lastFocus && lastFocus.focus) lastFocus.focus();
+  lastFocus = null;
+}
+
+function openSheetId() { return SHEETS.find(s => $(s).classList.contains('on')) || null; }
+
+$('scrim').addEventListener('click', closeSheets);
+document.addEventListener('keydown', e => {
+  const open = openSheetId();
+  if (!open) return;
+  if (e.key === 'Escape') { e.preventDefault(); closeSheets(); return; }
+  if (e.key !== 'Tab') return;
+  /* trap: cycle within the open sheet */
+  const f = [...$(open).querySelectorAll(
+    'input:not([type=hidden]):not([disabled]), button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])')]
+    .filter(el => el.offsetParent !== null);
+  if (!f.length) return;
+  const first = f[0], last = f[f.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
+
+$('aboutBtn').addEventListener('click', () => openSheet('aboutSheet'));
+$('settingsBtn').addEventListener('click', () => { fillSettings(); openSheet('settingsSheet'); });
+$('profileBtn').addEventListener('click', () => openSheet('profileSheet'));
+$('friendsBtn').addEventListener('click', () => { loadFriends(); openSheet('friendsSheet'); });
+$('frSignIn').addEventListener('click', () => openSheet('profileSheet'));
+
+/* ---------- signed-in state ----------------------------------------------- */
+let ME = null;
+
+function note(el, msg, bad) {
+  const n = $(el);
+  n.hidden = !msg;
+  n.textContent = msg || '';
+  n.classList.toggle('bad', !!bad);
+}
+
+const initials = s => (s || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+
+function paintSession(user) {
+  ME = user;
+  $('pfOut').hidden = !!user;
+  $('pfIn').hidden = !user;
+  $('frOut').hidden = !!user;
+  $('frIn').hidden = !user;
+  $('pfSub').textContent = user ? 'Signed in' : 'Not signed in';
+  if (!user) return;
+  const name = user.display_name || user.handle || 'Player';
+  $('pfAv').textContent = initials(name);
+  $('pfName').textContent = name;
+  $('pfMail').textContent = user.email || '';
+  $('nameIn').value = user.display_name || '';
+}
+
+function paintStats(streaks) {
+  const rows = streaks || [];
+  const all = rows.find(s => s.game === '*') || {};
+  $('stStreak').textContent = all.current || 0;
+  $('stPlayed').textContent = rows.reduce((n, s) => s.game === '*' ? n : n + (s.played || 0), 0);
+  $('stBest').textContent = all.longest || 0;
+  $('pfGames').innerHTML = Object.keys(GAME_NAMES).map(g => {
+    const s = rows.find(r => r.game === g) || {};
+    return `<div class="gstat">
+      <span class="gn">${GAME_NAMES[g]}</span>
+      <span class="gv">${s.played ? `${s.current || 0}-day streak · ${s.played} played` : 'Not played yet'}</span>
+    </div>`;
+  }).join('');
+}
+
+/* ---------- email sign-in -------------------------------------------------- */
+let pending = '';
+
+$('emailForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const addr = $('emailIn').value.trim();
+  $('emailBtn').disabled = true;
+  $('emailBtn').textContent = 'Sending…';
+  const r = await PS.signInEmail(addr);
+  $('emailBtn').disabled = false;
+  $('emailBtn').textContent = 'Send me a code';
+  if (!r.ok) {
+    note('pfNote', r.error === 'bad_email'
+      ? 'That does not look like an email address.'
+      : 'Could not reach the server. Your games still work — try again later.', true);
+    return;
+  }
+  pending = addr;
+  $('codeAddr').textContent = addr;
+  $('emailForm').hidden = true;
+  $('codeForm').hidden = false;
+  note('pfNote', 'Check your mail. If it does not arrive in a minute, look in spam.');
+  $('codeIn').focus();
+});
+
+$('codeForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const code = $('codeIn').value.replace(/\D/g, '');
+  $('codeBtn').disabled = true;
+  const r = await PS.verifyEmail(pending, code);
+  $('codeBtn').disabled = false;
+  if (!r.ok || !r.user) {
+    note('pfNote', r.error === 'bad_code'
+      ? 'That code is not six digits.'
+      : 'That code did not work. It may have expired — send a new one.', true);
+    $('codeIn').select();
+    return;
+  }
+  note('pfNote', '');
+  $('codeForm').hidden = true;
+  $('emailForm').hidden = false;
+  $('codeIn').value = '';
+  paintSession(r.user);
+  refresh();
+});
+
+$('backBtn').addEventListener('click', () => {
+  $('codeForm').hidden = true;
+  $('emailForm').hidden = false;
+  note('pfNote', '');
+  $('emailIn').focus();
+});
+$('resendBtn').addEventListener('click', async () => {
+  const r = await PS.signInEmail(pending);
+  note('pfNote', r.ok ? 'Sent again.' : 'Could not send right now.', !r.ok);
+});
+$('googleBtn').addEventListener('click', () => {
+  location.href = '/api/auth/google/start?return=' + encodeURIComponent(location.pathname);
+});
+$('signOutBtn').addEventListener('click', async () => {
+  await PS.signOut();
+  paintSession(null);
+  paintStatus({});
+});
+$('saveNameBtn').addEventListener('click', async () => {
+  const btn = $('saveNameBtn');
+  btn.disabled = true;
+  const r = await PS.updateMe({ display_name: $('nameIn').value.trim() });
+  btn.disabled = false;
+  btn.textContent = r && r.ok ? 'Saved' : 'Try again';
+  setTimeout(() => { btn.textContent = 'Save'; }, 1600);
+  if (r && r.ok && r.user) paintSession(r.user);
+});
+
+/* ---------- friends -------------------------------------------------------- */
+async function loadFriends() {
+  if (!ME) return;
+  const [code, list] = await Promise.all([PS.friendCode(), PS.friends()]);
+  if (code && code.code) $('myCode').textContent = code.code;
+  const friends = (list && list.friends) || [];
+  $('frList').innerHTML = friends.length
+    ? `<p class="hint" style="margin:18px 0 2px">${friends.length} friend${friends.length > 1 ? 's' : ''}</p>` +
+      friends.map(f => `<div class="frow">
+        <div class="av">${initials(f.display_name || f.handle)}</div>
+        <div class="fn">${f.display_name || f.handle || 'Player'}
+          <em>${f.state === 'pending' ? 'Invite sent' : (f.today_summary || 'Nothing today yet')}</em></div>
+        <div class="fs">${f.state === 'pending' ? '·' : (f.today_total ?? '')}</div>
+      </div>`).join('')
+    : '<p class="empty">No friends yet. Send someone your code.</p>';
+}
+
+$('copyCode').addEventListener('click', async () => {
+  const link = location.origin + '/?f=' + $('myCode').textContent;
+  try { await navigator.clipboard.writeText(link); $('copyCode').textContent = 'Copied'; }
+  catch (e) { $('copyCode').textContent = 'Copy failed'; }
+  setTimeout(() => { $('copyCode').textContent = 'Copy link'; }, 1600);
+});
+
+$('addForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const r = await PS.addFriend($('addIn').value.trim());
+  note('frNote', r.ok ? 'Sent.' : 'That code did not work.', !r.ok);
+  if (r.ok) { $('addIn').value = ''; loadFriends(); }
+});
+
+/* an invite link -- ?f=CODE -- prefills the box and opens the sheet */
+const inviteCode = new URLSearchParams(location.search).get('f');
+if (inviteCode) {
+  $('addIn').value = inviteCode.toUpperCase();
+  openSheet(ME ? 'friendsSheet' : 'profileSheet');
+}
+
+/* ---------- today, printed on the cards ------------------------------------ */
+function paintStatus(byGame) {
+  document.querySelectorAll('.panel[data-slug]').forEach(p => {
+    const slug = p.dataset.slug, face = p.querySelector('.face');
+    if (!slug || !face) return;
+    face.querySelector('.status')?.remove();
+    const r = byGame[slug];
+    const el = document.createElement('div');
+    el.className = 'status' + (r ? ' done' : '');
+    el.innerHTML = `<span class="dot"></span>${r
+      ? `Played today${r.score != null ? ` · ${r.score}${r.max_score ? '/' + r.max_score : ''}` : ''}`
+      : 'Not played today'}`;
+    face.appendChild(el);
+  });
+}
+
+function paintDatum(streaks) {
+  const d = $('datum');
+  if (!d) return;
+  const date = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  const all = (streaks || []).find(s => s.game === '*');
+  d.textContent = all && all.current > 1
+    ? `${date}  ·  ${all.current}-day streak`
+    : `${date}  ·  Today’s puzzles are live`;
+}
+
+async function refresh() {
+  const day = PS.dayKey();
+  const [me, today] = await Promise.all([PS.me(), PS.today(day)]);
+  const user = me && me.user;
+  paintSession(user || null);
+  if (user) { paintStats(me.streaks); paintDatum(me.streaks); }
+  const byGame = {};
+  for (const r of (today && today.results) || []) byGame[r.game] = r;
+  paintStatus(byGame);
+}
+
+/* ---------- settings ------------------------------------------------------- */
+function fillSettings() {
+  $('rmState').textContent =
+    matchMedia('(prefers-reduced-motion: reduce)').matches ? 'On' : 'Off';
+  $('devLine').textContent = ME
+    ? 'Signed in, so your progress follows you to any device.'
+    : 'Your progress is kept on this device only. Sign in to carry it over.';
+  const q = PS.queueLength ? PS.queueLength() : 0;
+  $('syncLine').textContent = !ME ? 'Nothing to sync while signed out.'
+    : q ? `${q} result${q > 1 ? 's' : ''} waiting to sync. They will go up next time you open this page.`
+        : 'Everything is synced.';
+}
+
+refresh();
+
+</script>
+</body>
+</html>

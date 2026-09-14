@@ -1,0 +1,201 @@
+<div id="app" hidden>
+  <div id="bar">
+    <button class="iconbtn" id="homeBtn" aria-label="Pause and go home">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.8 12 3.6l9 7.2"/><path d="M5.4 9.6V20h13.2V9.6"/><path d="M9.8 20v-5.4h4.4V20"/></svg>
+    </button>
+    <div id="clock">0:00</div>
+    <div id="mode">Daily</div>
+    <div class="spacer"></div>
+    <div id="bankwrap" hidden><span id="bankicons"></span><span id="banktext"></span></div>
+    <div class="hintwrap">
+      <span class="flash" id="flash"></span>
+      <button class="hintbtn" id="hintBtn">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"/><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M15 15l3.35 3.35"/><path d="M9 15l-3.35 3.35"/><path d="M5.65 5.65l3.35 3.35"/><path d="M18.35 5.65l-3.35 3.35"/></svg>
+        <span>Lifeline</span><span class="cost" id="hintCost">+15s</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="play">
+    <div id="chainwrap"><div id="chain"></div></div>
+    <!-- moved into the active row by renderChain(), so the caret is where the eye is -->
+    <span id="editwrap" hidden>
+      <span id="typed"></span><span id="caret"></span>
+      <button id="go" aria-label="Submit">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13"/><path d="M12 5l7 7-7 7"/></svg>
+      </button>
+    </span>
+    <div id="msg" hidden></div>
+  </div>
+
+  <!-- The game brings its own keyboard so the device never raises one. That is what
+       lets the bar stay pinned to the top and the board stay still. -->
+  <div id="kb" role="group" aria-label="Keyboard"></div>
+</div>
+
+<div id="home">
+  <div class="corner">
+    <button class="iconbtn" id="aboutBtn" aria-label="About">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.2 9.2a2.9 2.9 0 1 1 4 2.7c-.8.35-1.2 1-1.2 1.8v.4"/><line x1="12" y1="17.4" x2="12" y2="17.4"/></svg>
+    </button>
+    <button class="iconbtn" id="composeBtn" aria-label="Make a chain">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 12.8a4 4 0 0 0 6.03.44l2.4-2.4a4 4 0 0 0-5.66-5.66l-1.37 1.37"/><path d="M12.4 10a4 4 0 0 0-6.03-.44l-2.4 2.4a4 4 0 0 0 5.66 5.66l1.36-1.36"/><path d="M18 17.2v4.4M15.8 19.4h4.4"/></svg>
+    </button>
+    <button class="iconbtn" id="friendsBtn" aria-label="Friends">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M2.8 19.4a6.2 6.2 0 0 1 12.4 0"/><path d="M16.2 5.1a3.4 3.4 0 0 1 0 6.1"/><path d="M18 14.4a6.2 6.2 0 0 1 3.2 5"/></svg>
+    </button>
+    <button class="iconbtn" id="settingsBtn" aria-label="Settings">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+    <button class="iconbtn" id="profileBtn" aria-label="Profile">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg>
+    </button>
+  </div>
+  <div class="brand-mark">
+    <svg width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.4 13.6a4.6 4.6 0 0 0 6.94.5l2.76-2.76a4.6 4.6 0 0 0-6.5-6.5l-1.58 1.57"/><path d="M13.6 10.4a4.6 4.6 0 0 0-6.94-.5L3.9 12.66a4.6 4.6 0 0 0 6.5 6.5l1.57-1.57"/></svg>
+  </div>
+  <h1>Word Chain</h1>
+  <p class="tagline">Link every word to the next.</p>
+  <div class="homebtns">
+    <button class="btn" id="dailyBtn">Play daily challenge</button>
+    <button class="btn ghost" id="practiceBtn">Practice</button>
+  </div>
+  <div class="home-foot">
+    <div class="d1" id="homeDate">&nbsp;</div>
+    <div class="d2" id="homeNote">Chains by G2</div>
+    <div id="homeSolution" hidden></div>
+  </div>
+</div>
+
+<div id="compose" hidden>
+  <div id="cbar">
+    <button class="iconbtn" id="cHomeBtn" aria-label="Back to start">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.8 12 3.6l9 7.2"/><path d="M5.4 9.6V20h13.2V9.6"/><path d="M9.8 20v-5.4h4.4V20"/></svg>
+    </button>
+    <button class="iconbtn" id="cListBtn" aria-label="My chains">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M11 6h9"/><path d="M11 12h9"/><path d="M11 18h9"/><path d="M4 10v-4.5a1.5 1.5 0 0 1 3 0v4.5"/><path d="M4 8h3"/><path d="M4 20h1.5a1.5 1.5 0 0 0 0-3h-1.5h1.5a1.5 1.5 0 0 0 0-3h-1.5v6"/></svg>
+    </button>
+    <div id="cTitle">New chain</div>
+    <div class="spacer"></div>
+    <button class="btn small off" id="cSaveBtn">Save</button>
+    <button class="iconbtn off" id="cShareBtn" aria-label="Share with friends">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14l11-11"/><path d="M21 3l-6.5 18a.55.55 0 0 1-1 0l-3.5-7l-7-3.5a.55.55 0 0 1 0-1l18-6.5"/></svg>
+    </button>
+  </div>
+  <div id="cbody"><div id="cRows"></div></div>
+  <div id="cHint">Tap a row to edit it. Every row needs a word of at least three letters.</div>
+</div>
+
+<div id="scrim"></div>
+
+<div class="sheet" id="aboutSheet"><div class="sheet-in">
+  <div class="sh-head"><h2>How to play</h2><button class="donebtn" data-close>Close</button></div>
+  <p>Eight words. Every neighbouring pair makes a compound or a phrase — <b>BALL&nbsp;GAME</b>, <b>GAME&nbsp;ON</b>. The first word is given in full; the rest show only their first letter. Type your way down.</p>
+  <p class="exchain">SNOW <span class="sep">·</span> BALL <span class="sep">·</span> PARK <span class="sep">·</span> BENCH <span class="sep">·</span> MARK <span class="sep">·</span> UP</p>
+  <h3>One chain a day</h3>
+  <p>Everyone gets the same daily challenge. <b>Practice</b> draws from the rest of the bank and never touches the day's chain, so you can warm up without spoiling it.</p>
+  <h3>The clock is the score</h3>
+  <p>There are no points. The clock starts when you press Play and stops on the last word. A wrong guess costs you only the beat it takes to read the reply — so guess freely.</p>
+  <h3>The lifeline</h3>
+  <p>Throw yourself one. Each tap reveals one more letter of the word you are on, and adds its cost to the clock straight away: <b>+15s</b>, then <b>+25s</b>, then <b>+40s</b>. The price resets on every new word, so one lifeline on three words is cheaper than three on one.</p>
+  <h3>Near misses</h3>
+  <p>Only the authored word advances the chain, but a guess that makes a real pair is told so rather than buzzed. Spelling slips are forgiven. Singular and plural both count, except on the rare link where they are genuinely different words.</p>
+</div></div>
+
+<div class="sheet" id="friendsSheet"><div class="sheet-in">
+  <div class="sh-head"><h2>Friends</h2><button class="donebtn" data-close>Close</button></div>
+  <div class="emptybox">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M2.8 19.4a6.2 6.2 0 0 1 12.4 0"/><path d="M16.2 5.1a3.4 3.4 0 0 1 0 6.1"/><path d="M18 14.4a6.2 6.2 0 0 1 3.2 5"/></svg>
+    <p class="soon">Nothing here yet</p>
+    <p class="sethint" style="margin:0 auto">Friends will let you compare times on the day's chain and see who has played.</p>
+  </div>
+</div></div>
+
+<div class="sheet" id="settingsSheet"><div class="sheet-in">
+  <div class="sh-head"><h2>Settings</h2><button class="donebtn" data-close>Done</button></div>
+  <div class="setrow">
+    <div class="setlabel">Theme</div>
+    <div class="seg mini" id="themeSeg">
+      <button data-theme="light" aria-pressed="true">Light</button>
+      <button data-theme="dark" aria-pressed="false">Dark</button>
+      <button data-theme="system" aria-pressed="false">System</button>
+    </div>
+  </div>
+  <div class="setrow flex">
+    <div><div class="setlabel">Gentle replies</div>
+      <p class="sethint" style="margin:0">Swaps the sharper replies for milder ones.</p></div>
+    <button class="toggle" id="gentleTog" role="switch" aria-checked="false"><i></i></button>
+  </div>
+  <div class="setrow flex">
+    <div><div class="setlabel">Reduced motion</div>
+      <p class="sethint" style="margin:0">Stills the sheets and the clock flash.</p></div>
+    <button class="toggle" id="motionTog" role="switch" aria-checked="false"><i></i></button>
+  </div>
+  <div class="setrow">
+    <div class="setlabel">Judging</div>
+    <p class="sethint" style="margin:0" id="judgeState">Checking…</p>
+  </div>
+</div></div>
+
+<div class="sheet" id="profileSheet"><div class="sheet-in">
+  <div class="sh-head"><h2>Profile</h2><button class="donebtn" data-close>Close</button></div>
+  <div id="profileBody"><div class="emptybox">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg>
+    <p class="soon">Nothing here yet</p>
+    <p class="sethint" style="margin:0 auto">Your finished chains will collect here. A name and a streak still to come.</p>
+  </div></div>
+</div></div>
+
+<div class="sheet" id="mineSheet"><div class="sheet-in">
+  <div class="sh-head"><h2>My chains</h2><button class="donebtn" data-close>Close</button></div>
+  <div id="mineBody"></div>
+</div></div>
+
+<div class="sheet" id="shareSheet"><div class="sheet-in">
+  <div class="sh-head"><h2>Send to</h2><button class="donebtn" data-close>Close</button></div>
+  <div class="findrow">
+    <input id="friendFind" type="text" placeholder="Search friends and groups" autocomplete="off">
+    <button class="iconbtn" id="friendAdd" aria-label="Add">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+  </div>
+  <div id="friendList"></div>
+  <button class="btn" id="sendBtn" style="width:100%;margin-top:18px" disabled>Send</button>
+</div></div>
+
+<div id="confirm" hidden>
+  <div class="pausecard">
+    <p class="pauseq" id="confirmQ"></p>
+    <div class="pausebtns">
+      <button class="btn" id="confirmNo">No, stay here</button>
+      <button class="btn ghost" id="confirmYes">Yes</button>
+    </div>
+  </div>
+</div>
+
+<div id="pause" hidden>
+  <div class="pausecard">
+    <p class="pauseq">Pause the game and go back?</p>
+    <div class="pausebtns">
+      <button class="btn" id="pauseNo">No, continue game</button>
+      <button class="btn ghost" id="pauseYes">Yes</button>
+    </div>
+  </div>
+</div>
+
+<div id="results"><div class="rescard">
+  <div class="restile">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M10.4 13.6a4.6 4.6 0 0 0 6.94.5l2.76-2.76a4.6 4.6 0 0 0-6.5-6.5l-1.58 1.57"/><path d="M13.6 10.4a4.6 4.6 0 0 0-6.94-.5L3.9 12.66a4.6 4.6 0 0 0 6.5 6.5l1.57-1.57"/></svg>
+  </div>
+  <h2>Chained.</h2>
+  <p class="resline" id="resLine"></p>
+  <p class="resbreak" id="resBreak"></p>
+  <p class="reschain" id="resChain"></p>
+  <div class="resbtns">
+    <button class="btn" id="shareBtn">Share your result</button>
+    <button class="btn ghost" id="againBtn">Back to start</button>
+  </div>
+</div></div>
+
+<canvas id="cardcv" width="1080" height="1350" hidden></canvas>
+<div class="toast" id="toast"></div>

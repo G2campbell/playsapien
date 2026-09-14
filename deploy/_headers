@@ -1,0 +1,42 @@
+# PlaySapien — root _headers
+#
+# Cloudflare Pages honours exactly ONE _headers file, at the deployed root.
+# Audit B2: Sojourner's build used to write its own, which under the unified
+# site would land at /sojourner/_headers — inert, publicly fetchable, and with
+# every pattern wrong by one path segment.
+#
+# This file is the merge point. Each game's build emits a fragment
+# (dist/_headers.fragment) already prefixed with its own path; the deploy step
+# concatenates them below the platform block. Keep the fragments and this file
+# in step — the fragments are the source of truth for per-game rules.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# ---------------------------------------------------------------- sojourner
+# from games/sojourner/src/build.py -> dist/_headers.fragment
+/sojourner/assets/detail/*
+  Cache-Control: public, max-age=2592000
+/sojourner/assets/*
+  Cache-Control: public, max-age=604800
+/sojourner/three.min.js
+  Cache-Control: public, max-age=2592000
+/sojourner/app.js
+  Cache-Control: public, max-age=3600
+/sojourner/og.png
+  Cache-Control: public, max-age=86400
+
+# ---------------------------------------------------------------- wordchain
+# Word Chain inlines everything into one HTML file, so it has no asset rules —
+# but audit B2 notes it never had the two lines its own images needed either.
+/wordchain/og.png
+  Cache-Control: public, max-age=86400
+/wordchain/icon-512.png
+  Cache-Control: public, max-age=86400
+
+# -------------------------------------------------------------------- api
+# The Worker sets its own headers; this is belt and braces for anything Pages
+# would otherwise be free to cache.
+/api/*
+  Cache-Control: no-store

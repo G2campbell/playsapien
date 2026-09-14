@@ -1,0 +1,56 @@
+:root{
+  --ink:#0C0B0A; --ink2:#171412; --line:#38302A; --line2:#4C423A;
+  --paper:#F0E8DA; --paper-dim:#C3B9AD; --paper-faint:#A99D8F;
+  --amber:#E0A44A; --verdigris:#59B9A4;
+  --f-disp:"Fraunces",Georgia,"Times New Roman",serif;
+  --f-body:"Public Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0; background:var(--ink); color:var(--paper); font-family:var(--f-body);
+  font-size:16px; line-height:1.68; -webkit-font-smoothing:antialiased}
+.wrap{max-width:680px; margin:0 auto; padding:0 22px}
+header{padding:48px 0 26px; border-bottom:1px solid var(--line)}
+.brandline{font-family:var(--f-mono); font-size:11.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--amber)}
+h1{font-family:var(--f-disp); font-weight:600; font-size:clamp(30px,6vw,44px);
+  line-height:1.05; letter-spacing:-.015em; margin:12px 0 10px; text-wrap:balance}
+.sub{color:var(--paper-dim); font-size:15px}
+.eff{font-family:var(--f-mono); font-size:12px; color:var(--paper-faint); margin-top:14px}
+main{padding:10px 0 60px}
+section{padding:30px 0; border-bottom:1px solid var(--line)}
+section:last-of-type{border-bottom:0}
+h2{font-family:var(--f-disp); font-weight:600; font-size:22px; letter-spacing:-.01em;
+  margin:0 0 12px; text-wrap:balance}
+p{margin:0 0 13px; color:var(--paper-dim)}
+p:last-child{margin-bottom:0}
+strong{color:var(--paper); font-weight:600}
+ul{margin:0 0 13px; padding-left:20px; color:var(--paper-dim)}
+li{margin:7px 0}
+a{color:var(--verdigris); text-decoration:none; border-bottom:1px solid rgba(89,185,164,.35)}
+a:hover{border-bottom-color:var(--verdigris)}
+a:focus-visible{outline:2px solid var(--amber); outline-offset:3px}
+.fill{color:var(--amber); border-bottom:1px dashed rgba(224,164,74,.6)}
+footer{padding:0 0 70px}
+footer p{font-family:var(--f-mono); font-size:12px; color:var(--paper-faint)}
+.back{display:inline-block; font-family:var(--f-mono); font-size:12.5px; margin-top:8px}
+@media (max-width:600px){ header{padding:34px 0 20px} section{padding:24px 0} }
+
+/* ---- platform pages only -------------------------------------------------
+   Sojourner inlines this file into two standalone pages at build time. The
+   platform pages link it instead, and add one thing the game pages do not
+   need: a nav across the three of them. */
+.pagenav{font-family:var(--f-mono); font-size:12.5px; margin-top:18px;
+  display:flex; flex-wrap:wrap; gap:14px; align-items:center}
+.pagenav a{color:var(--paper-dim); border-bottom-color:rgba(195,185,173,.28)}
+.pagenav a:hover{color:var(--paper); border-bottom-color:var(--paper)}
+.pagenav a[aria-current="page"]{color:var(--amber); border-bottom-color:var(--amber)}
+.games{display:flex; flex-wrap:wrap; gap:10px; margin:16px 0 0}
+.games a{font-family:var(--f-mono); font-size:13px; padding:9px 14px;
+  border:1px solid var(--line); border-radius:9px; color:var(--paper);
+  border-bottom:1px solid var(--line)}
+.games a:hover{border-color:var(--amber); color:var(--amber)}
+.lede{color:var(--paper); font-size:17px}
+code{font-family:var(--f-mono); font-size:.88em; color:var(--paper);
+  background:var(--ink2); border:1px solid var(--line); border-radius:5px; padding:1px 5px}
+em{color:var(--paper)}

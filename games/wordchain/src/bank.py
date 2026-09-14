@@ -1,0 +1,159 @@
+# -*- coding: utf-8 -*-
+"""Hand-graded chain bank. Corpus frequency is a rarity FLAG only (see notes)."""
+from wordfreq import zipf_frequency as z
+import json
+
+G = {}   # (a,b) -> familiarity 1..5, hand-graded
+def g(grade, *pairs):
+    for p in pairs: G[tuple(p.split("."))] = grade
+
+g(5,"SNOW.BALL","MOON.LIGHT","LIGHT.HOUSE","HOUSE.HOLD","HOT.DOG","DOG.HOUSE",
+   "FIRE.ARM","ARM.CHAIR","CHAIR.MAN","BUTTER.FLY","PAPER.BACK","BACK.PACK",
+   "DAY.DREAM","TEAM.WORK","WORK.SHOP","GOLD.FISH","FISH.TANK","TOP.HAT",
+   "SHOT.GUN","HAND.BOOK","BOOK.SHELF","HOUSE.WORK","MAIL.BOX","BOARD.GAME",
+   "GAME.SHOW","SHOW.DOWN","HONEY.MOON","RAIN.COAT","BREAK.FAST","CROSS.WORD",
+   "PLAY.GROUND","MAN.POWER","GREEN.HOUSE","SUIT.CASE","LAW.SUIT","LIFE.GUARD")
+g(4,"BALL.PARK","PARK.BENCH","BENCH.MARK","MARK.UP","UP.TOWN","TOWN.HALL",
+   "RAT.RACE","RACE.TRACK","DREAM.TEAM","SHOP.LIFT","LIFT.OFF","OFF.SHORE",
+   "BOARD.WALK","WALK.OUT","TOOTH.BRUSH","FIRE.WALL","WALL.PAPER","PAPER.WEIGHT",
+   "BOX.CAR","CAR.POOL","POOL.SIDE","SIDE.KICK","KICK.BACK","HAND.CUFF",
+   "LINK.UP","UP.BEAT","BOX.OFFICE","OFFICE.PARTY","HAT.TRICK","TRICK.SHOT",
+   "BAR.TENDER","FOOT.PRINT","PRINT.OUT","OUT.LAW","SAND.BOX","SPRING.BOARD",
+   "GAME.NIGHT","NIGHT.CLUB","CLUB.HOUSE","WORD.PLAY","GROUND.HOG","LIGHT.SWITCH",
+   "SWITCH.BOARD","POWER.PLAY","PLAY.OFF","OFF.SPRING","HOUSE.BOAT","YARD.STICK",
+   "STICK.SHIFT","WIND.FALL","FALL.OUT","OUT.BREAK","FAST.TRACK","TRACK.RECORD",
+   "RECORD.PLAYER","WORK.BENCH","BENCH.PRESS","NIGHT.CAP","SIZE.UP","RIGHT.HAND",
+   "BOOK.MARK","GATE.WAY","POINT.BLANK","BLANK.CHECK","CLIP.BOARD","WALK.WAY",
+   "LAY.OVER","OVER.NIGHT","SCARE.CROW","CROW.BAR","BAR.STOOL","PIGEON.HOLE",
+   "PUNCH.LINE","SEA.SHELL","SHOCK.WAVE","WAVE.LENGTH","BULL.FROG","SAW.DUST",
+   "PAN.CAKE","STAR.DUST","BAG.PIPE","PIPE.LINE","BLACK.BOARD","BACK.FIRE",
+   "CROSS.BOW","TAKE.STOCK","SHELF.LIFE","MAN.HOLE","OVER.BOARD","LINE.MAN")
+g(3,"PACK.RAT","HOLD.OVER","BRUSH.FIRE","CHAIN.MAIL","CUFF.LINK","BEAT.BOX",
+   "TANK.TOP","TENDER.FOOT","BOAT.YARD","SHIFT.WORK","PRESS.BOX","CAP.SIZE",
+   "UP.RIGHT","COAT.TAIL","TAIL.GATE","WAY.POINT","STOOL.PIGEON","HOLE.PUNCH",
+   "LENGTH.WISE","WISE.CRACK","CRACK.POT","FROG.MAN","DUST.PAN","DUST.BIN",
+   "WEIGHT.LIFT","HOG.WASH","WASH.BOARD","PAPER.CLIP","STOCK.OPTION",
+   "GUARD.HOUSE","BOX.SPRING","WAY.SIDE","SIDE.WALK")
+g(2,"WAY.LAY","BIN.BAG","HOLE.SAW","OUT.TAKE","DOUBLE.CROSS","OPTION.TRADE")
+
+
+g(5,"SUN.SHINE","SUN.FLOWER","SUN.LIGHT","SUN.SET","KEY.BOARD","ROOM.MATE",
+   "FOOT.BALL","BASE.BALL","AIR.PORT","BIRTH.DAY","DAY.LIGHT","WEEK.END",
+   "SEA.FOOD","HOME.WORK","WORK.PLACE","HEAD.LINE","HEAD.ACHE","TOOTH.PASTE",
+   "BED.ROOM","HAIR.CUT","HAND.BAG","HAND.SHAKE","COUNT.DOWN","DOWN.TOWN",
+   "NOTE.BOOK","BRIEF.CASE","WATER.FALL","RAIN.FALL","FRONT.DOOR","DOOR.WAY",
+   "BACK.DOOR","LIGHT.BULB","FIRE.PLACE","GRAND.MOTHER","BATH.ROOM","NEWS.PAPER",
+   "BIRD.HOUSE","RAIN.BOW","POST.CARD","CARD.BOARD","STRAW.BERRY","PAN.CAKE")
+g(4,"FIRE.WORK","SHORE.LINE","GROUND.WORK","FLOWER.POT","POT.LUCK","SET.BACK",
+   "BOARD.ROOM","BALL.ROOM","BALL.GAME","GAME.PLAN","DAY.CARE","CARE.FREE",
+   "FOOD.COURT","COURT.YARD","YARD.SALE","TOOTH.ACHE","ROOM.SERVICE","FIRE.FLY",
+   "CUT.BACK","CUT.OFF","TOWN.HOUSE","BOOK.CASE","SEA.SIDE","SIDE.STEP",
+   "STEP.SON","FALL.BACK","DROP.OUT","DOOR.STEP","DOOR.BELL","WAY.OUT",
+   "DOOR.MAT","BACK.BONE","SEA.SHORE","LIGHT.WEIGHT","SHELL.SHOCK","FLY.PAPER",
+   "BOW.OUT","PLACE.MAT","MOTHER.BOARD","BATH.TUB","PAPER.BOY","BERRY.PICK")
+g(3,"PORT.HOLE","END.GAME","SHAKE.DOWN","BONE.DRY","WEIGHT.ROOM","CASE.LOAD",
+   "OFF.HAND","TUB.THUMP")
+
+
+OPEN = {("PARK","BENCH"),("PACK","RAT"),("FAST","TRACK"),("TRACK","RECORD"),
+ ("RECORD","PLAYER"),("TANK","TOP"),("TOP","HAT"),("HAT","TRICK"),("TRICK","SHOT"),
+ ("BAR","STOOL"),("STOOL","PIGEON"),("HOLE","PUNCH"),("HOLE","SAW"),("BIN","BAG"),
+ ("BOARD","GAME"),("GAME","NIGHT"),("GAME","SHOW"),("POWER","PLAY"),("HOT","DOG"),
+ ("STICK","SHIFT"),("SHIFT","WORK"),("BENCH","PRESS"),("PRESS","BOX"),("SIZE","UP"),
+ ("RIGHT","HAND"),("POINT","BLANK"),("BLANK","CHECK"),("LIGHT","SWITCH"),
+ ("SHELL","SHOCK"),("TAKE","STOCK"),("STOCK","OPTION"),("OPTION","TRADE"),
+ ("BOW","OUT"),("SHELF","LIFE"),("LINK","UP"),("OFFICE","PARTY"),("BOX","OFFICE"),
+ ("RAT","RACE"),("WEIGHT","LIFT"),("FISH","TANK"),("BOX","SPRING"),("DREAM","TEAM"),
+ ("CHAIN","MAIL")}
+SENSE = {("BALL","PARK"),("MARK","UP"),("BACK","PACK"),("RAT","RACE"),("SHOP","LIFT"),
+ ("HOLD","OVER"),("WALK","OUT"),("WEIGHT","LIFT"),("SIDE","KICK"),("KICK","BACK"),
+ ("TOP","HAT"),("HAT","TRICK"),("TRICK","SHOT"),("FOOT","PRINT"),("OUT","LAW"),
+ ("HOG","WASH"),("PLAY","OFF"),("OFF","SPRING"),("YARD","STICK"),("STICK","SHIFT"),
+ ("FALL","OUT"),("OUT","BREAK"),("BREAK","FAST"),("TRACK","RECORD"),("BENCH","PRESS"),
+ ("CAP","SIZE"),("SIZE","UP"),("WAY","LAY"),("LAY","OVER"),("STOOL","PIGEON"),
+ ("PIGEON","HOLE"),("WISE","CRACK"),("CRACK","POT"),("LENGTH","WISE"),("BOW","OUT"),
+ ("TAKE","STOCK"),("STOCK","OPTION"),("CROSS","BOW"),("DOUBLE","CROSS"),
+ ("SHELF","LIFE"),("BOARD","WALK"),("WAY","SIDE"),("BACK","FIRE"),("SIDE","WALK"),
+ ("PUNCH","LINE"),("BAR","STOOL"),("SHOCK","WAVE"),("SAW","DUST"),("MAN","HOLE"),
+ ("OVER","BOARD"),("PACK","RAT"),("PRESS","BOX"),("BEAT","BOX"),("BLANK","CHECK")}
+HETERO = {("BOW","OUT"),("CROSS","BOW"),("WIND","FALL"),("SAW","DUST")}
+
+RAW = """
+FIRE ARM CHAIR MAN POWER PLAY OFF SPRING
+HONEY MOON LIGHT SWITCH BOARD GAME SHOW DOWN
+GOLD FISH TANK TOP HAT TRICK SHOT GUN
+DAY DREAM TEAM WORK SHOP LIFT OFF SHORE
+BUTTER FLY PAPER BACK PACK RAT RACE TRACK
+SNOW BALL PARK BENCH MARK UP TOWN HALL
+MOON LIGHT HOUSE HOLD OVER BOARD WALK OUT
+SAND BOX SPRING BOARD GAME NIGHT CLUB HOUSE
+BAR TENDER FOOT PRINT OUT LAW SUIT CASE
+HAND BOOK SHELF LIFE GUARD HOUSE WORK SHOP
+GREEN HOUSE WORK BENCH PRESS BOX CAR POOL
+WIND FALL OUT BREAK FAST TRACK RECORD PLAYER
+HOT DOG HOUSE BOAT YARD STICK SHIFT WORK
+NIGHT CAP SIZE UP RIGHT HAND BOOK MARK
+RAIN COAT TAIL GATE WAY POINT BLANK CHECK
+HAND CUFF LINK UP BEAT BOX OFFICE PARTY
+CHAIN MAIL BOX CAR POOL SIDE KICK BACK
+TOOTH BRUSH FIRE WALL PAPER WEIGHT LIFT OFF
+CROSS WORD PLAY GROUND HOG WASH BOARD WALK
+BLACK BOARD WALK WAY SIDE KICK BACK FIRE
+SCARE CROW BAR STOOL PIGEON HOLE PUNCH LINE
+SEA SHELL SHOCK WAVE LENGTH WISE CRACK POT
+STAR DUST BIN BAG PIPE LINE MAN HOLE
+PAPER CLIP BOARD WALK WAY LAY OVER NIGHT
+BULL FROG MAN HOLE SAW DUST PAN CAKE
+DOUBLE CROSS BOW OUT TAKE STOCK OPTION TRADE
+HOUSE WORK SHOP LIFT OFF SPRING BOARD GAME
+CHAIR MAN POWER PLAY GROUND WORK SHOP LIFT
+DOG HOUSE WORK SHOP LIFT OFF SHORE LINE
+MAIL BOX CAR POOL SIDE KICK BACK PACK
+BIRTH DAY LIGHT HOUSE WORK BENCH MARK UP
+HAND BAG PIPE LINE MAN POWER PLAY GROUND
+NOTE BOOK CASE LOAD STAR DUST BIN BAG
+FIRE WORK SHOP LIFT OFF SHORE LINE MAN
+SEA FOOD COURT YARD SALE PRICE TAG LINE
+HEAD LINE MAN POWER PLAY OFF SPRING BOARD
+BACK DOOR STEP SON IN LAW SUIT CASE
+DOWN TOWN HOUSE WORK SHOP LIFT OFF SHORE
+SEA SHELL SHOCK WAVE LENGTH WISE CRACK POT
+DOUBLE CROSS BOW OUT TAKE STOCK OPTION TRADE
+"""
+
+def band(r):
+    if r["minfam"] >= 4 and r["meanfam"] >= 4.3 and r["shifts"] <= 2 and r["hetero"] == 0: return "easy"
+    if r["minfam"] >= 3 and r["meanfam"] >= 3.6 and r["shifts"] <= 4: return "medium"
+    return "hard"
+
+rows, missing = [], set()
+for line in RAW.strip().split("\n"):
+    ws = line.split(); assert len(ws) == 8, line
+    links = []
+    for i in range(7):
+        a, b = ws[i], ws[i+1]
+        if (a,b) not in G: missing.add((a,b)); continue
+        joined = (a+b).lower()
+        links.append(dict(a=a, b=b, fam=G[(a,b)],
+            form=("open" if (a,b) in OPEN else "closed"),
+            sense=((a,b) in SENSE), hetero=((a,b) in HETERO),
+            zipf=round(z(joined,'en'), 2)))
+    if len(links) < 7: continue
+    r = dict(words=ws, links=links,
+             minfam=min(l["fam"] for l in links),
+             meanfam=round(sum(l["fam"] for l in links)/7, 2),
+             shifts=sum(l["sense"] for l in links),
+             hetero=sum(l["hetero"] for l in links),
+             opens=sum(l["form"]=="open" for l in links))
+    r["level"] = band(r); rows.append(r)
+
+if missing: print("UNGRADED:", sorted(missing))
+from collections import Counter
+print(Counter(r["level"] for r in rows))
+for lv in ("easy","medium","hard"):
+    print(f"\n=== {lv.upper()} ===")
+    for r in [x for x in rows if x["level"]==lv]:
+        flag = [f"{l['a']}·{l['b']}({l['zipf']})" for l in r["links"] if l["form"]=="closed" and l["zipf"] < 2.0]
+        print(f"  min{r['minfam']} mean{r['meanfam']:.2f} sh{r['shifts']} het{r['hetero']} op{r['opens']}  "
+              + " · ".join(r["words"]) + (("   RARITY-FLAG: "+", ".join(flag)) if flag else ""))
+json.dump(rows, open("bank.json","w"), indent=1)

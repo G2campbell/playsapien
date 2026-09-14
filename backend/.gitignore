@@ -1,0 +1,6 @@
+node_modules/
+# Local development secrets, created by hand per the README. Never committed:
+# it holds the login-code pepper and the Google client secret.
+.dev.vars
+# wrangler's local D1 copy and build cache.
+.wrangler/

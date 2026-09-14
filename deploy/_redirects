@@ -1,0 +1,24 @@
+# PlaySapien — root _redirects
+#
+# Audit B3. Sojourner's asset base is './assets/' (partC.js:3), so a request to
+# /sojourner WITHOUT the trailing slash resolves every asset against the
+# platform root and the globe never loads. Pages normally normalises this; the
+# audit calls it the highest-consequence unverified assumption in the move, so
+# it is made explicit here rather than assumed.
+#
+# VERIFY ON FIRST DEPLOY:
+#   curl -I https://playsapien.com/sojourner
+#   curl -I https://playsapien.com/wordchain
+# Both must answer 301 to the slashed form.
+#
+# More specific rules first — Pages takes the first match. deploy/assemble.sh
+# appends each game's _redirects.fragment BELOW these, so a fragment that
+# restates one of the rules here is harmless: the platform rule matches first.
+
+# Audit B1 safety net: the shell shipped 'word-chain' as Word Chain's slug for a
+# while. Anything already linked that way keeps working.
+/word-chain/*   /wordchain/:splat   301
+/word-chain     /wordchain/         301
+
+/sojourner      /sojourner/         301
+/wordchain      /wordchain/         301

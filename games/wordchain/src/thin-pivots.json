@@ -1,0 +1,2122 @@
+{
+ "no_way_onward": [
+  {
+   "word": "AWAY",
+   "ways_in": 14,
+   "examples": [
+    "BREAK",
+    "CAST",
+    "CUT",
+    "FAR",
+    "FLY",
+    "GET"
+   ]
+  },
+  {
+   "word": "MATE",
+   "ways_in": 14,
+   "examples": [
+    "BAND",
+    "CELL",
+    "CHECK",
+    "CLASS",
+    "CREW",
+    "FIRST"
+   ]
+  },
+  {
+   "word": "KEEPER",
+   "ways_in": 12,
+   "examples": [
+    "BEE",
+    "BOOK",
+    "GAME",
+    "GATE",
+    "GOAL",
+    "HOUSE"
+   ]
+  },
+  {
+   "word": "CLOTH",
+   "ways_in": 11,
+   "examples": [
+    "BROAD",
+    "CHEESE",
+    "DISH",
+    "DROP",
+    "DUST",
+    "FACE"
+   ]
+  },
+  {
+   "word": "MAKER",
+   "ways_in": 11,
+   "examples": [
+    "COFFEE",
+    "HAY",
+    "KING",
+    "LAW",
+    "MATCH",
+    "MONEY"
+   ]
+  },
+  {
+   "word": "PLAN",
+   "ways_in": 9,
+   "examples": [
+    "BATTLE",
+    "BUSINESS",
+    "FLIGHT",
+    "FLOOR",
+    "GAME",
+    "LESSON"
+   ]
+  },
+  {
+   "word": "MAT",
+   "ways_in": 8,
+   "examples": [
+    "BATH",
+    "BEER",
+    "DOOR",
+    "FLOOR",
+    "MOUSE",
+    "PLACE"
+   ]
+  },
+  {
+   "word": "SMITH",
+   "ways_in": 8,
+   "examples": [
+    "BLACK",
+    "COPPER",
+    "GOLD",
+    "GUN",
+    "LOCK",
+    "SILVER"
+   ]
+  },
+  {
+   "word": "BREAKER",
+   "ways_in": 7,
+   "examples": [
+    "CODE",
+    "ICE",
+    "LAW",
+    "RECORD",
+    "RULE",
+    "STRIKE"
+   ]
+  },
+  {
+   "word": "HOLDER",
+   "ways_in": 7,
+   "examples": [
+    "CARD",
+    "CUP",
+    "PLACE",
+    "POT",
+    "RECORD",
+    "SHARE"
+   ]
+  },
+  {
+   "word": "STATION",
+   "ways_in": 7,
+   "examples": [
+    "BUS",
+    "POWER",
+    "SERVICE",
+    "SPACE",
+    "TRAIN",
+    "WEATHER"
+   ]
+  },
+  {
+   "word": "WORKS",
+   "ways_in": 7,
+   "examples": [
+    "FIRE",
+    "GAS",
+    "IRON",
+    "ROAD",
+    "STEEL",
+    "WATER"
+   ]
+  },
+  {
+   "word": "BOUND",
+   "ways_in": 6,
+   "examples": [
+    "EARTH",
+    "EAST",
+    "HIDE",
+    "HOUSE",
+    "OUT",
+    "WEST"
+   ]
+  },
+  {
+   "word": "DEAL",
+   "ways_in": 6,
+   "examples": [
+    "BIG",
+    "DONE",
+    "NEW",
+    "RAW",
+    "REAL",
+    "SQUARE"
+   ]
+  },
+  {
+   "word": "HOOD",
+   "ways_in": 6,
+   "examples": [
+    "BOY",
+    "CHILD",
+    "KNIGHT",
+    "PARENT",
+    "STATE",
+    "WOMAN"
+   ]
+  },
+  {
+   "word": "ORDER",
+   "ways_in": 6,
+   "examples": [
+    "COURT",
+    "MAIL",
+    "MONEY",
+    "PECKING",
+    "RUSH",
+    "TALL"
+   ]
+  },
+  {
+   "word": "PERSON",
+   "ways_in": 6,
+   "examples": [
+    "BUSINESS",
+    "CHAIR",
+    "FIRST",
+    "LAY",
+    "SALES",
+    "SPOKES"
+   ]
+  },
+  {
+   "word": "WEAR",
+   "ways_in": 6,
+   "examples": [
+    "BEACH",
+    "FOOT",
+    "NECK",
+    "SLEEP",
+    "SWIM",
+    "UNDER"
+   ]
+  },
+  {
+   "word": "ACHE",
+   "ways_in": 5,
+   "examples": [
+    "BELLY",
+    "EAR",
+    "HEAD",
+    "HEART",
+    "TOOTH"
+   ]
+  },
+  {
+   "word": "CHANGE",
+   "ways_in": 5,
+   "examples": [
+    "LOOSE",
+    "OIL",
+    "POCKET",
+    "SHORT",
+    "SMALL"
+   ]
+  },
+  {
+   "word": "LIT",
+   "ways_in": 5,
+   "examples": [
+    "CANDLE",
+    "GAS",
+    "MOON",
+    "STAR",
+    "SUN"
+   ]
+  },
+  {
+   "word": "MAID",
+   "ways_in": 5,
+   "examples": [
+    "BAR",
+    "CHAMBER",
+    "HOUSE",
+    "MILK",
+    "OLD"
+   ]
+  },
+  {
+   "word": "PLANT",
+   "ways_in": 5,
+   "examples": [
+    "EGG",
+    "FACE",
+    "HOUSE",
+    "POT",
+    "POWER"
+   ]
+  },
+  {
+   "word": "SHEET",
+   "ways_in": 5,
+   "examples": [
+    "BED",
+    "GROUND",
+    "SCORE",
+    "SPREAD",
+    "WORK"
+   ]
+  },
+  {
+   "word": "SON",
+   "ways_in": 5,
+   "examples": [
+    "GOD",
+    "GRAND",
+    "PRODIGAL",
+    "SEA",
+    "STEP"
+   ]
+  },
+  {
+   "word": "STROKE",
+   "ways_in": 5,
+   "examples": [
+    "BACK",
+    "BRUSH",
+    "HEAT",
+    "KEY",
+    "SUN"
+   ]
+  },
+  {
+   "word": "TOWER",
+   "ways_in": 5,
+   "examples": [
+    "BELL",
+    "CLOCK",
+    "IVORY",
+    "WATCH",
+    "WATER"
+   ]
+  },
+  {
+   "word": "WARD",
+   "ways_in": 5,
+   "examples": [
+    "ON",
+    "OUT",
+    "UP",
+    "WAY",
+    "WEST"
+   ]
+  },
+  {
+   "word": "ZONE",
+   "ways_in": 5,
+   "examples": [
+    "END",
+    "FRIEND",
+    "STRIKE",
+    "TIME",
+    "WAR"
+   ]
+  },
+  {
+   "word": "ALONG",
+   "ways_in": 4,
+   "examples": [
+    "COME",
+    "RIDE",
+    "STRING",
+    "TAG"
+   ]
+  },
+  {
+   "word": "AROUND",
+   "ways_in": 4,
+   "examples": [
+    "GO",
+    "RUN",
+    "TURN",
+    "WRAP"
+   ]
+  },
+  {
+   "word": "BLADE",
+   "ways_in": 4,
+   "examples": [
+    "RAZOR",
+    "ROLLER",
+    "SHOULDER",
+    "SWITCH"
+   ]
+  },
+  {
+   "word": "LANE",
+   "ways_in": 4,
+   "examples": [
+    "BUS",
+    "EXPRESS",
+    "FAST",
+    "SLOW"
+   ]
+  },
+  {
+   "word": "LINER",
+   "ways_in": 4,
+   "examples": [
+    "BIN",
+    "EYE",
+    "JET",
+    "ONE"
+   ]
+  },
+  {
+   "word": "OPENER",
+   "ways_in": 4,
+   "examples": [
+    "CAN",
+    "EYE",
+    "LETTER",
+    "TIN"
+   ]
+  },
+  {
+   "word": "ROD",
+   "ways_in": 4,
+   "examples": [
+    "FISHING",
+    "HOT",
+    "LIGHTNING",
+    "RAM"
+   ]
+  },
+  {
+   "word": "RUNNER",
+   "ways_in": 4,
+   "examples": [
+    "FRONT",
+    "GUN",
+    "ROAD",
+    "RUM"
+   ]
+  },
+  {
+   "word": "SHED",
+   "ways_in": 4,
+   "examples": [
+    "BLOOD",
+    "COW",
+    "WATER",
+    "WOOD"
+   ]
+  },
+  {
+   "word": "SHORTS",
+   "ways_in": 4,
+   "examples": [
+    "BOARD",
+    "BOXER",
+    "CARGO",
+    "GYM"
+   ]
+  },
+  {
+   "word": "SPAN",
+   "ways_in": 4,
+   "examples": [
+    "ATTENTION",
+    "LIFE",
+    "TIME",
+    "WING"
+   ]
+  },
+  {
+   "word": "THING",
+   "ways_in": 4,
+   "examples": [
+    "ANY",
+    "PLAY",
+    "SOME",
+    "SURE"
+   ]
+  },
+  {
+   "word": "TONE",
+   "ways_in": 4,
+   "examples": [
+    "HALF",
+    "OVER",
+    "SKIN",
+    "UNDER"
+   ]
+  },
+  {
+   "word": "WRITER",
+   "ways_in": 4,
+   "examples": [
+    "GHOST",
+    "SCREEN",
+    "SONG",
+    "TYPE"
+   ]
+  },
+  {
+   "word": "BERRY",
+   "ways_in": 3,
+   "examples": [
+    "BLACK",
+    "BLUE",
+    "GOOSE"
+   ]
+  },
+  {
+   "word": "BET",
+   "ways_in": 3,
+   "examples": [
+    "SAFE",
+    "SIDE",
+    "SURE"
+   ]
+  },
+  {
+   "word": "BROTHER",
+   "ways_in": 3,
+   "examples": [
+    "BIG",
+    "HALF",
+    "STEP"
+   ]
+  },
+  {
+   "word": "BROW",
+   "ways_in": 3,
+   "examples": [
+    "EYE",
+    "HIGH",
+    "LOW"
+   ]
+  },
+  {
+   "word": "BURST",
+   "ways_in": 3,
+   "examples": [
+    "CLOUD",
+    "OUT",
+    "STAR"
+   ]
+  },
+  {
+   "word": "CATCHER",
+   "ways_in": 3,
+   "examples": [
+    "COW",
+    "DREAM",
+    "FLY"
+   ]
+  },
+  {
+   "word": "CELLAR",
+   "ways_in": 3,
+   "examples": [
+    "SALT",
+    "STORM",
+    "WINE"
+   ]
+  },
+  {
+   "word": "CHART",
+   "ways_in": 3,
+   "examples": [
+    "FLIP",
+    "FLOW",
+    "PIE"
+   ]
+  },
+  {
+   "word": "COMING",
+   "ways_in": 3,
+   "examples": [
+    "FORTH",
+    "HOME",
+    "UP"
+   ]
+  },
+  {
+   "word": "DAYS",
+   "ways_in": 3,
+   "examples": [
+    "DOG",
+    "GLORY",
+    "SALAD"
+   ]
+  },
+  {
+   "word": "DIVE",
+   "ways_in": 3,
+   "examples": [
+    "DEEP",
+    "NOSE",
+    "SKY"
+   ]
+  },
+  {
+   "word": "DO",
+   "ways_in": 3,
+   "examples": [
+    "CAN",
+    "OUT",
+    "OVER"
+   ]
+  },
+  {
+   "word": "DRIVER",
+   "ways_in": 3,
+   "examples": [
+    "BUS",
+    "CAB",
+    "SCREW"
+   ]
+  },
+  {
+   "word": "ENGINE",
+   "ways_in": 3,
+   "examples": [
+    "FIRE",
+    "JET",
+    "TANK"
+   ]
+  },
+  {
+   "word": "FRY",
+   "ways_in": 3,
+   "examples": [
+    "DEEP",
+    "PAN",
+    "SMALL"
+   ]
+  },
+  {
+   "word": "HANDED",
+   "ways_in": 3,
+   "examples": [
+    "EMPTY",
+    "EVEN",
+    "HIGH"
+   ]
+  },
+  {
+   "word": "HAWK",
+   "ways_in": 3,
+   "examples": [
+    "CHICKEN",
+    "NIGHT",
+    "SPARROW"
+   ]
+  },
+  {
+   "word": "HEARTED",
+   "ways_in": 3,
+   "examples": [
+    "HALF",
+    "TENDER",
+    "WARM"
+   ]
+  },
+  {
+   "word": "HUNT",
+   "ways_in": 3,
+   "examples": [
+    "FOX",
+    "MAN",
+    "WITCH"
+   ]
+  },
+  {
+   "word": "LADDER",
+   "ways_in": 3,
+   "examples": [
+    "FIRE",
+    "ROPE",
+    "STEP"
+   ]
+  },
+  {
+   "word": "LOT",
+   "ways_in": 3,
+   "examples": [
+    "BACK",
+    "PARKING",
+    "VACANT"
+   ]
+  },
+  {
+   "word": "OWL",
+   "ways_in": 3,
+   "examples": [
+    "BARN",
+    "NIGHT",
+    "SCREECH"
+   ]
+  },
+  {
+   "word": "PLAYER",
+   "ways_in": 3,
+   "examples": [
+    "BIT",
+    "RECORD",
+    "TEAM"
+   ]
+  },
+  {
+   "word": "POTATO",
+   "ways_in": 3,
+   "examples": [
+    "COUCH",
+    "HOT",
+    "SWEET"
+   ]
+  },
+  {
+   "word": "RATE",
+   "ways_in": 3,
+   "examples": [
+    "BIRTH",
+    "BURN",
+    "FIRST"
+   ]
+  },
+  {
+   "word": "SEAS",
+   "ways_in": 3,
+   "examples": [
+    "HIGH",
+    "OVER",
+    "SEVEN"
+   ]
+  },
+  {
+   "word": "SEASON",
+   "ways_in": 3,
+   "examples": [
+    "OFF",
+    "OPEN",
+    "POST"
+   ]
+  },
+  {
+   "word": "SHAFT",
+   "ways_in": 3,
+   "examples": [
+    "CAM",
+    "DRIVE",
+    "MINE"
+   ]
+  },
+  {
+   "word": "SHINE",
+   "ways_in": 3,
+   "examples": [
+    "MOON",
+    "SHOE",
+    "SUN"
+   ]
+  },
+  {
+   "word": "TUB",
+   "ways_in": 3,
+   "examples": [
+    "BATH",
+    "HOT",
+    "WASH"
+   ]
+  },
+  {
+   "word": "WEED",
+   "ways_in": 3,
+   "examples": [
+    "DUCK",
+    "MILK",
+    "SEA"
+   ]
+  },
+  {
+   "word": "ACT",
+   "ways_in": 2,
+   "examples": [
+    "CLASS",
+    "PLAY"
+   ]
+  },
+  {
+   "word": "AHEAD",
+   "ways_in": 2,
+   "examples": [
+    "GO",
+    "LOOK"
+   ]
+  },
+  {
+   "word": "ANGLE",
+   "ways_in": 2,
+   "examples": [
+    "RIGHT",
+    "WIDE"
+   ]
+  },
+  {
+   "word": "ATTACK",
+   "ways_in": 2,
+   "examples": [
+    "HEART",
+    "SHARK"
+   ]
+  },
+  {
+   "word": "AXE",
+   "ways_in": 2,
+   "examples": [
+    "BATTLE",
+    "PICK"
+   ]
+  },
+  {
+   "word": "BASIN",
+   "ways_in": 2,
+   "examples": [
+    "CATCH",
+    "WASH"
+   ]
+  },
+  {
+   "word": "BEAM",
+   "ways_in": 2,
+   "examples": [
+    "MOON",
+    "SUN"
+   ]
+  },
+  {
+   "word": "BEARING",
+   "ways_in": 2,
+   "examples": [
+    "LOAD",
+    "OVER"
+   ]
+  },
+  {
+   "word": "BLOWER",
+   "ways_in": 2,
+   "examples": [
+    "GLASS",
+    "LEAF"
+   ]
+  },
+  {
+   "word": "BLOWN",
+   "ways_in": 2,
+   "examples": [
+    "FULL",
+    "OVER"
+   ]
+  },
+  {
+   "word": "BORN",
+   "ways_in": 2,
+   "examples": [
+    "FIRST",
+    "STILL"
+   ]
+  },
+  {
+   "word": "BUG",
+   "ways_in": 2,
+   "examples": [
+    "BED",
+    "LADY"
+   ]
+  },
+  {
+   "word": "BUILDER",
+   "ways_in": 2,
+   "examples": [
+    "BODY",
+    "SHIP"
+   ]
+  },
+  {
+   "word": "BULB",
+   "ways_in": 2,
+   "examples": [
+    "FLASH",
+    "LIGHT"
+   ]
+  },
+  {
+   "word": "BURGER",
+   "ways_in": 2,
+   "examples": [
+    "CHEESE",
+    "HAM"
+   ]
+  },
+  {
+   "word": "CHARGE",
+   "ways_in": 2,
+   "examples": [
+    "OVER",
+    "SERVICE"
+   ]
+  },
+  {
+   "word": "CIRCLE",
+   "ways_in": 2,
+   "examples": [
+    "FULL",
+    "VICIOUS"
+   ]
+  },
+  {
+   "word": "COMPANY",
+   "ways_in": 2,
+   "examples": [
+    "PARENT",
+    "SHELL"
+   ]
+  },
+  {
+   "word": "CONTROL",
+   "ways_in": 2,
+   "examples": [
+    "BIRTH",
+    "SELF"
+   ]
+  },
+  {
+   "word": "COOKER",
+   "ways_in": 2,
+   "examples": [
+    "PRESSURE",
+    "SLOW"
+   ]
+  },
+  {
+   "word": "CUBE",
+   "ways_in": 2,
+   "examples": [
+    "ICE",
+    "SUGAR"
+   ]
+  },
+  {
+   "word": "CUSHION",
+   "ways_in": 2,
+   "examples": [
+    "COUCH",
+    "PIN"
+   ]
+  },
+  {
+   "word": "CUTTER",
+   "ways_in": 2,
+   "examples": [
+    "BOLT",
+    "WIRE"
+   ]
+  },
+  {
+   "word": "CYCLE",
+   "ways_in": 2,
+   "examples": [
+    "MOTOR",
+    "SPIN"
+   ]
+  },
+  {
+   "word": "DAM",
+   "ways_in": 2,
+   "examples": [
+    "BEAVER",
+    "MILL"
+   ]
+  },
+  {
+   "word": "DIGGER",
+   "ways_in": 2,
+   "examples": [
+    "GOLD",
+    "GRAVE"
+   ]
+  },
+  {
+   "word": "DOUBT",
+   "ways_in": 2,
+   "examples": [
+    "REASONABLE",
+    "SELF"
+   ]
+  },
+  {
+   "word": "DRINK",
+   "ways_in": 2,
+   "examples": [
+    "SOFT",
+    "STIFF"
+   ]
+  },
+  {
+   "word": "EFFECT",
+   "ways_in": 2,
+   "examples": [
+    "PLACEBO",
+    "SIDE"
+   ]
+  },
+  {
+   "word": "EYED",
+   "ways_in": 2,
+   "examples": [
+    "GREEN",
+    "WIDE"
+   ]
+  },
+  {
+   "word": "FEEDER",
+   "ways_in": 2,
+   "examples": [
+    "BIRD",
+    "BOTTOM"
+   ]
+  },
+  {
+   "word": "FINDER",
+   "ways_in": 2,
+   "examples": [
+    "PATH",
+    "VIEW"
+   ]
+  },
+  {
+   "word": "FINGERS",
+   "ways_in": 2,
+   "examples": [
+    "BUTTER",
+    "GREEN"
+   ]
+  },
+  {
+   "word": "FIT",
+   "ways_in": 2,
+   "examples": [
+    "OUT",
+    "RETRO"
+   ]
+  },
+  {
+   "word": "FLESH",
+   "ways_in": 2,
+   "examples": [
+    "GOOSE",
+    "POUND"
+   ]
+  },
+  {
+   "word": "FLOP",
+   "ways_in": 2,
+   "examples": [
+    "BELLY",
+    "FLIP"
+   ]
+  },
+  {
+   "word": "FOIL",
+   "ways_in": 2,
+   "examples": [
+    "SILVER",
+    "TIN"
+   ]
+  },
+  {
+   "word": "FORWARD",
+   "ways_in": 2,
+   "examples": [
+    "FAST",
+    "FLASH"
+   ]
+  },
+  {
+   "word": "FUEL",
+   "ways_in": 2,
+   "examples": [
+    "FOSSIL",
+    "JET"
+   ]
+  },
+  {
+   "word": "GLASSES",
+   "ways_in": 2,
+   "examples": [
+    "EYE",
+    "SUN"
+   ]
+  },
+  {
+   "word": "GOER",
+   "ways_in": 2,
+   "examples": [
+    "CHURCH",
+    "PARTY"
+   ]
+  },
+  {
+   "word": "GOING",
+   "ways_in": 2,
+   "examples": [
+    "ON",
+    "OUT"
+   ]
+  },
+  {
+   "word": "GOWN",
+   "ways_in": 2,
+   "examples": [
+    "EVENING",
+    "NIGHT"
+   ]
+  },
+  {
+   "word": "GRAM",
+   "ways_in": 2,
+   "examples": [
+    "KILO",
+    "PRO"
+   ]
+  },
+  {
+   "word": "GULL",
+   "ways_in": 2,
+   "examples": [
+    "HERRING",
+    "SEA"
+   ]
+  },
+  {
+   "word": "GUY",
+   "ways_in": 2,
+   "examples": [
+    "FALL",
+    "WISE"
+   ]
+  },
+  {
+   "word": "HUG",
+   "ways_in": 2,
+   "examples": [
+    "BEAR",
+    "GROUP"
+   ]
+  },
+  {
+   "word": "ISLAND",
+   "ways_in": 2,
+   "examples": [
+    "DESERT",
+    "TREASURE"
+   ]
+  },
+  {
+   "word": "JOINT",
+   "ways_in": 2,
+   "examples": [
+    "CLIP",
+    "HIP"
+   ]
+  },
+  {
+   "word": "KIND",
+   "ways_in": 2,
+   "examples": [
+    "MAN",
+    "WOMAN"
+   ]
+  },
+  {
+   "word": "KNIT",
+   "ways_in": 2,
+   "examples": [
+    "CLOSE",
+    "TIGHT"
+   ]
+  },
+  {
+   "word": "LACE",
+   "ways_in": 2,
+   "examples": [
+    "NECK",
+    "SHOE"
+   ]
+  },
+  {
+   "word": "LANGUAGE",
+   "ways_in": 2,
+   "examples": [
+    "BODY",
+    "SIGN"
+   ]
+  },
+  {
+   "word": "LASH",
+   "ways_in": 2,
+   "examples": [
+    "BACK",
+    "EYE"
+   ]
+  },
+  {
+   "word": "LAUGH",
+   "ways_in": 2,
+   "examples": [
+    "BELLY",
+    "LAST"
+   ]
+  },
+  {
+   "word": "LESS",
+   "ways_in": 2,
+   "examples": [
+    "WIRE",
+    "WORTH"
+   ]
+  },
+  {
+   "word": "LICK",
+   "ways_in": 2,
+   "examples": [
+    "COW",
+    "SALT"
+   ]
+  },
+  {
+   "word": "LID",
+   "ways_in": 2,
+   "examples": [
+    "EYE",
+    "POT"
+   ]
+  },
+  {
+   "word": "LIFTER",
+   "ways_in": 2,
+   "examples": [
+    "SHOP",
+    "WEIGHT"
+   ]
+  },
+  {
+   "word": "LIMITS",
+   "ways_in": 2,
+   "examples": [
+    "CITY",
+    "OFF"
+   ]
+  },
+  {
+   "word": "MAP",
+   "ways_in": 2,
+   "examples": [
+    "BIT",
+    "ROAD"
+   ]
+  },
+  {
+   "word": "MASK",
+   "ways_in": 2,
+   "examples": [
+    "FACE",
+    "SLEEP"
+   ]
+  },
+  {
+   "word": "MATERIAL",
+   "ways_in": 2,
+   "examples": [
+    "RAW",
+    "SOURCE"
+   ]
+  },
+  {
+   "word": "MATTER",
+   "ways_in": 2,
+   "examples": [
+    "DARK",
+    "GREY"
+   ]
+  },
+  {
+   "word": "MEDAL",
+   "ways_in": 2,
+   "examples": [
+    "GOLD",
+    "SILVER"
+   ]
+  },
+  {
+   "word": "MEET",
+   "ways_in": 2,
+   "examples": [
+    "SWIM",
+    "TRACK"
+   ]
+  },
+  {
+   "word": "MONGER",
+   "ways_in": 2,
+   "examples": [
+    "FISH",
+    "IRON"
+   ]
+  },
+  {
+   "word": "NUMBER",
+   "ways_in": 2,
+   "examples": [
+    "ACCOUNT",
+    "OUT"
+   ]
+  },
+  {
+   "word": "ORGAN",
+   "ways_in": 2,
+   "examples": [
+    "MOUTH",
+    "PIPE"
+   ]
+  },
+  {
+   "word": "PAL",
+   "ways_in": 2,
+   "examples": [
+    "GAL",
+    "PEN"
+   ]
+  },
+  {
+   "word": "PAR",
+   "ways_in": 2,
+   "examples": [
+    "ON",
+    "UNDER"
+   ]
+  },
+  {
+   "word": "POKE",
+   "ways_in": 2,
+   "examples": [
+    "COW",
+    "SLOW"
+   ]
+  },
+  {
+   "word": "POLISH",
+   "ways_in": 2,
+   "examples": [
+    "NAIL",
+    "SHOE"
+   ]
+  },
+  {
+   "word": "POND",
+   "ways_in": 2,
+   "examples": [
+    "FISH",
+    "MILL"
+   ]
+  },
+  {
+   "word": "PROCESSOR",
+   "ways_in": 2,
+   "examples": [
+    "FOOD",
+    "WORD"
+   ]
+  },
+  {
+   "word": "QUARTERS",
+   "ways_in": 2,
+   "examples": [
+    "CLOSE",
+    "HEAD"
+   ]
+  },
+  {
+   "word": "RANGE",
+   "ways_in": 2,
+   "examples": [
+    "FREE",
+    "PRICE"
+   ]
+  },
+  {
+   "word": "RANGER",
+   "ways_in": 2,
+   "examples": [
+    "FOREST",
+    "PARK"
+   ]
+  },
+  {
+   "word": "RATED",
+   "ways_in": 2,
+   "examples": [
+    "OVER",
+    "UNDER"
+   ]
+  },
+  {
+   "word": "REACH",
+   "ways_in": 2,
+   "examples": [
+    "OUT",
+    "OVER"
+   ]
+  },
+  {
+   "word": "READER",
+   "ways_in": 2,
+   "examples": [
+    "MIND",
+    "PALM"
+   ]
+  },
+  {
+   "word": "RICH",
+   "ways_in": 2,
+   "examples": [
+    "FILTHY",
+    "OIL"
+   ]
+  },
+  {
+   "word": "RINGER",
+   "ways_in": 2,
+   "examples": [
+    "BELL",
+    "DEAD"
+   ]
+  },
+  {
+   "word": "ROADS",
+   "ways_in": 2,
+   "examples": [
+    "CROSS",
+    "IN"
+   ]
+  },
+  {
+   "word": "SANDWICH",
+   "ways_in": 2,
+   "examples": [
+    "CLUB",
+    "HAM"
+   ]
+  },
+  {
+   "word": "SAVER",
+   "ways_in": 2,
+   "examples": [
+    "LIFE",
+    "SCREEN"
+   ]
+  },
+  {
+   "word": "SCALE",
+   "ways_in": 2,
+   "examples": [
+    "FULL",
+    "UP"
+   ]
+  },
+  {
+   "word": "SCAPE",
+   "ways_in": 2,
+   "examples": [
+    "CITY",
+    "LAND"
+   ]
+  },
+  {
+   "word": "SCOTCH",
+   "ways_in": 2,
+   "examples": [
+    "BUTTER",
+    "HOP"
+   ]
+  },
+  {
+   "word": "SCOUT",
+   "ways_in": 2,
+   "examples": [
+    "BOY",
+    "CUB"
+   ]
+  },
+  {
+   "word": "SESSION",
+   "ways_in": 2,
+   "examples": [
+    "BULL",
+    "JAM"
+   ]
+  },
+  {
+   "word": "SHADOW",
+   "ways_in": 2,
+   "examples": [
+    "EYE",
+    "OVER"
+   ]
+  },
+  {
+   "word": "SISTER",
+   "ways_in": 2,
+   "examples": [
+    "HALF",
+    "STEP"
+   ]
+  },
+  {
+   "word": "SITE",
+   "ways_in": 2,
+   "examples": [
+    "CAMP",
+    "ON"
+   ]
+  },
+  {
+   "word": "SLATE",
+   "ways_in": 2,
+   "examples": [
+    "BLANK",
+    "CLEAN"
+   ]
+  },
+  {
+   "word": "SLEEVE",
+   "ways_in": 2,
+   "examples": [
+    "CAP",
+    "HEART"
+   ]
+  },
+  {
+   "word": "SODA",
+   "ways_in": 2,
+   "examples": [
+    "CLUB",
+    "CREAM"
+   ]
+  },
+  {
+   "word": "SORE",
+   "ways_in": 2,
+   "examples": [
+    "COLD",
+    "EYE"
+   ]
+  },
+  {
+   "word": "SPOKEN",
+   "ways_in": 2,
+   "examples": [
+    "OUT",
+    "PLAIN"
+   ]
+  },
+  {
+   "word": "STAIRS",
+   "ways_in": 2,
+   "examples": [
+    "DOWN",
+    "UP"
+   ]
+  },
+  {
+   "word": "STOOL",
+   "ways_in": 2,
+   "examples": [
+    "BAR",
+    "FOOT"
+   ]
+  },
+  {
+   "word": "STREAK",
+   "ways_in": 2,
+   "examples": [
+    "LUCKY",
+    "WIN"
+   ]
+  },
+  {
+   "word": "STRUCK",
+   "ways_in": 2,
+   "examples": [
+    "STAGE",
+    "STAR"
+   ]
+  },
+  {
+   "word": "SUPPORT",
+   "ways_in": 2,
+   "examples": [
+    "CHILD",
+    "TECH"
+   ]
+  },
+  {
+   "word": "SYSTEM",
+   "ways_in": 2,
+   "examples": [
+    "FILE",
+    "ROOT"
+   ]
+  },
+  {
+   "word": "TACK",
+   "ways_in": 2,
+   "examples": [
+    "HARD",
+    "THUMB"
+   ]
+  },
+  {
+   "word": "TALE",
+   "ways_in": 2,
+   "examples": [
+    "TALL",
+    "TELL"
+   ]
+  },
+  {
+   "word": "TEARS",
+   "ways_in": 2,
+   "examples": [
+    "CROCODILE",
+    "TRAIL"
+   ]
+  },
+  {
+   "word": "THERAPY",
+   "ways_in": 2,
+   "examples": [
+    "GROUP",
+    "SHOCK"
+   ]
+  },
+  {
+   "word": "TICKET",
+   "ways_in": 2,
+   "examples": [
+    "MEAL",
+    "PLANE"
+   ]
+  },
+  {
+   "word": "TIMER",
+   "ways_in": 2,
+   "examples": [
+    "EGG",
+    "OLD"
+   ]
+  },
+  {
+   "word": "WALKER",
+   "ways_in": 2,
+   "examples": [
+    "DOG",
+    "STREET"
+   ]
+  },
+  {
+   "word": "WARMING",
+   "ways_in": 2,
+   "examples": [
+    "HEART",
+    "HOUSE"
+   ]
+  },
+  {
+   "word": "WHIP",
+   "ways_in": 2,
+   "examples": [
+    "BULL",
+    "HORSE"
+   ]
+  },
+  {
+   "word": "WIFE",
+   "ways_in": 2,
+   "examples": [
+    "FISH",
+    "HOUSE"
+   ]
+  },
+  {
+   "word": "WIG",
+   "ways_in": 2,
+   "examples": [
+    "BIG",
+    "EAR"
+   ]
+  },
+  {
+   "word": "WIT",
+   "ways_in": 2,
+   "examples": [
+    "HALF",
+    "OUT"
+   ]
+  },
+  {
+   "word": "WORN",
+   "ways_in": 2,
+   "examples": [
+    "CARE",
+    "WELL"
+   ]
+  },
+  {
+   "word": "WORTHY",
+   "ways_in": 2,
+   "examples": [
+    "NEWS",
+    "NOTE"
+   ]
+  },
+  {
+   "word": "YOU",
+   "ways_in": 2,
+   "examples": [
+    "BLESS",
+    "THANK"
+   ]
+  }
+ ],
+ "one_way_onward": [
+  {
+   "word": "LIST",
+   "ways_in": 14,
+   "only_exit": "PRICE"
+  },
+  {
+   "word": "PAD",
+   "ways_in": 11,
+   "only_exit": "LOCK"
+  },
+  {
+   "word": "PROOF",
+   "ways_in": 11,
+   "only_exit": "READ"
+  },
+  {
+   "word": "AGE",
+   "ways_in": 10,
+   "only_exit": "GROUP"
+  },
+  {
+   "word": "LOAD",
+   "ways_in": 10,
+   "only_exit": "BEARING"
+  },
+  {
+   "word": "PLATE",
+   "ways_in": 10,
+   "only_exit": "GLASS"
+  },
+  {
+   "word": "RACK",
+   "ways_in": 9,
+   "only_exit": "UP"
+  },
+  {
+   "word": "SIZE",
+   "ways_in": 9,
+   "only_exit": "UP"
+  },
+  {
+   "word": "WARE",
+   "ways_in": 9,
+   "only_exit": "HOUSE"
+  },
+  {
+   "word": "MADE",
+   "ways_in": 8,
+   "only_exit": "UP"
+  },
+  {
+   "word": "FARE",
+   "ways_in": 7,
+   "only_exit": "WELL"
+  },
+  {
+   "word": "BOWL",
+   "ways_in": 6,
+   "only_exit": "GAME"
+  },
+  {
+   "word": "FLOW",
+   "ways_in": 6,
+   "only_exit": "CHART"
+  },
+  {
+   "word": "HOP",
+   "ways_in": 6,
+   "only_exit": "SCOTCH"
+  },
+  {
+   "word": "HOUND",
+   "ways_in": 6,
+   "only_exit": "DOG"
+  },
+  {
+   "word": "LIKE",
+   "ways_in": 6,
+   "only_exit": "WISE"
+  },
+  {
+   "word": "LUCK",
+   "ways_in": 6,
+   "only_exit": "OUT"
+  },
+  {
+   "word": "MEMBER",
+   "ways_in": 6,
+   "only_exit": "SHIP"
+  },
+  {
+   "word": "JOB",
+   "ways_in": 5,
+   "only_exit": "FAIR"
+  },
+  {
+   "word": "LENGTH",
+   "ways_in": 5,
+   "only_exit": "WISE"
+  },
+  {
+   "word": "LORD",
+   "ways_in": 5,
+   "only_exit": "SHIP"
+  },
+  {
+   "word": "WHERE",
+   "ways_in": 5,
+   "only_exit": "EVER"
+  },
+  {
+   "word": "EVER",
+   "ways_in": 4,
+   "only_exit": "GREEN"
+  },
+  {
+   "word": "PAINT",
+   "ways_in": 4,
+   "only_exit": "BRUSH"
+  },
+  {
+   "word": "RISE",
+   "ways_in": 4,
+   "only_exit": "UP"
+  },
+  {
+   "word": "SHIELD",
+   "ways_in": 4,
+   "only_exit": "WALL"
+  },
+  {
+   "word": "SPORT",
+   "ways_in": 4,
+   "only_exit": "COAT"
+  },
+  {
+   "word": "TRAY",
+   "ways_in": 4,
+   "only_exit": "TABLE"
+  },
+  {
+   "word": "WOOL",
+   "ways_in": 4,
+   "only_exit": "GATHERING"
+  },
+  {
+   "word": "WRECK",
+   "ways_in": 4,
+   "only_exit": "AGE"
+  },
+  {
+   "word": "BAT",
+   "ways_in": 3,
+   "only_exit": "BOY"
+  },
+  {
+   "word": "BITE",
+   "ways_in": 3,
+   "only_exit": "SIZE"
+  },
+  {
+   "word": "BOMB",
+   "ways_in": 3,
+   "only_exit": "SHELL"
+  },
+  {
+   "word": "BUD",
+   "ways_in": 3,
+   "only_exit": "VASE"
+  },
+  {
+   "word": "COLLAR",
+   "ways_in": 3,
+   "only_exit": "BONE"
+  },
+  {
+   "word": "CUB",
+   "ways_in": 3,
+   "only_exit": "SCOUT"
+  },
+  {
+   "word": "DONE",
+   "ways_in": 3,
+   "only_exit": "DEAL"
+  },
+  {
+   "word": "FEED",
+   "ways_in": 3,
+   "only_exit": "BACK"
+  },
+  {
+   "word": "FOLD",
+   "ways_in": 3,
+   "only_exit": "OUT"
+  },
+  {
+   "word": "FORK",
+   "ways_in": 3,
+   "only_exit": "LIFT"
+  },
+  {
+   "word": "HANDLE",
+   "ways_in": 3,
+   "only_exit": "BAR"
+  },
+  {
+   "word": "HOW",
+   "ways_in": 3,
+   "only_exit": "EVER"
+  },
+  {
+   "word": "MACHINE",
+   "ways_in": 3,
+   "only_exit": "GUN"
+  },
+  {
+   "word": "NOW",
+   "ways_in": 3,
+   "only_exit": "HERE"
+  },
+  {
+   "word": "RAY",
+   "ways_in": 3,
+   "only_exit": "GUN"
+  },
+  {
+   "word": "STYLE",
+   "ways_in": 3,
+   "only_exit": "GUIDE"
+  },
+  {
+   "word": "TERM",
+   "ways_in": 3,
+   "only_exit": "PAPER"
+  },
+  {
+   "word": "WORKER",
+   "ways_in": 3,
+   "only_exit": "BEE"
+  },
+  {
+   "word": "ACTION",
+   "ways_in": 2,
+   "only_exit": "FIGURE"
+  },
+  {
+   "word": "ANIMAL",
+   "ways_in": 2,
+   "only_exit": "FARM"
+  },
+  {
+   "word": "AREA",
+   "ways_in": 2,
+   "only_exit": "CODE"
+  },
+  {
+   "word": "BOOT",
+   "ways_in": 2,
+   "only_exit": "CAMP"
+  },
+  {
+   "word": "CELL",
+   "ways_in": 2,
+   "only_exit": "MATE"
+  },
+  {
+   "word": "CHIP",
+   "ways_in": 2,
+   "only_exit": "SHOP"
+  },
+  {
+   "word": "CRACKER",
+   "ways_in": 2,
+   "only_exit": "JACK"
+  },
+  {
+   "word": "EAGLE",
+   "ways_in": 2,
+   "only_exit": "EYE"
+  },
+  {
+   "word": "EDGE",
+   "ways_in": 2,
+   "only_exit": "WISE"
+  },
+  {
+   "word": "EVEN",
+   "ways_in": 2,
+   "only_exit": "HANDED"
+  },
+  {
+   "word": "FREEZE",
+   "ways_in": 2,
+   "only_exit": "FRAME"
+  },
+  {
+   "word": "GROWN",
+   "ways_in": 2,
+   "only_exit": "UP"
+  },
+  {
+   "word": "GUT",
+   "ways_in": 2,
+   "only_exit": "CHECK"
+  },
+  {
+   "word": "JAW",
+   "ways_in": 2,
+   "only_exit": "BONE"
+  },
+  {
+   "word": "JUDGMENT",
+   "ways_in": 2,
+   "only_exit": "CALL"
+  },
+  {
+   "word": "KIT",
+   "ways_in": 2,
+   "only_exit": "BAG"
+  },
+  {
+   "word": "KNIGHT",
+   "ways_in": 2,
+   "only_exit": "HOOD"
+  },
+  {
+   "word": "METAL",
+   "ways_in": 2,
+   "only_exit": "WORK"
+  },
+  {
+   "word": "MIX",
+   "ways_in": 2,
+   "only_exit": "UP"
+  },
+  {
+   "word": "MORE",
+   "ways_in": 2,
+   "only_exit": "OVER"
+  },
+  {
+   "word": "MOVIE",
+   "ways_in": 2,
+   "only_exit": "STAR"
+  },
+  {
+   "word": "NAP",
+   "ways_in": 2,
+   "only_exit": "TIME"
+  },
+  {
+   "word": "PILE",
+   "ways_in": 2,
+   "only_exit": "UP"
+  },
+  {
+   "word": "RADIO",
+   "ways_in": 2,
+   "only_exit": "WAVE"
+  },
+  {
+   "word": "ROT",
+   "ways_in": 2,
+   "only_exit": "GUT"
+  },
+  {
+   "word": "STRAW",
+   "ways_in": 2,
+   "only_exit": "HAT"
+  },
+  {
+   "word": "SURF",
+   "ways_in": 2,
+   "only_exit": "BOARD"
+  },
+  {
+   "word": "TECH",
+   "ways_in": 2,
+   "only_exit": "SUPPORT"
+  },
+  {
+   "word": "TIDE",
+   "ways_in": 2,
+   "only_exit": "POOL"
+  },
+  {
+   "word": "TONGUE",
+   "ways_in": 2,
+   "only_exit": "TWISTER"
+  },
+  {
+   "word": "VAN",
+   "ways_in": 2,
+   "only_exit": "GUARD"
+  },
+  {
+   "word": "WILL",
+   "ways_in": 2,
+   "only_exit": "POWER"
+  }
+ ]
+}

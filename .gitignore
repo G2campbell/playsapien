@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/out/
+*.log
+.DS_Store
+desktop.ini
+.wrangler/
+.dev.vars
+.env
+# Build inputs too large for git. Both are public downloads; see the games'
+# READMEs for where to get them.
+games/sojourner/data/
+*.tif
+*.zip
+*.tar.gz

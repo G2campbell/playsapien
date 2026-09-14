@@ -1,0 +1,18 @@
+{
+  "name": "playsapien-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PlaySapien API: one Cloudflare Worker, one D1 database, behind playsapien.com/api/*",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "migrate:local": "wrangler d1 migrations apply playsapien --local",
+    "migrate:remote": "wrangler d1 migrations apply playsapien --remote"
+  },
+  "devDependencies": {
+    "better-sqlite3": "^12.11.1",
+    "wrangler": "^4.0.0"
+  }
+}
