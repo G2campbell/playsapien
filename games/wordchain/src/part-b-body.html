@@ -34,9 +34,20 @@
 </div>
 
 <div id="home">
+  <!-- Audit S7: the only link out of the game and back to the platform. Relative
+       "/" so it is correct at any origin — playsapien.com/ in production, and the
+       server root wherever this is served from in development. It sits on the home
+       screen because that is where the corner bar is; mid-round the top bar is
+       #bar (clock + Lifeline) and the exit there is the pause dialog. -->
+  <a class="platform-link" href="/" aria-label="PlaySapien home">
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    <span class="plabel">PlaySapien</span>
+  </a>
   <div class="corner">
     <button class="iconbtn" id="aboutBtn" aria-label="About">
-      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.2 9.2a2.9 2.9 0 1 1 4 2.7c-.8.35-1.2 1-1.2 1.8v.4"/><line x1="12" y1="17.4" x2="12" y2="17.4"/></svg>
+      <!-- stroke-width 1.8 == --icon-stroke in packages/tokens/tokens.css (audit S7).
+           It was 2 here and 1.9 in Sojourner on the same glyph. -->
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.2 9.2a2.9 2.9 0 1 1 4 2.7c-.8.35-1.2 1-1.2 1.8v.4"/><line x1="12" y1="17.4" x2="12" y2="17.4"/></svg>
     </button>
     <button class="iconbtn" id="composeBtn" aria-label="Make a chain">
       <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 12.8a4 4 0 0 0 6.03.44l2.4-2.4a4 4 0 0 0-5.66-5.66l-1.37 1.37"/><path d="M12.4 10a4 4 0 0 0-6.03-.44l-2.4 2.4a4 4 0 0 0 5.66 5.66l1.36-1.36"/><path d="M18 17.2v4.4M15.8 19.4h4.4"/></svg>

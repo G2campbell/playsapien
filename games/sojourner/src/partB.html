@@ -35,15 +35,30 @@
   </div>
 
   <div class="corner">
-    <button class="iconbtn" id="helpBtn" aria-label="About" title="About">
+    <!-- Audit S7: the way out. Every other control in this bar goes deeper into
+         the game (homeBtn only returns to Sojourner's own intro); this is the
+         one that leaves it. Relative href so it resolves to the platform front
+         door at any origin. -->
+    <a class="brandlink" id="brandLink" href="/" title="PlaySapien — all the games"
+       aria-label="PlaySapien — all the games">
+      <svg viewBox="0 0 260 164" aria-hidden="true" fill="none"
+           stroke="currentColor" stroke-linecap="round" stroke-width="15">
+        <g id="ny-half-sj">
+          <path d="M 131.05 117.24 A 46 46 0 1 0 121.65 40.66 C 129.36 44.42 137.49 66.36 141.96 66.36 L 248.22 66.36"/>
+          <path d="M 11.78 66.36 L 108.86 66.36 C 116.86 66.36 119.22 61.90 121.72 54.40"/>
+        </g>
+        <use href="#ny-half-sj" transform="rotate(180 130 82)"/>
+      </svg>
+    </a>
+    <button class="iconbtn" id="aboutBtn" aria-label="About" title="About">
       <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor"
-           stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9">
+           stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8">
         <circle cx="12" cy="12" r="9"/>
         <path d="M9.2 9.2a2.9 2.9 0 1 1 4 2.7c-.8.35-1.2 1-1.2 1.8v.4"/>
         <line x1="12" y1="17.4" x2="12" y2="17.4"/>
       </svg>
     </button>
-    <button class="iconbtn" id="makeBtn" aria-label="Make a map puzzle" title="Make a map puzzle">
+    <button class="iconbtn" id="composeBtn" aria-label="Make a map puzzle" title="Make a map puzzle">
       <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor"
            stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8">
         <circle cx="10.4" cy="10.4" r="7.4"/>
@@ -252,7 +267,7 @@
     </div>
   </div>
 
-  <div class="sheet panel" id="helpSheet">
+  <div class="sheet panel" id="aboutSheet">
     <div class="sh-head"><h2>How to play</h2><button class="donebtn" id="helpDone">Close</button></div>
     <p class="lede" style="margin-top:0">Five rounds of testing your knowledge of geography. One per day
        (for now), and an opportunity to learn something interesting about each location.
@@ -296,7 +311,7 @@
     <div class="edition" id="buildTag">G2 Edition 3.7</div>
   </div>
 
-  <div class="sheet panel" id="makeSheet">
+  <div class="sheet panel" id="composeSheet">
     <div class="sh-head"><h2>Make a puzzle</h2><button class="donebtn" id="makeDone">Close</button></div>
     <p class="soon">Coming soon.</p>
     <p class="sethint">Build your own map puzzle &mdash; choose the places, set the order, and

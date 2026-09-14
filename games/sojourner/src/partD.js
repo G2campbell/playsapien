@@ -702,8 +702,13 @@ function refreshQuit(){
   b.hidden = !on;
   b.innerHTML = (S.mode === 'learn') ? '&times;&nbsp; Back to menu' : '&times;&nbsp; Quit round';
 }
+/* Audit S7: where the leave-confirmation should go when the player is leaving
+   for the platform rather than for this game's intro. Null means "the intro",
+   which is what Quit has always meant. Cleared on every dismissal below. */
+var LEAVE_TO = null;
 function askLeave(on){
   $('askWrap').hidden = !on;
+  if(!on) LEAVE_TO = null;
   if(on){
     var mid = S.round > 0 || S.results.length > 0 || (S.sprint && S.sprint.done > 0);
     $('askTitle').textContent = S.sprint ? 'Leave the sprint?'
@@ -1642,8 +1647,8 @@ $('playRow').addEventListener('click', function(ev){
   }
 });
 $('setLink').addEventListener('click', function(){ $('settingsBtn').click(); });
-$('helpBtn').addEventListener('click', function(){ openPanel('helpSheet'); });
-$('makeBtn').addEventListener('click', function(){ openPanel('makeSheet'); });
+$('aboutBtn').addEventListener('click', function(){ openPanel('aboutSheet'); });
+$('composeBtn').addEventListener('click', function(){ openPanel('composeSheet'); });
 $('friendsBtn').addEventListener('click', function(){ openPanel('friendsSheet'); });
 $('makeDone').addEventListener('click', closePanels);
 $('friendsDone').addEventListener('click', closePanels);
@@ -1673,7 +1678,7 @@ function openPanel(id){
   $('scrim').classList.add('on');
   $(id).classList.add('up');
 }
-var PANELS = ['settingsSheet','profileSheet','helpSheet','makeSheet','friendsSheet'];
+var PANELS = ['settingsSheet','profileSheet','aboutSheet','composeSheet','friendsSheet'];
 function closePanels(){
   $('scrim').classList.remove('on');
   PANELS.forEach(function(id){ $(id).classList.remove('up'); });
@@ -1690,8 +1695,27 @@ $('quitBtn').addEventListener('click', function(){
   if(S.mode === 'learn'){ resetToIntro(); return; }   // nothing to lose in Learn
   askLeave(true);
 });
+/* Audit S7: the one control in the corner bar that leaves the game entirely.
+   It is a real <a href="/"> so it middle-clicks, long-presses and opens in a
+   new tab like any link -- but a plain left-click mid-round would discard the
+   round silently, which is exactly what the Quit button is careful not to do.
+   So when a round is in progress it routes through the same confirmation, and
+   "Leave" then honours the link's own destination instead of the intro. */
+$('brandLink').addEventListener('click', function(ev){
+  if(ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button) return;
+  if($('quitBtn').hidden) return;                     // not playing: just follow it
+  if(S.mode === 'learn'){ return; }                   // nothing to lose in Learn
+  ev.preventDefault();
+  LEAVE_TO = this.getAttribute('href');
+  askLeave(true);
+});
 $('askNo').addEventListener('click', function(){ askLeave(false); });
-$('askYes').addEventListener('click', function(){ askLeave(false); resetToIntro(); });
+$('askYes').addEventListener('click', function(){
+  var to = LEAVE_TO;                      // read before askLeave(false) clears it
+  askLeave(false);
+  if(to){ location.href = to; return; }
+  resetToIntro();
+});
 $('askWrap').addEventListener('click', function(ev){ if(ev.target === $('askWrap')) askLeave(false); });
 document.addEventListener('keydown', function(ev){
   if(ev.key === 'Escape' && !$('askWrap').hidden) askLeave(false);

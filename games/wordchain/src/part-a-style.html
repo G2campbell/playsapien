@@ -1,7 +1,12 @@
 <title>Word Chain</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<!-- Audit S10: one UNION url across shell, Sojourner and Word Chain, so
+     navigating between surfaces hits the font cache instead of re-downloading.
+     It is a superset: this game uses Fraunces 900 for its headings and does not
+     use Petit Formal Script, but the url must stay byte-identical everywhere or
+     the shared cache entry is lost. Do not trim it to what one surface needs. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,900&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Petit+Formal+Script&display=swap">
 <style>
 /* ---------------------------------------------------------------------------
    Word Chain
@@ -13,45 +18,108 @@
    raises one and nothing ever scrolls out from under the player.
    --------------------------------------------------------------------------- */
 :root{
-  --clay:#D4B072; --clay-deep:#C29C57; --clay-soft:#E4CA96;
-  --ink:#1F1A14; --ink-2:#453C31; --ink-3:#6E6152;
-  --paper:#FAF9F7; --paper-2:#EFEDE8; --line:#DAD5CB; --line-2:#BFB7A9;
+  /* -------------------------------------------------------------------------
+     CANONICAL SOURCE: packages/tokens/tokens.css.
+
+     That file is the single definition of the platform palette and of the ROLE
+     names below; what follows is a hand-kept copy of the slice Word Chain uses.
+     The build SHOULD inline packages/tokens/tokens.css rather than duplicate
+     it, and cannot yet: audit S8 — neither build script runs from the repo
+     (this one reads a dict.txt that is not checked in). When S8 is fixed,
+     replace the two role blocks here with the inlined token file.
+
+     ROLES vs LEGACY NAMES (audit S5)
+     --------------------------------
+     --bg / --fg / --line / --accent / --good / --shadow are the ROLE names,
+     spelled the same way on all three surfaces. --ink / --paper are Word
+     Chain's own older names; there are several hundred `var(--ink)` call sites
+     so they are kept verbatim and defined as aliases onto the roles.
+
+     *** READ THIS BEFORE TOUCHING THE ALIASES ***
+     In WORD CHAIN, --ink is the TEXT and --paper is the BACKGROUND:
+
+         --ink   -> --fg   (text)
+         --paper -> --bg   (background)
+
+     In SOJOURNER those two names mean the OPPOSITE — there --ink is the
+     background and --paper is the text. That inversion is the entire reason
+     the shared token file uses role names at all, and copying an alias line
+     between the two games silently inverts one of them. If you are reading
+     this because something went inside-out: check the direction here first.
+
+     --clay*, --key*, --tile*, --seg*, --sheet and --scrim are Word Chain's own
+     brand ramp. They stay LOCAL and are not candidates for sharing.
+     ------------------------------------------------------------------------- */
+
+  /* roles — light. Light is the base theme; the two dark blocks below override
+     these same ten names and nothing else. */
+  --bg:#FAF9F7; --bg-2:#EFEDE8;
+  --fg:#1F1A14; --fg-2:#453C31; --fg-3:#6E6152;
+  --line:#DAD5CB; --line-2:#BFB7A9;
   --accent:#9A4A24; --good:#3F6B4A;
+  --shadow:0 18px 50px rgba(52,40,20,.2);
+
+  /* legacy names, aliased onto the roles. Declared ONCE, here: a custom
+     property substitutes the computed value of --fg/--bg on the same element,
+     so these follow the dark blocks automatically and light and dark cannot
+     drift apart. Right way round for THIS game — ink is text, paper is
+     background. See the warning above. */
+  --ink:var(--fg); --ink-2:var(--fg-2); --ink-3:var(--fg-3);
+  --paper:var(--bg); --paper-2:var(--bg-2);
+
+  /* Word Chain's own ramp — local, not shared */
+  --clay:#D4B072; --clay-deep:#C29C57; --clay-soft:#E4CA96;
   --sheet:#FFFFFF; --scrim:rgba(35,28,18,.44); --segon:#FAF9F7;
   --segtrack:rgba(31,26,20,.14);
   --key:#E7E2D8; --key-press:#D3CBBC;
   --tilebg:var(--clay); --tilefg:var(--ink);
-  --shadow:0 18px 50px rgba(52,40,20,.2);
+
   --f-disp:"Fraunces",Georgia,"Times New Roman",serif;
   --f-body:"Public Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   --vh:100dvh;
   color-scheme:light;
 }
+/* Follow the system — but only where the player has not chosen light. The
+   `:not([data-theme="light"])` is what lets an explicit light choice beat a
+   dark OS; keep it. */
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
-    --clay:#17130F; --clay-deep:#0C0B0A; --clay-soft:#241C16;
-    --ink:#F0E8DA; --ink-2:#C3B9AD; --ink-3:#A99D8F;
-    --paper:#0C0B0A; --paper-2:#171412; --line:#38302A; --line-2:#4C423A;
+    /* roles — dark */
+    --bg:#0C0B0A; --bg-2:#171412;
+    --fg:#F0E8DA; --fg-2:#C3B9AD; --fg-3:#A99D8F;
+    --line:#38302A; --line-2:#4C423A;
     --accent:#E0A44A; --good:#59B9A4;
+    --shadow:0 18px 50px rgba(0,0,0,.55);
+    /* --ink/--ink-2/--ink-3/--paper/--paper-2 are NOT redefined here: they are
+       aliases declared in :root and they follow the roles above on their own. */
+
+    /* Word Chain's own ramp — local */
+    --clay:#17130F; --clay-deep:#0C0B0A; --clay-soft:#241C16;
     --sheet:#171412; --scrim:rgba(6,5,4,.62); --segon:#2E2620;
     --segtrack:rgba(240,232,218,.09);
     --key:#241E19; --key-press:#3A312A;
     --tilebg:#E0A44A; --tilefg:#1A1206;
-    --shadow:0 18px 50px rgba(0,0,0,.55);
     color-scheme:dark;
   }
 }
+/* An explicit choice, stamped on <html> by the pre-paint script at the bottom
+   of this file before anything renders. */
 :root[data-theme="dark"]{
-  --clay:#17130F; --clay-deep:#0C0B0A; --clay-soft:#241C16;
-  --ink:#F0E8DA; --ink-2:#C3B9AD; --ink-3:#A99D8F;
-  --paper:#0C0B0A; --paper-2:#171412; --line:#38302A; --line-2:#4C423A;
+  /* roles — dark (same ten names as the media block above) */
+  --bg:#0C0B0A; --bg-2:#171412;
+  --fg:#F0E8DA; --fg-2:#C3B9AD; --fg-3:#A99D8F;
+  --line:#38302A; --line-2:#4C423A;
   --accent:#E0A44A; --good:#59B9A4;
+  --shadow:0 18px 50px rgba(0,0,0,.55);
+  /* --ink/--paper follow via the aliases in :root — do not redefine them here. */
+
+  /* Word Chain's own ramp — local */
+  --clay:#17130F; --clay-deep:#0C0B0A; --clay-soft:#241C16;
   --sheet:#171412; --scrim:rgba(6,5,4,.62); --segon:#2E2620;
   --segtrack:rgba(240,232,218,.09);
   --key:#241E19; --key-press:#3A312A;
   --tilebg:#E0A44A; --tilefg:#1A1206;
-  --shadow:0 18px 50px rgba(0,0,0,.55);
   color-scheme:dark;
 }
 *{box-sizing:border-box}
@@ -77,13 +145,45 @@ body{
 }
 .corner{
   position:absolute; top:calc(env(safe-area-inset-top) + 8px); right:10px;
-  display:flex; gap:2px; z-index:2;
+  /* audit S7: the three surfaces had 9px / 2px / 1px. 4px is the agreed middle,
+     and is --corner-gap in packages/tokens/tokens.css. */
+  display:flex; gap:4px; z-index:2;
 }
 .corner .iconbtn{color:var(--ink); opacity:.72}
 .corner .iconbtn:hover{opacity:1; background:rgba(31,26,20,.09)}
 :root[data-theme="dark"] .corner .iconbtn:hover{background:rgba(240,232,218,.09)}
+/* Not in the audit, found while doing S7: the dark hover wash above was scoped to
+   the EXPLICIT dark choice only, so a player on theme "system" with a dark OS —
+   the one path where [data-theme] is absent — got the light wash (a dark ink
+   scrim) on a dark ground. Same rule, same value, under the media query. */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .corner .iconbtn:hover{background:rgba(240,232,218,.09)}
+}
 .brand-mark{color:var(--ink); margin-bottom:14px}
 .brand-mark svg{display:block}
+
+/* Audit S7: neither game offered a way back to the platform — #homeBtn goes to
+   THIS game's home screen, not to PlaySapien. This is that way out. It mirrors
+   .corner on the opposite top edge, and lives on the home screen because that is
+   the only screen with a corner bar; during play the bar is #bar and leaving
+   mid-round is what the pause dialog is for.
+   Quiet on purpose: it is an exit, not a call to action. */
+.platform-link{
+  position:absolute; top:calc(env(safe-area-inset-top) + 8px); left:10px; z-index:2;
+  display:flex; align-items:center; gap:5px; height:38px; padding:0 10px;
+  border-radius:999px; text-decoration:none;
+  font-family:var(--f-body); font-size:12.5px; font-weight:600;
+  letter-spacing:.02em; color:var(--ink); opacity:.52;
+  transition:opacity .16s, background .16s;
+}
+.platform-link svg{display:block; flex:none}
+.platform-link:hover{opacity:1; background:rgba(31,26,20,.09)}
+:root[data-theme="dark"] .platform-link:hover{background:rgba(240,232,218,.09)}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .platform-link:hover{background:rgba(240,232,218,.09)}
+}
+.platform-link:focus-visible{outline:2px solid var(--accent); outline-offset:1px; opacity:1}
+@media (max-width:359px){ .platform-link .plabel{display:none} }
 #home h1{
   font-family:var(--f-disp); font-weight:900; font-size:clamp(42px,13vw,60px);
   letter-spacing:-.022em; margin:0 0 6px; line-height:1; color:var(--ink);
@@ -117,6 +217,10 @@ body{
   max-width:320px; margin-left:auto; margin-right:auto;
 }
 :root[data-theme="dark"] #homeSolution{border-top-color:rgba(240,232,218,.16)}
+/* same omission as .corner .iconbtn:hover above — see the note there */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) #homeSolution{border-top-color:rgba(240,232,218,.16)}
+}
 .solword{
   font-family:var(--f-disp); font-weight:600; font-size:14.5px; letter-spacing:.055em;
   color:var(--ink); display:inline-flex; white-space:nowrap;

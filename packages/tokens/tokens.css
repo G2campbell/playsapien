@@ -1,0 +1,184 @@
+/* ===========================================================================
+   PlaySapien design tokens.
+
+   The audit (docs/INTEGRATION-AUDIT.md S5) found that the two games use the
+   SAME twelve colours under DIFFERENT names, and worse, that two of those
+   names mean opposite things:
+
+       Sojourner     --ink:#0C0B0A  is the BACKGROUND, --paper:#F0E8DA the TEXT
+       Word Chain    --ink:#1F1A14  is the TEXT,       --paper:#FAF9F7 the BACKGROUND
+
+   So a naive shared stylesheet silently inverts one game. This file fixes that
+   without touching a single one of the several hundred `var(--ink)` call sites
+   in either game, because it is built in two layers.
+
+   ---------------------------------------------------------------------------
+   LAYER 1 -- THE PALETTE. Facts about the brand. These never change with the
+   theme. #0C0B0A is the same near-black whether you are in Sojourner at
+   midnight or Word Chain in dark mode; what changes is what it is USED for.
+
+   LAYER 2 -- THE ROLES. --bg, --fg, --line, --accent. These DO change with the
+   theme, and they are what a surface should actually reference.
+   ---------------------------------------------------------------------------
+
+   A surface then picks how it relates to the theme, and there are three honest
+   answers rather than one:
+
+       .theme-auto    follows the system, and an explicit [data-theme] wins.
+                      Word Chain.
+       .theme-dark    pinned dark, always. Sojourner -- it is a lit globe in a
+                      dark room, and a "light mode" for it is not a thing that
+                      exists.
+       .theme-light   pinned light, always. The shell -- the brief is a sheet
+                      of cold-press watercolour paper.
+
+   Pinning is not a failure to implement theming. Sojourner being permanently
+   dark is a design decision; the bug the audit found was that it never said
+   `color-scheme:dark`, so the browser painted its native controls light on a
+   black page. That is fixed in the game's own :root.
+
+   Legacy names are mapped onto roles at the bottom of each surface's :root, so
+   existing CSS keeps working unchanged and new CSS can use the role names. The
+   two can be migrated apart at leisure, or never.
+   =========================================================================== */
+
+:root {
+  /* ---------------------------------------------------------------- palette */
+  /* the dark end: Sojourner's ground, Word Chain's dark mode */
+  --p-ink-900: #0C0B0A;   /* near-black                                       */
+  --p-ink-800: #171412;   /* raised surface on black                          */
+  --p-ink-700: #221D19;   /* Sojourner's third step                           */
+  --p-ink-650: #241C16;   /* Word Chain's -- close to 700 but NOT equal, and
+                             merging them would shift one game's panel tint    */
+  --p-ink-600: #38302A;   /* hairline on black                                */
+  --p-ink-500: #4C423A;   /* stronger rule on black                           */
+
+  /* the light end: the cream both games share, and the shell's paper */
+  --p-cream-100: #F0E8DA; /* the cream. Sojourner's text, Word Chain's dark fg */
+  --p-cream-200: #C3B9AD;
+  --p-cream-300: #A99D8F;
+  --p-paper-50:  #FAF9F7; /* Word Chain light ground                          */
+  --p-paper-100: #EFEDE8;
+  --p-paper-150: #F3EEE2; /* the shell's warmer sheet                         */
+  --p-paper-200: #FCF9F1;
+  --p-paper-300: #E4DAC5;
+  --p-paper-400: #D8CCB2;
+
+  /* warm neutrals on light */
+  --p-warm-900: #1F1A14;  /* Word Chain light text                            */
+  --p-warm-700: #453C31;
+  --p-warm-500: #6E6152;
+  --p-warm-300: #DAD5CB;
+  --p-warm-200: #BFB7A9;
+
+  /* accents */
+  --p-amber:     #E0A44A; /* Sojourner's amber == Word Chain's dark accent     */
+  --p-amber-dim: #8E6B2C;
+  --p-verdigris: #59B9A4; /* == Word Chain's dark --good                      */
+  --p-rust:      #9A4A24; /* Word Chain's light accent                        */
+  --p-green:     #3F6B4A; /* Word Chain's light --good                        */
+  --p-signal:    #E8734A;
+  --p-clay:      #D4B072;
+  --p-clay-deep: #C29C57;
+  --p-clay-soft: #E4CA96;
+
+  /* the shell's letterpress inks, sampled from the SapoSapien proofs */
+  --p-navy:      #153C5E;
+  --p-navy-deep: #0C2740;
+  --p-tan:       #B69A6E;
+  --p-tan-deep:  #8E7247;
+
+  /* ------------------------------------------------------------ typography */
+  /* Byte-identical in all three surfaces already -- the one thing that needed
+     no negotiation. Audit S10: they were requested from Google Fonts under
+     three DIFFERENT urls, so navigating shell -> game re-downloaded rather
+     than hitting cache. One union url now, in each surface's <head>. */
+  --f-disp:   "Fraunces", Georgia, "Times New Roman", serif;
+  --f-body:   "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --f-mono:   "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --f-script: "Petit Formal Script", "Snell Roundhand", "Apple Chancery", cursive;
+
+  /* Sojourner sets display headings at 700, Word Chain and the shell at 900.
+     That is deliberate, not drift: a serif at 900 on a black ground closes up
+     and looks heavy, and Sojourner's headings sit on black. Both weights are
+     in the union font url so the choice stays free. */
+  --w-disp-game:     700;
+  --w-disp-platform: 900;
+
+  /* ---------------------------------------------------------------- metrics */
+  --bar-h: 58px;
+  --icon-btn: 38px;          /* all three already agreed on this              */
+  --icon-stroke: 1.8;        /* audit S7: About was 1.9 in Sojourner and 2 in
+                                the other two -- a visible weight difference
+                                on a glyph that is otherwise identical        */
+  --corner-gap: 4px;         /* was 9 / 2 / 1 across the three                */
+  --sheet-radius: 20px;
+  --sheet-ease: transform .42s cubic-bezier(.22,.9,.3,1);
+}
+
+/* ===========================================================================
+   LAYER 2 -- roles.
+
+   Light is the base. A surface that pins light needs nothing further; one that
+   pins dark or follows the system gets the dark block below.
+   =========================================================================== */
+
+:root,
+.theme-light {
+  --bg:       var(--p-paper-50);
+  --bg-2:     var(--p-paper-100);
+  --bg-3:     var(--p-paper-300);
+  --fg:       var(--p-warm-900);
+  --fg-2:     var(--p-warm-700);
+  --fg-3:     var(--p-warm-500);
+  --line:     var(--p-warm-300);
+  --line-2:   var(--p-warm-200);
+  --accent:   var(--p-rust);
+  --good:     var(--p-green);
+  --shadow:   0 18px 50px rgba(52,40,20,.2);
+  color-scheme: light;
+}
+
+/* One block, three selectors, so the dark values are written once. Adding a
+   fourth surface means adding a selector here, not copying twelve colours. */
+.theme-dark,
+.theme-auto[data-theme="dark"],
+:root[data-theme="dark"] {
+  --bg:       var(--p-ink-900);
+  --bg-2:     var(--p-ink-800);
+  --bg-3:     var(--p-ink-700);
+  --fg:       var(--p-cream-100);
+  --fg-2:     var(--p-cream-200);
+  --fg-3:     var(--p-cream-300);
+  --line:     var(--p-ink-600);
+  --line-2:   var(--p-ink-500);
+  --accent:   var(--p-amber);
+  --good:     var(--p-verdigris);
+  --shadow:   0 18px 50px rgba(0,0,0,.55);
+  color-scheme: dark;
+}
+
+/* System preference, but only where the surface follows it and the player has
+   not chosen otherwise. `:not([data-theme="light"])` is what lets an explicit
+   light choice win over a dark system -- the pattern Word Chain already had
+   and the only one of the three that was correct. */
+@media (prefers-color-scheme: dark) {
+  .theme-auto:not([data-theme="light"]),
+  :root:not([data-theme="light"]):not(.theme-light) {
+    --bg:     var(--p-ink-900);
+    --bg-2:   var(--p-ink-800);
+    --bg-3:   var(--p-ink-700);
+    --fg:     var(--p-cream-100);
+    --fg-2:   var(--p-cream-200);
+    --fg-3:   var(--p-cream-300);
+    --line:   var(--p-ink-600);
+    --line-2: var(--p-ink-500);
+    --accent: var(--p-amber);
+    --good:   var(--p-verdigris);
+    --shadow: 0 18px 50px rgba(0,0,0,.55);
+    color-scheme: dark;
+  }
+}
+
+/* A surface that pins must beat the media query regardless of source order. */
+.theme-light { color-scheme: light }

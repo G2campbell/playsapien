@@ -24,6 +24,76 @@ function store(k, v) {
 }
 function drop(k) { try { localStorage.removeItem('wordchain:' + k); } catch (e) {} }
 
+/* ------------------------------------------------------------------ pruning
+   Audit S2. `wordchain:daily:<key>` is written once per completed daily and never
+   removed. On playsapien.com that series shares ONE 5 MB origin quota with
+   Sojourner's `sojourner:<day>` series, so somebody has to prune it.
+
+   packages/sdk/src/storage.js already does this properly — pruneOldDays(), with a
+   once-a-day marker so a full keyspace scan does not happen on every load. Word
+   Chain does not load the SDK yet, so this is a deliberately small, self-contained
+   stand-in that matches the SDK's `^wordchain:daily:(\d{4}-\d{2}-\d{2})$` rule
+   and its 90-day window exactly. When the SDK lands, delete all of this and call
+   pruneOldDays(store) instead.
+
+   What it must NOT touch — and the reason for the anchored regex:
+     wordchain:set  wordchain:history  wordchain:last  wordchain:practiceAt
+     wordchain:game:daily  wordchain:game:practice
+     wordchain:friends  wordchain:puzzles  wordchain:archive
+   None of them end in a date, so none of them match. The round-trip check in
+   dayMsUTC() is the second guard: it is what makes a well-formed-but-impossible
+   key like `wordchain:daily:2025-02-30` fail to parse rather than read as an
+   ancient date and get dropped.
+
+   The age here is measured in UTC, matching packages/sdk/src/daykey.js, even
+   though todayKey() below is still local (audit S1). At a 90-day threshold the
+   few hours of disagreement cannot change an outcome, and doing it this way means
+   the pruner needs no change when S1 is settled. */
+var PRUNE_DAYS = 90;
+var DAY_MS = 86400000;
+var DAILY_KEY_RE = /^wordchain:daily:(\d{4})-(\d{2})-(\d{2})$/;
+
+/* midnight UTC for y/m/d, or null if that is not a real calendar date */
+function dayMsUTC(y, m, d) {
+  if (!(m >= 1 && m <= 12) || !(d >= 1 && d <= 31)) return null;
+  var ms = Date.UTC(y, m - 1, d);
+  if (!isFinite(ms)) return null;
+  var t = new Date(ms);
+  if (t.getUTCFullYear() !== y || t.getUTCMonth() + 1 !== m || t.getUTCDate() !== d) return null;
+  return ms;
+}
+
+/* exported onto the closure only so the logic can be reasoned about in one place;
+   `todayMs` is midnight UTC of the reference day. */
+function isExpiredDailyKey(key, todayMs) {
+  if (typeof key !== 'string') return false;
+  var m = DAILY_KEY_RE.exec(key);
+  if (!m) return false;
+  var ms = dayMsUTC(+m[1], +m[2], +m[3]);
+  if (ms === null) return false;
+  return Math.round((todayMs - ms) / DAY_MS) > PRUNE_DAYS;
+}
+
+function pruneOldDailies() {
+  try {
+    var ls = window.localStorage;
+    if (!ls || typeof ls.key !== 'function') return [];
+    var now = new Date();
+    var todayMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    /* collect first, delete second: removeItem() reindexes the store mid-loop */
+    var doomed = [], i, k;
+    for (i = 0; i < ls.length; i++) {
+      k = ls.key(i);
+      if (isExpiredDailyKey(k, todayMs)) doomed.push(k);
+    }
+    for (i = 0; i < doomed.length; i++) {
+      try { ls.removeItem(doomed[i]); } catch (e) {}
+    }
+    return doomed;
+  } catch (e) { return []; }
+}
+pruneOldDailies();
+
 /* ------------------------------------------------------------------ settings */
 var SET = Object.assign({ theme: 'light', gentle: false, motion: false }, store('set') || {});
 function saveSet() { store('set', SET); }
@@ -101,6 +171,11 @@ function pick(bucket, vars) {
 }
 
 /* ------------------------------------------------------------------ chains */
+/* KNOWN OPEN ITEM — audit S1. This is LOCAL time; Sojourner's dayKey() is UTC, and
+   the settled answer (packages/sdk/src/daykey.js, BACKEND-SPEC.md) is UTC everywhere.
+   Deliberately NOT changed in this pass: switching it moves the chain served at the
+   day boundary, so it needs a migration decision for the existing
+   `wordchain:daily:*` keys first. Do not "fix" this in passing. */
 function todayKey() {
   var d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');

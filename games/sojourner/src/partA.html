@@ -1,23 +1,81 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Sojourner</title>
+<!-- Audit S6. Sojourner is a black page and had no theme-color at all, so the
+     mobile status bar took the browser default over it. One value, no media
+     query: this surface is .theme-dark, it does not follow the system.
+     Declared here rather than in build.py so it lands in BOTH the hosted build
+     and the single-file build -- build.py carries partA's head bits into both. -->
+<meta name="theme-color" content="#0C0B0A">
+<!-- Audit S11. With no icon declared, the shared origin falls back to a
+     /favicon.ico that does not exist. Sojourner's own globe mark (the same
+     glyph the shell's ICON map calls `globe`, and the base of the corner bar's
+     compose button), amber on the game's own ground. Inline SVG, so it costs no
+     request and works identically in the single file. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%230C0B0A'/%3E%3Cg fill='none' stroke='%23E0A44A' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M3.3 9h17.4M3.3 15h17.4'/%3E%3Cpath d='M12 3c2.5 2.6 3.8 5.6 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<!-- Audit S10. One union url across shell, Sojourner and Word Chain, so moving
+     between surfaces hits the font cache instead of re-downloading. It asks for
+     more faces than this game paints; the extra weights are what the other two
+     surfaces need, and sharing one cache entry is worth more than the bytes.
+     Sojourner keeps Fraunces 700 for headings ON PURPOSE -- a serif at 900 on a
+     black ground closes up. Only the url changed; no font-weight did. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,900&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Petit+Formal+Script&display=swap">
 <style>
+/* ---------------------------------------------------------------------------
+   Audit S5. `packages/tokens/tokens.css` is the canonical source for every
+   value below; this block is a copy, not a second opinion. The build should
+   inline that file here once it can run from the repo -- audit S8 (build.py
+   hard-codes /tmp paths) is what currently blocks that, not anything about
+   the tokens.
+
+   Two layers, in the order the token file defines them:
+     1. ROLES  -- --bg, --fg, --line, --accent. What new CSS should reference.
+     2. LEGACY -- --ink, --paper and friends, now aliases onto the roles.
+
+   The legacy names could not simply be deleted or globally renamed: `--ink` is
+   the BACKGROUND here and the TEXT in Word Chain, so any flat shared stylesheet
+   would have silently inverted one game, and there are several hundred
+   var(--ink) call sites in this file alone. Aliasing keeps all of them correct
+   while new CSS can be written against roles. The two migrate apart at leisure.
+   --------------------------------------------------------------------------- */
 :root{
   /* Audit S6. Sojourner is permanently dark. Without this the UA paints range
      inputs, scrollbars, focus rings and form controls in LIGHT chrome on a
      black page. One line, and the native controls match the design. */
   color-scheme:dark;
-  --ink:#0C0B0A; --ink2:#171412; --ink3:#221D19; --line:#38302A; --line2:#4C423A;
-  --paper:#F0E8DA; --paper-dim:#C3B9AD; --paper-faint:#A99D8F;
-  --amber:#E0A44A; --amber-dim:#8E6B2C;
-  --verdigris:#59B9A4; --signal:#E8734A;
+
+  /* --- roles (this surface is .theme-dark in the token file's terms) ------ */
+  --bg:#0C0B0A; --bg-2:#171412; --bg-3:#221D19;
+  --fg:#F0E8DA; --fg-2:#C3B9AD; --fg-3:#A99D8F;
+  --line:#38302A; --line-2:#4C423A;
+  --accent:#E0A44A; --good:#59B9A4;
   --shadow:0 18px 50px rgba(0,0,0,.55);
+
+  /* --- legacy names, aliased onto the roles above ------------------------- */
+  /* NOTE --bg-3 is #221D19 and Word Chain's nearest step is #241C16. Close,
+     not equal. tokens.css keeps both (--p-ink-700 / --p-ink-650) deliberately;
+     do not "unify" them, it shifts one game's panel tint. */
+  --ink:var(--bg); --ink2:var(--bg-2); --ink3:var(--bg-3);
+  --paper:var(--fg); --paper-dim:var(--fg-2); --paper-faint:var(--fg-3);
+  --line2:var(--line-2);
+  --amber:var(--accent); --verdigris:var(--good);
+
+  /* Sojourner-only: no counterpart in Word Chain and no role to alias onto, so
+     these stay literal. Both currently have ZERO var() call sites in this file
+     -- they are kept because the palette they belong to is real (the unlit
+     amber and the wrong-answer flash), not because anything paints with them. */
+  --amber-dim:#8E6B2C;
+  --signal:#E8734A;
+
   --f-disp:"Fraunces",Georgia,"Times New Roman",serif;
   --f-body:"Public Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+
+  /* Audit S7: one stroke weight for every corner glyph. Was 1.9 on the About
+     icon here and 2 in the other two surfaces -- visible on an identical path. */
+  --icon-stroke:1.8;
 }
 *{box-sizing:border-box}
 [hidden]{display:none !important}
@@ -336,8 +394,10 @@ canvas{display:block; width:100%; height:100%}
   border-radius:10px; padding:12px; font-family:var(--f-mono); font-size:12px; line-height:1.7;
   margin-top:12px; resize:none; user-select:text; -webkit-user-select:text}
 /* ---------- corner controls ---------- */
+/* Audit S7: the gap was 9px here, 2px in Word Chain and 1px in the shell. 4px
+   is the agreed middle and is what tokens.css calls --corner-gap. */
 .corner{position:absolute; top:calc(env(safe-area-inset-top) + 10px); right:10px;
-  display:flex; gap:9px; z-index:16}
+  display:flex; align-items:center; gap:4px; z-index:16}
 #introView .wrap{padding-top:calc(env(safe-area-inset-top) + 62px)}
 .iconbtn{width:38px; height:38px; border-radius:50%; display:flex; align-items:center;
   justify-content:center; cursor:pointer; color:var(--paper-dim);
@@ -345,6 +405,29 @@ canvas{display:block; width:100%; height:100%}
   transition:color .18s, background .18s}
 .iconbtn:hover{color:var(--paper); background:rgba(240,232,218,.09)}
 .iconbtn:focus-visible{outline:2px solid var(--amber); outline-offset:2px}
+/* One weight for every corner glyph, from one token. The stroke-width attribute
+   on each <svg> stays as the no-CSS fallback; this rule is what actually paints,
+   so the value cannot drift per icon again. Scoped to .iconbtn because the
+   brand mark beside them is drawn on a 260-unit viewBox, not a 24-unit one. */
+.corner .iconbtn svg{stroke-width:var(--icon-stroke)}
+/* Audit S7: neither game offered a way back to the platform -- homeBtn returns
+   to this game's own intro, and nothing linked to playsapien.com. This does,
+   from a bar that stays visible mid-round. Deliberately quiet: it is an exit,
+   not a call to action, so it reads at --fg-3 until you are on it. The href is
+   relative so it resolves to the front door at whatever origin this is served
+   from, including a local file:// preview of the single-file build. */
+/* Carries the platform's own nyansapo mark rather than a word, so it stays
+   narrow enough not to crowd the round label in the top bar beside it -- the
+   corner bar and .tb-left share this line during play. The shell defines the
+   mark once as a <symbol>; there is no shared runtime to <use> across yet, so
+   this is a second copy. Fold it into the icon sprite the audit proposes
+   ("Duplication worth extracting") when that sprite exists. */
+.brandlink{display:flex; align-items:center; justify-content:center;
+  height:38px; padding:0 8px; border-radius:99px; text-decoration:none;
+  flex:none; color:var(--fg-3); transition:color .18s, background .18s}
+.brandlink svg{display:block; width:23px; height:14.5px; overflow:visible}
+.brandlink:hover{color:var(--fg); background:rgba(240,232,218,.09)}
+.brandlink:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
 .scrim{position:absolute; inset:0; background:rgba(6,5,4,.6); z-index:13;
   opacity:0; pointer-events:none; transition:opacity .3s}
 .scrim.on{opacity:1; pointer-events:auto}

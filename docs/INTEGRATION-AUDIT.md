@@ -7,6 +7,26 @@ and found already correct.
 Audited at the point the monorepo was assembled. Every finding cites
 `file:line` against the paths in this repo.
 
+> **Status, 14 September 2026.** Every blocker is closed. Of the should-fixes,
+> S4, S5, S6, S7, S10, S11 and S12 are closed, and S2 is closed for Word Chain
+> with the general fix living in the SDK. Three remain open and each is open for
+> a reason, not by omission:
+>
+> | Open | Why it is still open |
+> |---|---|
+> | **S1** — Word Chain uses local time, Sojourner UTC | Changing it shifts which chain is served at the boundary. Needs a `wordchain:daily:*` migration or one deliberately accepted odd day. The decision is yours. |
+> | **S3** — the cross-game state the copy promises | The backend and SDK now exist; the games do not call them yet. This is the gap between built and working. |
+> | **S8** — neither game build runs from the repo | Sojourner hard-codes `/tmp` paths, Word Chain needs a `dict.txt` that is not checked in. Blocks CI for the games and is why the verification in this pass was static plus a rendered-CSS harness rather than a real build. |
+>
+> Corrections found while fixing, which the text below has not been rewritten to
+> reflect: Word Chain's theming was **not** entirely correct — two dark rules
+> (`.corner .iconbtn:hover` and `#homeSolution`'s border) were scoped to
+> `[data-theme="dark"]` with no `prefers-color-scheme` counterpart, so they broke
+> on exactly the "system" setting. Sojourner's `--amber-dim` and `--signal` have
+> zero call sites. And S7's stroke-width note has the games the wrong way round:
+> About was `2` in Word Chain and `1.9` in Sojourner; all five corner icons are
+> now `1.8`, enforced from `--icon-stroke` rather than per-glyph.
+
 Target layout:
 
     playsapien.com/            the shell
