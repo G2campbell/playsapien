@@ -56,7 +56,10 @@
         return old.theme;
       }
     } catch (e) {}
-    return 'system';
+    /* Light is the default. Following the OS by default meant one account
+       saw a light desktop and a dark phone with no way to say which it
+       wanted; "system" is now something you choose, not a default. */
+    return 'light';
   }
 
   function write(v) {

@@ -15,3 +15,21 @@ routes = [
 [assets]
 directory = "./cfroot"
 not_found_handling = "404-page"
+
+# How this deploys
+# ----------------
+# Connected to G2campbell/playsapien in the Cloudflare dashboard, so a push to
+# main rebuilds and redeploys THIS GAME ONLY. Settings, for the record:
+#
+#   Build command    sh build.sh
+#   Deploy command   npx wrangler deploy
+#   Root directory   games/sojourner
+#   Include paths    games/sojourner/**, packages/**
+#
+# The include paths are what keep the games independent: a change to the shell,
+# or to the other game, does not rebuild this one. packages/** is there because
+# the shared tokens and chrome are inlined at build time, so a change to those
+# does need to reach every surface.
+#
+# Nothing needs to be built by hand. `sh build.sh` locally is only for testing;
+# on Windows it needs Git Bash, since PowerShell has no `sh`.
