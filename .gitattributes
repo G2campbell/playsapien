@@ -1,0 +1,24 @@
+# Line endings are not a matter of taste here.
+#
+# Git on Windows defaults to converting LF to CRLF on checkout. That is fine
+# for prose and fatal for a shell script: `set -eu` becomes `set -eu\r`, and
+# sh reports "Illegal option -". It also makes every file in the repo look
+# modified, which buries real changes in thousands of phantom ones.
+#
+# So: normalise everything to LF in the repository, and check it out as LF.
+* text=auto eol=lf
+
+# Except things that are not text at all and must never be touched.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.webp binary
+*.bin  binary
+*.zip  binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.otf  binary
+*.bundle binary
