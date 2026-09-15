@@ -1,0 +1,17 @@
+# Word Chain / Sojourner deploys entirely on its own. Nothing in this file
+# affects any other game, and no other game's build can break this one.
+#
+# Assets are nested one level deep (cfroot/sojourner/...) because the URL path is
+# what Cloudflare looks up inside the assets directory: a request for
+# /sojourner/index.html is served from cfroot/sojourner/index.html.
+
+name = "playsapien-sojourner"
+compatibility_date = "2026-09-15"
+
+routes = [
+  { pattern = "playsapien.com/sojourner/*", zone_name = "playsapien.com" }
+]
+
+[assets]
+directory = "./cfroot"
+not_found_handling = "404-page"

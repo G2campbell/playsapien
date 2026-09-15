@@ -17,3 +17,4 @@ games/sojourner/data/
 *.tar.gz
 __pycache__/
 *.pyc
+cfroot/

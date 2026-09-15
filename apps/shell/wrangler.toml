@@ -1,0 +1,20 @@
+# The front door: playsapien.com/ plus /about/, /privacy/, /terms/, and the
+# three files every surface loads from the root (sdk.js, tokens.css, theme.js).
+#
+# This route is the catch-all. Cloudflare always picks the MOST SPECIFIC
+# matching route, so /wordchain/* and /sojourner/* go to those games' own
+# Workers even though this pattern would also match them. Adding a game never
+# requires touching this file.
+#
+# No `main` on purpose: a Worker with assets and no script just serves files.
+
+name = "playsapien-shell"
+compatibility_date = "2026-09-15"
+
+routes = [
+  { pattern = "playsapien.com/*", zone_name = "playsapien.com" }
+]
+
+[assets]
+directory = "./cfroot"
+not_found_handling = "404-page"
