@@ -31,6 +31,14 @@ rm -rf "$OUT"; mkdir -p "$OUT"
 
 cp "$ROOT/apps/shell/src/index.html" "$OUT/index.html"
 
+# The three files every surface loads from the platform root. The shell asks
+# for /sdk.js as a module; the legal pages link /tokens.css and /theme.js.
+# Leaving these out is silent: the site builds, deploys, and then 404s on all
+# three, which renders the legal pages unstyled and the account layer inert.
+cp "$ROOT/deploy/sdk.js"            "$OUT/sdk.js"
+cp "$ROOT/deploy/tokens.css"        "$OUT/tokens.css"
+cp "$ROOT/deploy/theme.js"          "$OUT/theme.js"
+
 cp "$ROOT/apps/legal/legal.css" "$OUT/legal.css"
 for p in about privacy terms; do
   mkdir -p "$OUT/$p"
