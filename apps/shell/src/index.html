@@ -431,7 +431,7 @@ document.addEventListener('DOMContentLoaded', function () {
      faces. It is a superset: the shell does not use Fraunces 700 or Plex
      Mono 600, Sojourner does. Must stay byte-identical in all three or
      the shared cache entry is lost. -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,900&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Petit+Formal+Script&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,700;9..144,900&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Petit+Formal+Script&display=swap">
 <style>
 /* ===== BEGIN packages/tokens/tokens.css (inlined verbatim — do not edit here) ===== */
 /* ===========================================================================
@@ -516,11 +516,13 @@ document.addEventListener('DOMContentLoaded', function () {
   --f-body:   "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   --f-mono:   "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --f-script: "Petit Formal Script", "Snell Roundhand", "Apple Chancery", cursive;
-  /* The brand face. PLAYSAPIEN is always set in this, always all caps, PLAY at
-     400 and SAPIEN at 800. It lives here rather than in the shell because a
-     value defined only in an inlined copy is overwritten the next time
-     sync-inline runs -- which is exactly how this shipped undefined once. */
-  --f-brand:  "Montserrat", "Helvetica Neue", Arial, sans-serif;
+  /* A geometric sans, distinct from --f-body, used where the platform speaks in
+     its own voice rather than a game's -- currently the shell's tagline.
+     NOT the wordmark: PLAYSAPIEN is set in --f-disp (Fraunces), because the
+     letterpress proof it is taken from is a serif and Montserrat flattened it.
+     Defined here rather than in the shell because a value defined only in an
+     inlined copy is overwritten the next time sync-inline runs. */
+  --f-sans:   "Montserrat", "Helvetica Neue", Arial, sans-serif;
 
   /* Sojourner sets display headings at 700, the platform and Word Chain at
      900. Deliberate: a serif at 900 on a black ground closes up, and
@@ -565,6 +567,8 @@ document.addEventListener('DOMContentLoaded', function () {
   --line-2:    #94968F;
   --accent:    #3F5569;
   --accent-soft: #5A7085;        /* fill only                                */
+  --lockup-play:   #62768a;      /* PLAY, weight 300                         */
+  --lockup-sapien: #213946;      /* SAPIEN, weight 700                       */
   --good:      #325843;
   --warn:      #863921;
   --shadow:    0 18px 50px rgba(33,57,70,.22);
@@ -587,6 +591,8 @@ document.addEventListener('DOMContentLoaded', function () {
   --line-2:    #6B5F4F;
   --accent:    #9FB6C9;
   --accent-soft: #7A93A8;
+  --lockup-play:   #93A7B8;
+  --lockup-sapien: #EDE7DC;
   --good:      #7FBF9B;
   --warn:      #F29C74;
   --shadow:    0 18px 50px rgba(0,0,0,.48);
@@ -609,6 +615,8 @@ document.addEventListener('DOMContentLoaded', function () {
     --line-2:    #6B5F4F;
     --accent:    #9FB6C9;
     --accent-soft: #7A93A8;
+  --lockup-play:   #93A7B8;
+  --lockup-sapien: #EDE7DC;
     --good:      #7FBF9B;
     --warn:      #F29C74;
     --shadow:    0 18px 50px rgba(0,0,0,.48);
@@ -1272,20 +1280,32 @@ body{
 @media (prefers-color-scheme:light){
   :root:not([data-theme="dark"]) .lk-mark{ background-image:url("/mark-light.png") }
 }
-/* The wordmark sits in the clear band between the two bars. Everything is sized
-   off --lk so the type tracks the artwork at any width. */
+/* The wordmark sits in the clear band between the bars. Every number here is a
+   fraction of --lk, so type and artwork stay locked together at any width.
+   They were measured, not guessed:
+     .09019  P's left edge, and N lands the same distance in from the other end
+     .10064  type size that makes PLAYSAPIEN span exactly that, at .21em tracking
+     .19374  top, placing the CAPS centred on the band. Centring the line box
+             instead sits the word low: caps have no descender but the box still
+             reserves room for one.
+   The band itself is 87/456 of the artwork's height and its centre is 9.5px
+   above the middle of the image -- the mark is not vertically symmetric.
+   PLAY and SAPIEN are ONE run, so the space CSS adds after Y is the Y|S gap:
+   every gap in the wordmark is the same .21em, including between the words. */
 .lk-word{
-  position:absolute; inset:0; margin:0; display:flex;
-  align-items:center; justify-content:center;
-  font-family:var(--f-brand); font-size:calc(var(--lk) * .104);
-  line-height:1; letter-spacing:.012em; white-space:nowrap;
-  padding-bottom:calc(var(--lk) * .004);
+  position:absolute; margin:0; white-space:nowrap; line-height:1;
+  left:calc(var(--lk) * .09019);
+  top: calc(var(--lk) * .19374);
+  font-family:var(--f-disp);
+  font-size:calc(var(--lk) * .10064);
+  letter-spacing:.21em;
+  font-optical-sizing:none; font-variation-settings:"opsz" 144;
 }
-.lk-word span{font-weight:400; color:var(--fg-2)}
-.lk-word b   {font-weight:800; color:var(--fg)}
+.lk-word span{font-weight:300; color:var(--lockup-play)}
+.lk-word b   {font-weight:700; color:var(--lockup-sapien)}
 .bar-brand .mk,footer .mk{filter:drop-shadow(0 .5px 0 rgba(255,255,255,.4))}
 .tagline{
-  font-family:var(--f-brand); font-weight:600;
+  font-family:var(--f-sans); font-weight:600;
   font-size:clamp(12.5px,2.5vw,15px); line-height:1.5; letter-spacing:.005em;
   margin:14px 0 0; max-width:42ch; color:var(--fg-2); text-wrap:balance;
 }
@@ -1423,7 +1443,13 @@ footer a:hover{opacity:1}
   .spine .nm{writing-mode:horizontal-tb; transform:none; font-size:21px; letter-spacing:-.008em}
   .spine .nb{writing-mode:horizontal-tb; transform:none; margin-left:auto}
   .face{padding:22px 24px 24px}
-  .face .mark{top:20px; left:24px; width:38px; height:38px}
+  /* The card's content is bottom-aligned, so on the desktop panel (24rem) it
+     falls clear of the corner icon. The phone panel is 16rem -- short enough
+     that the games reach the first screen -- and there the content fills the
+     face exactly, putting the eyebrow straight under the icon. The icon is
+     decorative and the collapsed spine already carries one, so on a phone it
+     goes rather than the games losing room. */
+  .face .mark{display:none}
   .face .ghost{width:66%; right:-12%}
   .datum{letter-spacing:.12em; font-size:10px; max-width:30ch; margin:6px 0 0}
 }

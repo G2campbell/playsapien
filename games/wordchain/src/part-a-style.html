@@ -107,11 +107,13 @@
   --f-body:   "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   --f-mono:   "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --f-script: "Petit Formal Script", "Snell Roundhand", "Apple Chancery", cursive;
-  /* The brand face. PLAYSAPIEN is always set in this, always all caps, PLAY at
-     400 and SAPIEN at 800. It lives here rather than in the shell because a
-     value defined only in an inlined copy is overwritten the next time
-     sync-inline runs -- which is exactly how this shipped undefined once. */
-  --f-brand:  "Montserrat", "Helvetica Neue", Arial, sans-serif;
+  /* A geometric sans, distinct from --f-body, used where the platform speaks in
+     its own voice rather than a game's -- currently the shell's tagline.
+     NOT the wordmark: PLAYSAPIEN is set in --f-disp (Fraunces), because the
+     letterpress proof it is taken from is a serif and Montserrat flattened it.
+     Defined here rather than in the shell because a value defined only in an
+     inlined copy is overwritten the next time sync-inline runs. */
+  --f-sans:   "Montserrat", "Helvetica Neue", Arial, sans-serif;
 
   /* Sojourner sets display headings at 700, the platform and Word Chain at
      900. Deliberate: a serif at 900 on a black ground closes up, and
@@ -156,6 +158,8 @@
   --line-2:    #94968F;
   --accent:    #3F5569;
   --accent-soft: #5A7085;        /* fill only                                */
+  --lockup-play:   #62768a;      /* PLAY, weight 300                         */
+  --lockup-sapien: #213946;      /* SAPIEN, weight 700                       */
   --good:      #325843;
   --warn:      #863921;
   --shadow:    0 18px 50px rgba(33,57,70,.22);
@@ -178,6 +182,8 @@
   --line-2:    #6B5F4F;
   --accent:    #9FB6C9;
   --accent-soft: #7A93A8;
+  --lockup-play:   #93A7B8;
+  --lockup-sapien: #EDE7DC;
   --good:      #7FBF9B;
   --warn:      #F29C74;
   --shadow:    0 18px 50px rgba(0,0,0,.48);
@@ -200,6 +206,8 @@
     --line-2:    #6B5F4F;
     --accent:    #9FB6C9;
     --accent-soft: #7A93A8;
+  --lockup-play:   #93A7B8;
+  --lockup-sapien: #EDE7DC;
     --good:      #7FBF9B;
     --warn:      #F29C74;
     --shadow:    0 18px 50px rgba(0,0,0,.48);

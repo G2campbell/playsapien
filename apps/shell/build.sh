@@ -9,8 +9,12 @@ rm -rf "$OUT"; mkdir -p "$OUT"
 
 cp "$HERE/src/index.html"        "$OUT/index.html"
 cp "$ROOT/deploy/sdk.js"         "$OUT/sdk.js"
-cp "$ROOT/deploy/tokens.css"     "$OUT/tokens.css"
-cp "$ROOT/deploy/theme.js"       "$OUT/theme.js"
+# tokens.css and theme.js come from packages/tokens, NOT from deploy/. The copies
+# in deploy/ went stale twice -- silently, because nothing compares them -- and
+# the legal pages link these, so they drifted from the rest of the site. One
+# source, no copy to forget.
+cp "$ROOT/packages/tokens/tokens.css" "$OUT/tokens.css"
+cp "$ROOT/packages/tokens/theme.js"   "$OUT/theme.js"
 # The mark. Two variants because the emboss ring is paper-coloured: kept on
 # the light ground where it reads as depth, dropped on the dark one where it
 # would read as a halo. CSS picks by theme.
