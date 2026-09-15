@@ -10,14 +10,24 @@ name = "playsapien-api"
 main = "src/index.js"
 compatibility_date = "2025-09-01"
 
+# The route. Without this the Worker deploys but nothing reaches it: requests to
+# playsapien.com/api/* fall through to the shell Worker on the custom domain and
+# come back 404. A route is matched BEFORE a custom-domain Worker, which is what
+# lets the API and the site share one hostname with no router in between.
+routes = [
+  { pattern = "playsapien.com/api/*", zone_name = "playsapien.com" }
+]
+
 # nodejs_compat is NOT enabled and is not needed: nothing in src/ imports a node
 # module. Everything is WebCrypto and the fetch API.
 
 [[d1_databases]]
-binding = "DB"
+binding = "DB"   # NOT the database name. src/ reads env.DB; `wrangler d1
+                 # create` prints a suggested block whose binding matches the
+                 # database name, and pasting that whole block wholesale makes
+                 # every query fail on an undefined binding.
 database_name = "playsapien"
-# Replace with the id printed by `wrangler d1 create playsapien`.
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "a9e94d32-d795-445f-a1aa-b52dc927fee6"
 migrations_dir = "migrations"
 
 [vars]

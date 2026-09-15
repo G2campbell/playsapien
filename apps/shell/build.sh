@@ -11,6 +11,12 @@ cp "$HERE/src/index.html"        "$OUT/index.html"
 cp "$ROOT/deploy/sdk.js"         "$OUT/sdk.js"
 cp "$ROOT/deploy/tokens.css"     "$OUT/tokens.css"
 cp "$ROOT/deploy/theme.js"       "$OUT/theme.js"
+# The mark. Two variants because the emboss ring is paper-coloured: kept on
+# the light ground where it reads as depth, dropped on the dark one where it
+# would read as a halo. CSS picks by theme.
+cp "$HERE/src/mark-light.png"    "$OUT/mark-light.png"
+cp "$HERE/src/mark-dark.png"     "$OUT/mark-dark.png"
+
 cp "$ROOT/apps/legal/legal.css"  "$OUT/legal.css"
 for p in about privacy terms; do
   mkdir -p "$OUT/$p"
@@ -20,7 +26,7 @@ done
 cp "$ROOT/deploy/_headers"   "$OUT/_headers"
 cp "$ROOT/deploy/_redirects" "$OUT/_redirects"
 
-for f in index.html sdk.js tokens.css theme.js legal.css about/index.html; do
+for f in index.html sdk.js tokens.css theme.js legal.css mark-light.png mark-dark.png about/index.html; do
   [ -f "$OUT/$f" ] || { echo "FATAL: $f missing"; exit 1; }
 done
 echo "shell built -> $OUT"
