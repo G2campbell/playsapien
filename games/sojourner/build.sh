@@ -5,18 +5,23 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 HERE="$ROOT/games/sojourner"
 OUT="$HERE/cfroot"
 
-# three.js is pinned to r128 and is not committed; fetch it if absent.
-THREE="$HERE/data/three/build"
-if [ ! -f "$THREE/three.min.js" ]; then
-  mkdir -p "$THREE"
-  curl -fsSL -o "$THREE/three.min.js" \
-    https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js || true
-fi
-
-python3 "$HERE/src/build.py"
+# build.py turns source into index.html, app.js and the legal pages. The
+# artwork it would normally bake needs ~40 MB of raw data that is not in git,
+# so --allow-missing lets it emit everything else and we overlay the finished
+# art from baked/ below. That is why this builds from a clean checkout at all.
+python3 "$HERE/src/build.py" --allow-missing
 
 rm -rf "$OUT"; mkdir -p "$OUT/sojourner"
 cp -R "$HERE/dist/." "$OUT/sojourner/"
+
+# The committed artwork. Overlaid after the build so a real bake, when the raw
+# data IS present, wins over it rather than being overwritten by it.
+if [ -d "$HERE/baked/assets" ] && [ ! -d "$HERE/dist/assets" ]; then
+  cp -R "$HERE/baked/assets" "$OUT/sojourner/assets"
+fi
+if [ -f "$HERE/baked/three.min.js" ] && [ ! -f "$OUT/sojourner/three.min.js" ]; then
+  cp "$HERE/baked/three.min.js" "$OUT/sojourner/three.min.js"
+fi
 
 [ -f "$OUT/sojourner/_headers.fragment" ]   && mv "$OUT/sojourner/_headers.fragment"   "$OUT/_headers"
 [ -f "$OUT/sojourner/_redirects.fragment" ] && mv "$OUT/sojourner/_redirects.fragment" "$OUT/_redirects"
