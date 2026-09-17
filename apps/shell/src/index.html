@@ -2303,7 +2303,10 @@ $('resendBtn').addEventListener('click', async () => {
   note('pfNote', r.ok ? 'Sent again.' : 'Could not send right now.', !r.ok);
 });
 $('googleBtn').addEventListener('click', () => {
-  location.href = '/api/auth/google/start?return=' + encodeURIComponent(location.pathname);
+  /* `next`, not `return`. The Worker reads next= (routes/auth.js googleStart)
+     and ignores anything else, so return= meant every Google sign-in landed on
+     the front door no matter which page it started from. */
+  location.href = '/api/auth/google/start?next=' + encodeURIComponent(location.pathname);
 });
 $('signOutBtn').addEventListener('click', async () => {
   await PS.signOut();
@@ -2355,6 +2358,63 @@ const inviteCode = new URLSearchParams(location.search).get('f');
 if (inviteCode) {
   $('addIn').value = inviteCode.toUpperCase();
   openSheet(ME ? 'friendsSheet' : 'profileSheet');
+}
+
+/* ---------- arriving from a sign-in link, or back from Google --------------
+   Two round trips end here rather than on a page of their own:
+
+     /?signin=1&email=...&code=...   the link in the sign-in email
+     /?signin_error=REASON           Google refused, or the state did not check
+
+   Both strip themselves out of the address bar as soon as they are read, so a
+   player who copies the url they are looking at, or lands on it again from
+   history, is not carrying a credential or a stale error around with them.
+   -------------------------------------------------------------------------- */
+const AUTH_Q = new URLSearchParams(location.search);
+
+function scrubQuery(keys) {
+  try {
+    const u = new URL(location.href);
+    keys.forEach(k => u.searchParams.delete(k));
+    const q = u.searchParams.toString();
+    history.replaceState(null, '', u.pathname + (q ? '?' + q : '') + u.hash);
+  } catch (e) { /* replaceState is not worth failing a sign-in over */ }
+}
+
+/* Google's own words are not shown: "state_mismatch" is true and useless. What
+   a player needs is whether to try again or do something different. */
+const SIGNIN_ERROR_TEXT = {
+  declined:        'Google sign-in was cancelled.',
+  state_missing:   'That sign-in took too long. Try again.',
+  state_expired:   'That sign-in took too long. Try again.',
+  state_malformed: 'That sign-in took too long. Try again.',
+  state_mismatch:  'That sign-in could not be checked. Try again.',
+  state_bad:       'That sign-in could not be checked. Try again.',
+};
+
+if (AUTH_Q.has('signin_error')) {
+  const why = AUTH_Q.get('signin_error');
+  scrubQuery(['signin_error']);
+  PSUI.toast(SIGNIN_ERROR_TEXT[why] || 'Google sign-in did not finish. Try again, or use a code.');
+  openSheet('profileSheet');
+}
+
+if (AUTH_Q.get('signin') && AUTH_Q.get('email') && AUTH_Q.get('code')) {
+  const email = AUTH_Q.get('email'), code = AUTH_Q.get('code');
+  scrubQuery(['signin', 'email', 'code']);       // before the await, not after
+  (async () => {
+    const r = await PS.verifyEmail(email, code);
+    if (r.ok) {
+      ME = r.user;
+      PSUI.toast('Signed in');
+      refresh();
+    } else {
+      /* A code works once and expires in minutes, so the overwhelmingly likely
+         reason is an old mail or a second click on the same link. */
+      PSUI.toast('That link has been used or has expired \u2014 ask for a new code.');
+      openSheet('profileSheet');
+    }
+  })();
 }
 
 /* ---------- today, printed on the cards ------------------------------------

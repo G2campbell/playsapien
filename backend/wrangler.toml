@@ -46,8 +46,14 @@ GOOGLE_CLIENT_ID = ""
 # all -- see routes/admin.js for why that failure mode is deliberate.
 ACCESS_TEAM_DOMAIN = ""   # e.g. "yourteam.cloudflareaccess.com"
 ACCESS_AUD = ""           # the Application Audience tag from the Access app
-# From address for the sign-in mail. Must be a domain verified in Resend.
-MAIL_FROM = "PlaySapien <hello@playsapien.com>"
+# From address for the sign-in mail. The domain part must be one VERIFIED in
+# Resend, and playsapien.com itself is not -- profiles.playsapien.com is. Any
+# local part works on a verified domain, so hello@ is a choice, not a
+# requirement; the domain is not. Getting this wrong does not break the deploy,
+# it makes every send come back 403 from Resend while /auth/email/start still
+# answers { sent: true }, which is by design (spec section 5) and therefore
+# silent. If codes never arrive, check this line first.
+MAIL_FROM = "PlaySapien <hello@profiles.playsapien.com>"
 
 # Secrets, set with `wrangler secret put NAME` -- never in this file:
 #   LOGIN_CODE_PEPPER      random 32+ bytes, mixed into the login-code hash

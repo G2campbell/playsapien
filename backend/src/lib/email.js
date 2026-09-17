@@ -91,7 +91,15 @@ function escapeHtml(s) {
    things to expire, two things to burn and two ways to get it wrong, for a path
    that already has a working alternative on the same screen. */
 export function signinLink(appOrigin, email, code) {
-  const u = new URL('/signin', appOrigin);
+  /* The front door, not a /signin page: no such page exists, and one would be
+     a second surface to build, style, theme and keep in step with the shell
+     for the sake of a screen the player passes through in half a second. The
+     shell recognises these three parameters, verifies, strips them from the
+     url with replaceState and carries on -- so the link lands you signed in,
+     on the page you wanted, with nothing in the address bar to share by
+     accident. The code is single-use and expires in minutes. */
+  const u = new URL('/', appOrigin);
+  u.searchParams.set('signin', '1');
   u.searchParams.set('email', email);
   u.searchParams.set('code', code);
   return u.toString();
