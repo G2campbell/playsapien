@@ -168,9 +168,13 @@
   }
 
   var UI = {
+    /* Point the bar's brand link at the right place for this surface. Safe to
+       call more than once and safe on a page with no bar. */
+    bar: bar,
     init: function (opts) {
       opts = opts || {};
       sheetIds = opts.sheets || [];
+      bar();                       /* every surface with a bar wants this */
       scrimEl = opts.scrim ? $(opts.scrim) : null;
       toastEl = opts.toast ? $(opts.toast) : null;
 
@@ -214,6 +218,40 @@
     /* Called after each close with the id that closed, so a game can resync. */
     onClose: function (fn) { if (typeof fn === 'function') closers.push(fn); }
   };
+
+  /* The bar's brand link. One markup for every surface, so where it points is
+     decided here rather than by each surface shipping a different href:
+     on the shell it is the About page (the same place the About icon goes),
+     and inside a game it is the way back out to the front door. */
+  function bar() {
+    var a = document.getElementById('psbarBrand');
+    if (!a) return;
+    var shell = document.documentElement.classList.contains('ps-shell');
+    a.setAttribute('href', shell ? '/about/' : '/');
+    a.setAttribute('aria-label', shell ? 'About PlaySapien' : 'PlaySapien home');
+
+    /* Analytics: one sheet, wired once here, so no surface has to remember to do
+       it and none of them can forget. What it will eventually show differs, so
+       the copy does too. */
+    var sb = document.getElementById('statsBtn'), body = document.getElementById('statsBody');
+    if (body) {
+      body.textContent = shell
+        ? 'This will show how you are doing across every game, and the leaderboards for all of them. It is not built yet.'
+        : 'This will show this game\u2019s leaderboards and how your past rounds have gone. It is not built yet.';
+    }
+    if (sb && !sb.__wired) {
+      sb.__wired = true;
+      sb.addEventListener('click', function () { UI.open('statsSheet'); });
+    }
+
+    /* Add. Only the shell is wired here — in a game this button is that game's
+       own "make a puzzle" control and the game binds it itself. */
+    var ab = document.getElementById('addBtn');
+    if (shell && ab && !ab.__wired) {
+      ab.__wired = true;
+      ab.addEventListener('click', function () { UI.open('addSheet'); });
+    }
+  }
 
   global.PSUI = UI;
 })(typeof window !== 'undefined' ? window : this);

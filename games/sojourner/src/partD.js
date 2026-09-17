@@ -1680,7 +1680,7 @@ $('playRow').addEventListener('click', function(ev){
 });
 $('setLink').addEventListener('click', function(){ $('settingsBtn').click(); });
 $('aboutBtn').addEventListener('click', function(){ PSUI.open('aboutSheet'); });
-$('composeBtn').addEventListener('click', function(){ PSUI.open('composeSheet'); });
+$('addBtn')   /* the bar's Add button: this game's 'make one' control */.addEventListener('click', function(){ PSUI.open('composeSheet'); });
 $('friendsBtn').addEventListener('click', function(){ PSUI.open('friendsSheet'); });
 $('makeDone').addEventListener('click', PSUI.close);
 $('friendsDone').addEventListener('click', PSUI.close);

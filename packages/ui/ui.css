@@ -314,3 +314,48 @@
     transition-duration: .01ms !important;
   }
 }
+
+/* ---------------------------------------------------------------- the bar ---
+   The platform bar, shared by the shell and every game. Markup lives in
+   packages/ui/bar.html; this is only how it looks.
+
+   Fixed, and above every sheet trigger but below the sheets themselves, so a
+   dialog still covers it. Nothing may overlap it: content scrolls UNDER, which
+   is what .psbar-pad is for -- put it on the scrolling container and the first
+   line always clears the bar, including the phone's safe-area inset.
+   -------------------------------------------------------------------------- */
+.psbar{
+  position:fixed; top:0; left:0; right:0; z-index:40;
+  display:flex; align-items:center; gap:11px;
+  min-height:calc(var(--bar-h,54px) + env(safe-area-inset-top, 0px));
+  padding:calc(env(safe-area-inset-top, 0px) + 9px) 14px 9px;
+  background:var(--bg);
+  border-bottom:1px solid var(--line);
+}
+/* Anything that scrolls under the bar carries this. */
+.psbar-pad{ padding-top:calc(var(--bar-h,54px) + env(safe-area-inset-top, 0px)) }
+
+.psbar-brand{
+  display:flex; align-items:center; gap:9px; min-width:0;
+  color:var(--fg); text-decoration:none; border-radius:10px;
+}
+.psbar-brand:focus-visible{ outline:2px solid var(--accent); outline-offset:3px }
+.psbar-mark{ width:44px; flex:none; display:block; --mk-w:62 }
+/* Set exactly as the landing page sets it: Fraunces, 600 with SAPIEN at 900. */
+.psbar-name{
+  font-family:var(--f-disp); font-weight:600; font-size:17.5px;
+  letter-spacing:-.014em; white-space:nowrap; color:var(--fg);
+}
+.psbar-name b{ font-weight:900 }
+.psbar-gap{ flex:1 }
+.psbar-nav{ display:flex; align-items:center; gap:2px; flex:none }
+
+@media (max-width:420px){
+  .psbar{ gap:6px; padding-left:10px; padding-right:8px }
+  .psbar-mark{ width:36px }
+  .psbar-name{ font-size:15.5px }
+  .psbar-nav{ gap:0 }
+}
+/* Below this the wordmark would push the icons off the edge; the mark alone
+   still identifies the platform and still goes home. */
+@media (max-width:359px){ .psbar-name{ display:none } }

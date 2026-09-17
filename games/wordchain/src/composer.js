@@ -182,7 +182,7 @@ function ask(question, yesLabel, onYes) {
 function closeConfirm() { $('confirm').hidden = true; confirmYes = null; }
 
 /* ------------------------------------------------------------------ wiring */
-$('composeBtn').addEventListener('click', function () { composeOpen(null); });
+$('addBtn')   /* the bar's Add button: this game's 'make one' control */.addEventListener('click', function () { composeOpen(null); });
 $('cHomeBtn').addEventListener('click', function () {
   var unsaved = C && C.dirty && C.words.some(function (w) { return w.length; });
   if (!unsaved) { composeClose(); return; }

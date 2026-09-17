@@ -373,9 +373,13 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   var UI = {
+    /* Point the bar's brand link at the right place for this surface. Safe to
+       call more than once and safe on a page with no bar. */
+    bar: bar,
     init: function (opts) {
       opts = opts || {};
       sheetIds = opts.sheets || [];
+      bar();                       /* every surface with a bar wants this */
       scrimEl = opts.scrim ? $(opts.scrim) : null;
       toastEl = opts.toast ? $(opts.toast) : null;
 
@@ -419,6 +423,40 @@ document.addEventListener('DOMContentLoaded', function () {
     /* Called after each close with the id that closed, so a game can resync. */
     onClose: function (fn) { if (typeof fn === 'function') closers.push(fn); }
   };
+
+  /* The bar's brand link. One markup for every surface, so where it points is
+     decided here rather than by each surface shipping a different href:
+     on the shell it is the About page (the same place the About icon goes),
+     and inside a game it is the way back out to the front door. */
+  function bar() {
+    var a = document.getElementById('psbarBrand');
+    if (!a) return;
+    var shell = document.documentElement.classList.contains('ps-shell');
+    a.setAttribute('href', shell ? '/about/' : '/');
+    a.setAttribute('aria-label', shell ? 'About PlaySapien' : 'PlaySapien home');
+
+    /* Analytics: one sheet, wired once here, so no surface has to remember to do
+       it and none of them can forget. What it will eventually show differs, so
+       the copy does too. */
+    var sb = document.getElementById('statsBtn'), body = document.getElementById('statsBody');
+    if (body) {
+      body.textContent = shell
+        ? 'This will show how you are doing across every game, and the leaderboards for all of them. It is not built yet.'
+        : 'This will show this game\u2019s leaderboards and how your past rounds have gone. It is not built yet.';
+    }
+    if (sb && !sb.__wired) {
+      sb.__wired = true;
+      sb.addEventListener('click', function () { UI.open('statsSheet'); });
+    }
+
+    /* Add. Only the shell is wired here — in a game this button is that game's
+       own "make a puzzle" control and the game binds it itself. */
+    var ab = document.getElementById('addBtn');
+    if (shell && ab && !ab.__wired) {
+      ab.__wired = true;
+      ab.addEventListener('click', function () { UI.open('addSheet'); });
+    }
+  }
 
   global.PSUI = UI;
 })(typeof window !== 'undefined' ? window : this);
@@ -1189,6 +1227,51 @@ document.addEventListener('DOMContentLoaded', function () {
     transition-duration: .01ms !important;
   }
 }
+
+/* ---------------------------------------------------------------- the bar ---
+   The platform bar, shared by the shell and every game. Markup lives in
+   packages/ui/bar.html; this is only how it looks.
+
+   Fixed, and above every sheet trigger but below the sheets themselves, so a
+   dialog still covers it. Nothing may overlap it: content scrolls UNDER, which
+   is what .psbar-pad is for -- put it on the scrolling container and the first
+   line always clears the bar, including the phone's safe-area inset.
+   -------------------------------------------------------------------------- */
+.psbar{
+  position:fixed; top:0; left:0; right:0; z-index:40;
+  display:flex; align-items:center; gap:11px;
+  min-height:calc(var(--bar-h,54px) + env(safe-area-inset-top, 0px));
+  padding:calc(env(safe-area-inset-top, 0px) + 9px) 14px 9px;
+  background:var(--bg);
+  border-bottom:1px solid var(--line);
+}
+/* Anything that scrolls under the bar carries this. */
+.psbar-pad{ padding-top:calc(var(--bar-h,54px) + env(safe-area-inset-top, 0px)) }
+
+.psbar-brand{
+  display:flex; align-items:center; gap:9px; min-width:0;
+  color:var(--fg); text-decoration:none; border-radius:10px;
+}
+.psbar-brand:focus-visible{ outline:2px solid var(--accent); outline-offset:3px }
+.psbar-mark{ width:44px; flex:none; display:block; --mk-w:62 }
+/* Set exactly as the landing page sets it: Fraunces, 600 with SAPIEN at 900. */
+.psbar-name{
+  font-family:var(--f-disp); font-weight:600; font-size:17.5px;
+  letter-spacing:-.014em; white-space:nowrap; color:var(--fg);
+}
+.psbar-name b{ font-weight:900 }
+.psbar-gap{ flex:1 }
+.psbar-nav{ display:flex; align-items:center; gap:2px; flex:none }
+
+@media (max-width:420px){
+  .psbar{ gap:6px; padding-left:10px; padding-right:8px }
+  .psbar-mark{ width:36px }
+  .psbar-name{ font-size:15.5px }
+  .psbar-nav{ gap:0 }
+}
+/* Below this the wordmark would push the icons off the edge; the mark alone
+   still identifies the platform and still goes home. */
+@media (max-width:359px){ .psbar-name{ display:none } }
 /* ===== END packages/ui/ui.css ===== */
 /* ===========================================================================
    PlaySapien -- the platform landing page.
@@ -1527,16 +1610,29 @@ footer a:hover{opacity:1}
 <body>
 
 <!-- One definition of the mark; every instance is a <use>. -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <!-- The PlaySapien mark, traced from the letterpress proof (01).
-       Geometry measured off the proof: rings of r=301 with centres 273 apart,
-       two rules at +-101 from the centre line. One definition; the bar, the
-       hero and the footer are all <use> of it at different weights. -->
-  <!-- The crisp version of the mark, for the bar and the footer where it is
-       small and has to take currentColor. Geometry measured off the proof:
-       ovals, not circles (taller than wide), and the middle band is CLEAR.
-       The band is cut by clipping rather than by hand-drawn arcs, so no future
-       edit to the ellipses can put a stroke back across the wordmark. -->
+
+<div class="page">
+
+<!-- ===== BEGIN packages/ui/bar.html (inlined verbatim — do not edit here) ===== -->
+<!-- The platform bar. One definition, inlined verbatim into every surface by
+     packages/tokens/sync-inline.mjs, so a new game gets it by copying the
+     template and nothing drifts.
+
+     Left is the mark and the wordmark, exactly as the landing page sets them.
+     Where it goes depends on the surface, and PSUI.bar() sets that at runtime
+     rather than each surface hard-coding a different href:
+       shell -> /about/        (same destination as the About icon)
+       game  -> /              (back to the front door)
+
+     Right is a fixed order: About, Analytics, Add, Friends, Settings, Profile.
+     Every surface shows all six. A surface that cannot do one yet opens a sheet
+     that says so, because an icon that silently does nothing is worse than one
+     that admits it is not built.
+
+     The bar is fixed and above everything; .psbar-pad on the scrolling element
+     keeps content from starting underneath it. -->
+
+<svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
   <symbol id="psmark" viewBox="0 0 1132 595">
     <clipPath id="psmark-band">
       <rect x="0" y="0"   width="1132" height="231"/>
@@ -1553,29 +1649,84 @@ footer a:hover{opacity:1}
   </symbol>
 </svg>
 
-<div class="page">
+<header class="psbar">
+  <a class="psbar-brand" href="/" id="psbarBrand">
+    <svg class="psbar-mark" viewBox="0 0 1132 595" aria-hidden="true"><use href="#psmark"/></svg>
+    <span class="psbar-name">Play<b>Sapien</b></span>
+  </a>
+  <div class="psbar-gap"></div>
+  <nav class="psbar-nav" aria-label="PlaySapien">
+    <button class="iconbtn" type="button" id="aboutBtn" aria-label="About" title="About">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"/>
+        <path d="M9.2 9.2a2.9 2.9 0 1 1 4 2.7c-.8.35-1.2 1-1.2 1.8v.4"/>
+        <line x1="12" y1="17.4" x2="12" y2="17.4"/>
+      </svg>
+    </button>
+    <button class="iconbtn" type="button" id="statsBtn" aria-label="Analytics" title="Analytics">
+      <!-- Radar chart. Filled rather than stroked, and on its own 1024 viewBox,
+           because it is the artwork as supplied; the others are 24px strokes. -->
+      <svg viewBox="0 0 1024 1024" width="20" height="20" fill="currentColor" aria-hidden="true">
+        <path d="m926.8 397.1l-396-288a31.81 31.81 0 0 0-37.6 0l-396 288a31.99 31.99 0 0 0-11.6 35.8l151.3 466a32 32 0 0 0 30.4 22.1h489.5c13.9 0 26.1-8.9 30.4-22.1l151.3-466c4.2-13.2-.5-27.6-11.7-35.8M838.6 417l-98.5 32l-200-144.7V199.9zM466 567.2l-89.1 122.3l-55.2-169.2zm-116.3-96.8L484 373.3v140.8zM512 599.2l93.9 128.9H418.1zm28.1-225.9l134.2 97.1L540.1 514zM558 567.2l144.3-46.9l-55.2 169.2zm-74-367.3v104.4L283.9 449l-98.5-32zM169.3 470.8l86.5 28.1l80.4 246.4l-53.8 73.9zM327.1 853l50.3-69h269.3l50.3 69zm414.5-33.8l-53.8-73.9l80.4-246.4l86.5-28.1z"/>
+      </svg>
+    </button>
+    <button class="iconbtn" type="button" id="addBtn" aria-label="Add" title="Add">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"/>
+        <path d="M12 8.2v7.6M8.2 12h7.6"/>
+      </svg>
+    </button>
+    <button class="iconbtn" type="button" id="friendsBtn" aria-label="Friends" title="Friends">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="9" cy="8" r="3.4"/>
+        <path d="M2.8 19.4a6.2 6.2 0 0 1 12.4 0"/>
+        <path d="M16.2 5.1a3.4 3.4 0 0 1 0 6.1"/>
+        <path d="M18 14.4a6.2 6.2 0 0 1 3.2 5"/>
+      </svg>
+    </button>
+    <button class="iconbtn" type="button" id="settingsBtn" aria-label="Settings" title="Settings">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3.2"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+    <button class="iconbtn" type="button" id="profileBtn" aria-label="Profile" title="Profile">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="8" r="4"/>
+        <path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>
+      </svg>
+    </button>
+  </nav>
+</header>
 
-  <header class="bar">
-    <div class="bar-brand">
-      <svg class="mk" viewBox="0 0 1132 595" aria-hidden="true"><use href="#psmark"/></svg>
-      <span class="bar-name">Play<b>Sapien</b></span>
-    </div>
-    <div class="spacer"></div>
-    <nav class="corner" aria-label="Account">
-      <button class="iconbtn" type="button" id="aboutBtn" aria-label="About">
-        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.2 9.2a2.9 2.9 0 1 1 4 2.7c-.8.35-1.2 1-1.2 1.8v.4"/><line x1="12" y1="17.4" x2="12" y2="17.4"/></svg>
-      </button>
-      <button class="iconbtn" type="button" id="friendsBtn" aria-label="Friends">
-        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M2.8 19.4a6.2 6.2 0 0 1 12.4 0"/><path d="M16.2 5.1a3.4 3.4 0 0 1 0 6.1"/><path d="M18 14.4a6.2 6.2 0 0 1 3.2 5"/></svg>
-      </button>
-      <button class="iconbtn" type="button" id="settingsBtn" aria-label="Settings">
-        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      </button>
-      <button class="iconbtn" type="button" id="profileBtn" aria-label="Profile">
-        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg>
-      </button>
-    </nav>
-  </header>
+<!-- Analytics has an icon on every surface but nothing behind it yet. It says so
+     rather than doing nothing: a nav item that swallows a tap reads as broken.
+     The copy differs by surface, filled in by PSUI.bar(). -->
+<section class="sheet" id="statsSheet" role="dialog" aria-modal="true" aria-labelledby="statsTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="statsTitle">Analytics</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p class="sethint" id="statsBody">Not built yet.</p>
+  </div>
+</section>
+
+<!-- Add, on the shell only. Inside a game this same button is that game's own
+     "make one" control and the game binds it; the shell has nothing to bind yet. -->
+<section class="sheet" id="addSheet" role="dialog" aria-modal="true" aria-labelledby="addTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="addTitle">Suggest a game</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p class="sethint">This will be how you put forward an idea for a new PlaySapien
+      game. It is not built yet. Inside a game, this same button is how you make a
+      puzzle of your own.</p>
+  </div>
+</section>
+<!-- ===== END packages/ui/bar.html ===== -->
 
   <main>
     <section class="hero">

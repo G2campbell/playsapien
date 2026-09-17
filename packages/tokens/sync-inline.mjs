@@ -12,6 +12,17 @@ const SOURCES = {
   'ui.css':     'packages/ui/ui.css',
   'ui.js':      'packages/ui/ui.js',
 };
+/* Markup shared verbatim, not CSS or JS, so the markers are HTML comments.
+   The bar is the only one so far. It goes into the BODY of each surface, which
+   is a different file from the one that holds the styles. */
+const HTML_SOURCES = {
+  'bar.html': 'packages/ui/bar.html',
+};
+const HTML_TARGETS = [
+  'apps/shell/src/index.html',
+  'games/sojourner/src/partB.html',
+  'games/wordchain/src/part-b-body.html',
+];
 const TARGETS = [
   'apps/shell/src/index.html',
   'games/sojourner/src/partA.html',
@@ -36,4 +47,24 @@ for (const target of TARGETS) {
   }
   if (done.length) { fs.writeFileSync(file, html); console.log(`  ${target}: re-synced ${done.join(', ')}`); }
   else console.log(`  ${target}: already in sync`);
+}
+
+/* the same again for markup, with HTML comment markers */
+for (const target of HTML_TARGETS) {
+  const file = path.join(ROOT, target);
+  if (!fs.existsSync(file)) continue;
+  let html = fs.readFileSync(file, 'utf8');
+  const done = [];
+  for (const [name, rel] of Object.entries(HTML_SOURCES)) {
+    const canonical = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+    const begin = `<!-- ===== BEGIN ${rel} (inlined verbatim — do not edit here) ===== -->\n`;
+    const end = `<!-- ===== END ${rel} ===== -->`;
+    const i = html.indexOf(begin), j = html.indexOf(end);
+    if (i < 0 || j < 0) continue;
+    if (html.slice(i + begin.length, j) !== canonical) {
+      html = html.slice(0, i + begin.length) + canonical + html.slice(j);
+      done.push(name);
+    }
+  }
+  if (done.length) { fs.writeFileSync(file, html); console.log(`  ${target}: re-synced ${done.join(', ')}`); }
 }

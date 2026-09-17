@@ -381,9 +381,13 @@ PSTheme.init('sj-game');
   }
 
   var UI = {
+    /* Point the bar's brand link at the right place for this surface. Safe to
+       call more than once and safe on a page with no bar. */
+    bar: bar,
     init: function (opts) {
       opts = opts || {};
       sheetIds = opts.sheets || [];
+      bar();                       /* every surface with a bar wants this */
       scrimEl = opts.scrim ? $(opts.scrim) : null;
       toastEl = opts.toast ? $(opts.toast) : null;
 
@@ -427,6 +431,40 @@ PSTheme.init('sj-game');
     /* Called after each close with the id that closed, so a game can resync. */
     onClose: function (fn) { if (typeof fn === 'function') closers.push(fn); }
   };
+
+  /* The bar's brand link. One markup for every surface, so where it points is
+     decided here rather than by each surface shipping a different href:
+     on the shell it is the About page (the same place the About icon goes),
+     and inside a game it is the way back out to the front door. */
+  function bar() {
+    var a = document.getElementById('psbarBrand');
+    if (!a) return;
+    var shell = document.documentElement.classList.contains('ps-shell');
+    a.setAttribute('href', shell ? '/about/' : '/');
+    a.setAttribute('aria-label', shell ? 'About PlaySapien' : 'PlaySapien home');
+
+    /* Analytics: one sheet, wired once here, so no surface has to remember to do
+       it and none of them can forget. What it will eventually show differs, so
+       the copy does too. */
+    var sb = document.getElementById('statsBtn'), body = document.getElementById('statsBody');
+    if (body) {
+      body.textContent = shell
+        ? 'This will show how you are doing across every game, and the leaderboards for all of them. It is not built yet.'
+        : 'This will show this game\u2019s leaderboards and how your past rounds have gone. It is not built yet.';
+    }
+    if (sb && !sb.__wired) {
+      sb.__wired = true;
+      sb.addEventListener('click', function () { UI.open('statsSheet'); });
+    }
+
+    /* Add. Only the shell is wired here — in a game this button is that game's
+       own "make a puzzle" control and the game binds it itself. */
+    var ab = document.getElementById('addBtn');
+    if (shell && ab && !ab.__wired) {
+      ab.__wired = true;
+      ab.addEventListener('click', function () { UI.open('addSheet'); });
+    }
+  }
 
   global.PSUI = UI;
 })(typeof window !== 'undefined' ? window : this);
@@ -1242,6 +1280,51 @@ PSTheme.init('sj-game');
     transition-duration: .01ms !important;
   }
 }
+
+/* ---------------------------------------------------------------- the bar ---
+   The platform bar, shared by the shell and every game. Markup lives in
+   packages/ui/bar.html; this is only how it looks.
+
+   Fixed, and above every sheet trigger but below the sheets themselves, so a
+   dialog still covers it. Nothing may overlap it: content scrolls UNDER, which
+   is what .psbar-pad is for -- put it on the scrolling container and the first
+   line always clears the bar, including the phone's safe-area inset.
+   -------------------------------------------------------------------------- */
+.psbar{
+  position:fixed; top:0; left:0; right:0; z-index:40;
+  display:flex; align-items:center; gap:11px;
+  min-height:calc(var(--bar-h,54px) + env(safe-area-inset-top, 0px));
+  padding:calc(env(safe-area-inset-top, 0px) + 9px) 14px 9px;
+  background:var(--bg);
+  border-bottom:1px solid var(--line);
+}
+/* Anything that scrolls under the bar carries this. */
+.psbar-pad{ padding-top:calc(var(--bar-h,54px) + env(safe-area-inset-top, 0px)) }
+
+.psbar-brand{
+  display:flex; align-items:center; gap:9px; min-width:0;
+  color:var(--fg); text-decoration:none; border-radius:10px;
+}
+.psbar-brand:focus-visible{ outline:2px solid var(--accent); outline-offset:3px }
+.psbar-mark{ width:44px; flex:none; display:block; --mk-w:62 }
+/* Set exactly as the landing page sets it: Fraunces, 600 with SAPIEN at 900. */
+.psbar-name{
+  font-family:var(--f-disp); font-weight:600; font-size:17.5px;
+  letter-spacing:-.014em; white-space:nowrap; color:var(--fg);
+}
+.psbar-name b{ font-weight:900 }
+.psbar-gap{ flex:1 }
+.psbar-nav{ display:flex; align-items:center; gap:2px; flex:none }
+
+@media (max-width:420px){
+  .psbar{ gap:6px; padding-left:10px; padding-right:8px }
+  .psbar-mark{ width:36px }
+  .psbar-name{ font-size:15.5px }
+  .psbar-nav{ gap:0 }
+}
+/* Below this the wordmark would push the icons off the edge; the mark alone
+   still identifies the platform and still goes home. */
+@media (max-width:359px){ .psbar-name{ display:none } }
 /* ===== END packages/ui/ui.css ===== */
 
 /* ---------------------------------------------------------------------------

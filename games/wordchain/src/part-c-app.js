@@ -208,7 +208,7 @@ function save() {
     mode: S.mode, words: S.words, links: S.links, i: S.i, revealed: S.revealed,
     hintsThisWord: S.hintsThisWord, hintCount: S.hintCount, penaltyMs: S.penaltyMs,
     baseMs: baseMs(), tried: S.tried, wrongThisWord: S.wrongThisWord,
-    perWord: S.perWord, day: todayKey()
+    perWord: S.perWord, wordMs: S.wordMs, day: todayKey()
   });
 }
 function loadHeld(mode) {
@@ -220,11 +220,34 @@ function loadHeld(mode) {
     mode: mode, words: g.words, links: g.links, i: g.i, revealed: g.revealed,
     hintsThisWord: g.hintsThisWord || 0, hintCount: g.hintCount || 0,
     penaltyMs: g.penaltyMs || 0, frozenMs: 0, t0: Date.now() - (g.baseMs || 0),
-    perWord: g.perWord || [],
+    perWord: g.perWord || [], wordMs: g.wordMs || [], wordT0: Date.now(),
     tried: g.tried || [], wrongThisWord: g.wrongThisWord || 0,
     locked: false, done: false, pausedAt: 0
   };
 }
+/* One circle per word, sized by that word's share of the total time, so the row
+   reads as where the time went. Any Lifeline opens the ring and paints it accent —
+   the same colour a bought letter wears on the board; more Lifelines thicken it.
+   Ported from the deployed standalone game, which was ahead of both this repo and
+   the local Word Chain folder. */
+function dotsSVG(words, perWord, wordMs) {
+  var n = words.length, ms = wordMs || [], tot = 0, i;
+  for (i = 0; i < n; i++) tot += (ms[i] || 0);
+  var gap = 34, pad = 20, w = (n - 1) * gap + pad * 2, h = 44, out = '';
+  for (i = 0; i < n; i++) {
+    var cx = pad + i * gap, used = (perWord || [])[i] || 0;
+    var share = tot > 0 ? (ms[i] || 0) / tot : 1 / (n - 1);
+    var r = 3.5 + Math.min(1, share * (n - 1)) * 6.5;
+    if (used > 0) {
+      out += '<circle cx="' + cx + '" cy="' + (h / 2) + '" r="' + r.toFixed(1) + '" fill="none" ' +
+        'stroke="var(--accent)" stroke-width="' + (2 + (used - 1) * 1.8) + '"/>';
+    } else {
+      out += '<circle cx="' + cx + '" cy="' + (h / 2) + '" r="' + r.toFixed(1) + '" fill="currentColor"/>';
+    }
+  }
+  return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' + out + '</svg>';
+}
+
 function recordResult(r) {
   var h = store('history') || [];
   h.unshift(r); if (h.length > 60) h.length = 60;
@@ -243,8 +266,9 @@ function startGame(mode) {
     S = {
       mode: mode, words: c.words, links: c.links, i: 1,
       revealed: c.words.map(function (w, k) { return k === 0 ? w.length : 1; }),
-      hintsThisWord: 0, hintCount: 0, penaltyMs: 0, frozenMs: 0, perWord: [],
-      wrongThisWord: 0, tried: [], t0: Date.now(), locked: false, done: false
+      hintsThisWord: 0, hintCount: 0, penaltyMs: 0, frozenMs: 0, perWord: [], wordMs: [],
+      wrongThisWord: 0, tried: [], t0: Date.now(), wordT0: Date.now(),
+      locked: false, done: false
     };
   }
   typed = '';
@@ -460,6 +484,10 @@ function unlock() {
 }
 
 function advance() {
+  /* How long this word took. It is what sizes the circles on the home screen and
+     the share card: the run shows where the player got stuck, not just the total. */
+  S.wordMs[S.i] = Math.max(0, Date.now() - (S.wordT0 || S.t0));
+  S.wordT0 = Date.now();
   S.revealed[S.i] = S.words[S.i].length;
   S.i++; S.hintsThisWord = 0; S.wrongThisWord = 0; S.tried = []; typed = '';
   if (S.i >= S.words.length) { finish(); return; }
@@ -473,13 +501,13 @@ function finish() {
   setMsg('', null);
   var total = elapsedMs(), base = total - S.penaltyMs;
   var r = { day: todayKey(), mode: S.mode, total: total, hints: S.hintCount,
-            words: S.words, perWord: S.perWord };
+            words: S.words, perWord: S.perWord, wordMs: S.wordMs };
   drop('game:' + S.mode);
   /* the full record, not just the time: the home screen shares this hours later, by
      which point `last` may be a practice run */
   if (S.mode === 'daily') store('daily:' + todayKey(), {
     mode: 'daily', day: todayKey(), total: total, hints: S.hintCount,
-    words: S.words, perWord: S.perWord
+    words: S.words, perWord: S.perWord, wordMs: S.wordMs
   });
   recordResult({ day: r.day, mode: r.mode, total: total, hints: S.hintCount, chain: S.words.join(' · ') });
   store('last', r);
@@ -609,16 +637,20 @@ function paintHome() {
   p.textContent = HELD.practice ? 'Resume practice' : 'Practice';
   var dt = new Date();
   $('homeDate').textContent = dt.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
-  var sol = $('homeSolution');
+  /* The finished score is the point of the screen, so it is set large and centred
+     with the chain and the dots under it — not squeezed into the footer line, which
+     is what this used to do. */
+  var res = $('homeResult');
   if (done && done.words) {
-    sol.hidden = false;
-    sol.className = 'solutionline';
-    sol.innerHTML = chainHTML(done.words, done.perWord);
-  } else { sol.hidden = true; }
-  $('homeNote').textContent = done
-    ? "Today's chain \u00b7 " + fmt(done.total) +
-      (done.hints ? ' \u00b7 ' + done.hints + ' lifeline' + (done.hints > 1 ? 's' : '') : ' \u00b7 no lifelines')
-    : 'Chains by G2';
+    res.hidden = false;
+    $('homeTime').textContent = fmt(done.total);
+    $('homeLifelines').textContent = done.hints
+      ? done.hints + ' lifeline' + (done.hints > 1 ? 's' : '') + ' used' : 'no lifelines';
+    $('homeSolution').className = 'solutionline';
+    $('homeSolution').innerHTML = chainHTML(done.words, done.perWord);
+    $('homeDots').innerHTML = dotsSVG(done.words, done.perWord, done.wordMs);
+  } else { res.hidden = true; }
+  $('homeNote').textContent = done ? "Today's chain" : 'Chains by G2';
 }
 function paintSettings() {
   /* #themeSeg is painted by PSTheme.bindControl — see the wiring below. */
@@ -676,6 +708,12 @@ var CARD_INK = '#33262C';       /* light --fg  — 9.78:1 on CARD_BG            
 var CARD_INK_74 = 'rgba(51,38,44,.74)';
 var CARD_INK_55 = 'rgba(51,38,44,.55)';
 var CARD_INK_28 = 'rgba(51,38,44,.28)';
+/* The Lifeline ring on the share card. Canvas cannot read a CSS variable, so
+   this mirrors --accent for the Word Chain palette. */
+var CARD_ACCENT = '#9E3B62';
+/* .80, matching src-v16. The card already had a .74 ink for a different line;
+   reusing it here would have quietly lightened the lifeline caption. */
+var CARD_INK_80 = 'rgba(51,38,44,.80)';
 
 function buildCard(r) {
   var cv = $('cardcv'), x = cv.getContext('2d');
@@ -683,63 +721,67 @@ function buildCard(r) {
   x.fillStyle = CARD_BG; x.fillRect(0, 0, W, H);
   x.textAlign = 'center'; x.fillStyle = CARD_INK;
 
-  /* the mark, drawn from the same path as the app icon */
-  x.save(); x.translate(W / 2 - 46, 120); x.scale(3.85, 3.85);
+  x.save(); x.translate(W / 2 - 30, 64); x.scale(2.5, 2.5);
   x.strokeStyle = CARD_INK; x.lineWidth = 1.9; x.lineCap = 'round'; x.lineJoin = 'round';
-  var p1 = new Path2D('M10.4 13.6a4.6 4.6 0 0 0 6.94.5l2.76-2.76a4.6 4.6 0 0 0-6.5-6.5l-1.58 1.57');
-  var p2 = new Path2D('M13.6 10.4a4.6 4.6 0 0 0-6.94-.5L3.9 12.66a4.6 4.6 0 0 0 6.5 6.5l1.57-1.57');
-  x.stroke(p1); x.stroke(p2); x.restore();
+  x.stroke(new Path2D('M10.4 13.6a4.6 4.6 0 0 0 6.94.5l2.76-2.76a4.6 4.6 0 0 0-6.5-6.5l-1.58 1.57'));
+  x.stroke(new Path2D('M13.6 10.4a4.6 4.6 0 0 0-6.94-.5L3.9 12.66a4.6 4.6 0 0 0 6.5 6.5l1.57-1.57'));
+  x.restore();
 
-  x.font = '900 86px Fraunces, Georgia, serif';
-  x.fillText('Word Chain', W / 2, 302);
-
-  x.font = '400 36px Fraunces, Georgia, serif';
+  x.font = '900 72px Fraunces, Georgia, serif';
+  x.fillText('Word Chain', W / 2, 216);
+  x.font = '400 30px Fraunces, Georgia, serif';
   var dt = new Date();
   x.fillText(r.mode === 'daily'
     ? dt.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
-    : 'Practice chain', W / 2, 360);
+    : 'Practice chain', W / 2, 262);
 
-  /* A daily card must not spoil the chain for anyone who has not played it. It shows
-     the SHAPE of the run instead: one link per word, ringed where a lifeline was spent.
-     A practice card can show the words, since nobody else is racing on it. */
   var y;
   if (r.mode === 'daily') {
-    y = 520;
+    /* One link per word. Its SIZE is the share of the total time that word took, so
+       the run tells you where the player got stuck. Any Lifeline opens the ring and
+       paints it accent, the same colour a bought letter wears on the board; more
+       Lifelines only thicken it. */
+    y = 358;
     var n = r.words.length, gap = 96, x0 = W / 2 - ((n - 1) * gap) / 2;
-    for (var i = 0; i < n; i++) {
-      var cx = x0 + i * gap, used = (r.perWord || [])[i];
-      x.beginPath(); x.arc(cx, y, used ? 21 : 17, 0, Math.PI * 2);
-      if (used) { x.strokeStyle = CARD_INK_55; x.lineWidth = 5; x.stroke(); }
-      else { x.fillStyle = CARD_INK; x.fill(); }
+    var ms = r.wordMs || [], tot = 0, i;
+    for (i = 0; i < n; i++) tot += (ms[i] || 0);
+    for (i = 0; i < n; i++) {
+      var cx = x0 + i * gap, used = (r.perWord || [])[i] || 0;
+      var share = tot > 0 ? (ms[i] || 0) / tot : 1 / (n - 1);
+      var rad = 9 + Math.min(1, share * (n - 1)) * 17;      /* 9px to 26px, average ~17 */
+      x.beginPath(); x.arc(cx, y, rad, 0, Math.PI * 2);
+      if (used > 0) {
+        x.strokeStyle = CARD_ACCENT;
+        x.lineWidth = 4.5 + (used - 1) * 4;
+        x.stroke();
+      } else { x.fillStyle = CARD_INK; x.fill(); }
     }
-    x.fillStyle = CARD_INK;
-    x.font = '400 30px Fraunces, Georgia, serif';
-    x.fillText('eight words linked', W / 2, y + 88);
-    y += 150;
+    y += 92;
   } else {
-    x.font = '600 46px Fraunces, Georgia, serif';
-    y = 470;
+    x.font = '600 40px Fraunces, Georgia, serif';
+    y = 340;
     for (var j = 0; j < r.words.length; j += 2) {
-      var pair = r.words[j] + (r.words[j + 1] ? '  \u00b7  ' + r.words[j + 1] : '');
-      x.fillText(pair, W / 2, y); y += 74;
+      x.fillText(r.words[j] + (r.words[j + 1] ? '  \u00b7  ' + r.words[j + 1] : ''), W / 2, y);
+      y += 58;
     }
+    y += 16;
   }
 
-  y += 34;
+  x.fillStyle = CARD_INK;
   x.strokeStyle = CARD_INK_28; x.lineWidth = 2;
-  x.beginPath(); x.moveTo(W / 2 - 200, y); x.lineTo(W / 2 + 200, y); x.stroke();
+  x.beginPath(); x.moveTo(W / 2 - 180, y); x.lineTo(W / 2 + 180, y); x.stroke();
 
-  x.font = '900 126px Fraunces, Georgia, serif';
-  x.fillText(fmt(r.total), W / 2, y + 136);
+  x.font = '900 104px Fraunces, Georgia, serif';
+  x.fillText(fmt(r.total), W / 2, y + 112);
 
-  x.font = '400 34px Fraunces, Georgia, serif';
-  x.fillStyle = CARD_INK_74;
+  x.font = '600 40px Fraunces, Georgia, serif';
+  x.fillStyle = CARD_INK_80;
   x.fillText(r.hints ? r.hints + ' lifeline' + (r.hints > 1 ? 's' : '') + ' used' : 'no lifelines',
-    W / 2, y + 192);
+    W / 2, y + 166);
 
-  x.font = '400 28px Fraunces, Georgia, serif';
+  x.font = '400 26px Fraunces, Georgia, serif';
   x.fillStyle = CARD_INK_55;
-  if (SITE) x.fillText(SITE.replace(/^https?:\/\//, '').replace(/\/$/, ''), W / 2, H - 64);
+  if (SITE) x.fillText(SITE.replace(/^https?:\/\//, '').replace(/\/$/, ''), W / 2, H - 34);
 
   return new Promise(function (res) { cv.toBlob(res, 'image/png'); });
 }
