@@ -18,3 +18,6 @@ games/sojourner/data/
 __pycache__/
 *.pyc
 cfroot/
+# scratch this session could not unlink (device shell has no delete rights).
+# Safe to delete the folder by hand.
+_to_delete/
