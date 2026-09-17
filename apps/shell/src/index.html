@@ -1446,6 +1446,10 @@ body{
 .datum{
   font-family:var(--f-mono); font-size:12.5px; letter-spacing:.17em; text-transform:uppercase;
   color:var(--fg-3); margin:0; text-align:center;
+  /* align-self, not auto margins: it is a flex item of <main>, and the phone
+     rule below sets `margin` as a shorthand, which would wipe margin:auto and
+     drop the date back to the left edge the moment its max-width bit. */
+  align-self:center;
 }
 .rule{
   width:min(460px,78%); height:1px; margin:14px auto 0; border:0;
@@ -1581,7 +1585,7 @@ footer a:hover{opacity:1}
      goes rather than the games losing room. */
   .face .mark{display:none}
   .face .ghost{width:66%; right:-12%}
-  .datum{letter-spacing:.12em; font-size:11.5px; max-width:30ch; margin:7px 0 0}
+  .datum{letter-spacing:.12em; font-size:11.5px; max-width:30ch}
 }
 @media (min-width:760px) and (max-width:1000px){
   .panel{height:22.5rem; width:5rem}
