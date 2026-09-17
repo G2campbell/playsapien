@@ -41,7 +41,7 @@ APP_ORIGIN = "https://playsapien.com"
 ALLOWED_ORIGINS = "http://localhost:8788,http://127.0.0.1:8788"
 # Your Google OAuth client id. Not a secret (it ships in the redirect URL), so
 # it lives here rather than in the secret store.
-GOOGLE_CLIENT_ID = ""
+GOOGLE_CLIENT_ID = "217819270101-509am733pr945688blkt8ekafrcl7h2h.apps.googleusercontent.com"
 # Cloudflare Access, for /api/admin/*. Both must be set for admin to open at
 # all -- see routes/admin.js for why that failure mode is deliberate.
 ACCESS_TEAM_DOMAIN = ""   # e.g. "yourteam.cloudflareaccess.com"
