@@ -1345,9 +1345,14 @@ body{
 
 /* ---------- hero ----------------------------------------------------------- */
 .hero{
-  padding:calc(var(--bar-h) + env(safe-area-inset-top) + 10px) 20px 2px;
+  padding:calc(var(--bar-h) + env(safe-area-inset-top) + 24px) 20px 2px;
   text-align:center; display:flex; flex-direction:column; align-items:center;
 }
+/* RETAINED, UNUSED. The hero crest moved into the fixed bar, so nothing on this
+   page carries .lockup any more. The numbers below were measured against the
+   letterpress proof rather than guessed, so they are kept here whole in case
+   the big lockup is ever wanted again -- on the About page, a share card, or a
+   press kit. Delete the block, not individual lines, if it is ever truly done. */
 .lockup{
   --lk:min(392px,72vw);
   position:relative; width:var(--lk); margin:0 auto 2px;
@@ -1389,15 +1394,21 @@ body{
 .bar-brand .mk,footer .mk{filter:drop-shadow(0 .5px 0 rgba(255,255,255,.4))}
 .tagline{
   font-family:var(--f-sans); font-weight:600;
-  font-size:clamp(12.5px,2.5vw,15px); line-height:1.5; letter-spacing:.005em;
-  margin:14px 0 0; max-width:42ch; color:var(--fg-2); text-wrap:balance;
+  font-size:clamp(15px,3.2vw,19px); line-height:1.4; letter-spacing:.005em;
+  margin:0; max-width:24ch; color:var(--fg); text-wrap:balance;
+}
+/* The three verbs, under the rule. Same mono voice as the date below it, one
+   step larger and darker so the pair reads as heading-then-caption. */
+.creed{
+  font-family:var(--f-mono); font-size:11.5px; letter-spacing:.22em;
+  text-transform:uppercase; color:var(--fg-2); margin:12px 0 0;
 }
 .datum{
   font-family:var(--f-mono); font-size:10.5px; letter-spacing:.19em; text-transform:uppercase;
-  color:var(--fg-2); margin:12px 0 0;
+  color:var(--fg-3); margin:7px 0 0;
 }
 .rule{
-  width:min(460px,78%); height:1px; margin:13px auto 0; border:0;
+  width:min(460px,78%); height:1px; margin:14px auto 0; border:0;
   background:linear-gradient(90deg,transparent,var(--line-2) 22%,var(--line-2) 78%,transparent);
 }
 
@@ -1511,11 +1522,11 @@ footer a:hover{opacity:1}
   .panel.on{width:100%; height:16rem}
 
   /* The whole front door should reach the games without a scroll on a phone,
-     so the hero gives up its decoration rather than the games giving up room:
-     the rule goes, the footer drops its mark, and the type tightens. */
-  .lockup{--lk:min(300px,68vw)}
-  .tagline{font-size:12.5px; line-height:1.45; margin:8px 0 0; max-width:36ch}
-  .rule{display:none}
+     so the hero gives up room rather than the games: the type tightens and the
+     footer drops its mark. With the crest gone the rule now fits, and it is
+     the divider the block is built around, so it stays. */
+  .tagline{font-size:15px; line-height:1.35; max-width:22ch}
+  .creed{font-size:10.5px; letter-spacing:.18em; margin:9px 0 0}
   .gallery{padding:8px 14px 2px}
   .rail-head{margin:0 0 8px}
   .rail-foot{display:none}
@@ -1729,25 +1740,20 @@ footer a:hover{opacity:1}
 <!-- ===== END packages/ui/bar.html ===== -->
 
   <main>
+    <!-- The crest used to live here. It now sits in the fixed bar at the top of
+         every surface, so repeating it made the front door say its own name
+         twice before saying anything else. What is left is the promise, a
+         rule, the three verbs, and today's date. -->
     <section class="hero">
-      <div class="lockup">
-        <!-- The mark is the letterpress proof itself, with the baked serif
-             wordmark lifted out of the middle band and the sheet dropped to
-             transparency. The arcs stop at the bars: nothing crosses the
-             middle, which is the whole point of the lockup. The wordmark below
-             is real text sitting in that clear band. -->
-        <div class="lk-mark" role="img" aria-label="PlaySapien"></div>
-        <p class="lk-word" aria-hidden="true"><span>PLAY</span><b>SAPIEN</b></p>
-      </div>
-      <p class="tagline">A daily puzzle for every kind of thinking — play, share, and see where your multiple intellisenses rank you.</p>
-      <p class="datum" id="datum">&nbsp;</p>
+      <p class="tagline">Daily puzzles for your multiple intellisenses.</p>
       <hr class="rule">
+      <p class="creed">Play &middot; Share &middot; Compare</p>
+      <p class="datum" id="datum">&nbsp;</p>
     </section>
 
     <section class="gallery" aria-labelledby="railhead">
       <p class="rail-head" id="railhead">The games</p>
       <div class="rail" id="rail" aria-label="Games"></div>
-      <p class="rail-foot" id="railfoot">Click a card to open it</p>
       <noscript><p class="rail-foot">Sojourner &middot; Word Chain</p></noscript>
     </section>
   </main>
@@ -1955,12 +1961,12 @@ const svgIcon = (k, cls) =>
    -------------------------------------------------------------------------- */
 const GAMES = [
   {
-    slug:'sojourner', name:'Sojourner', kicker:'Daily geography', number:'No. 01',
-    blurb:'Five places. One unlabelled globe.',
+    slug:'sojourner', name:'Sojourner', kicker:'World', number:'No. 01',
+    blurb:'A game of geography.',
     icon:'globe', field:'#0C0B0A', fg:'#F0E8DA', fg2:'#C3B9AD', accent:'#E0A44A'
   },
   {
-    slug:'wordchain', name:'Word Chain', kicker:'Daily word puzzle', number:'No. 02',
+    slug:'wordchain', name:'Word Chain', kicker:'Verbal', number:'No. 02',
     blurb:'Link every word to the next.',
     icon:'link', field:'#E8D1DA', fg:'#33262C', fg2:'#57444C', accent:'#8E3A5A'
   },
@@ -1988,7 +1994,7 @@ rail.innerHTML = GAMES.map((g,i) => `
       <span class="kick">${g.kicker}</span>
       <h2>${g.name}</h2>
       <p class="blurb">${g.blurb}</p>
-      ${g.soon ? '' : `<a class="play" href="${gameUrl(g)}">Play today
+      ${g.soon ? '' : `<a class="play" href="${gameUrl(g)}"><span class="playlabel">Play today</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M5 12h13"/><path d="M12 5l7 7-7 7"/></svg></a>`}
@@ -2032,11 +2038,7 @@ open(0);
 
 /* --- today ---------------------------------------------------------------- */
 document.getElementById('datum').textContent =
-  new Date().toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'})
-  + '  ·  Today’s puzzles are live';
-
-if (matchMedia('(hover: none)').matches)
-  document.getElementById('railfoot').textContent = 'Tap a card to open it';
+  new Date().toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'});
 </script>
 
 <script type="module">
@@ -2229,19 +2231,21 @@ if (inviteCode) {
   openSheet(ME ? 'friendsSheet' : 'profileSheet');
 }
 
-/* ---------- today, printed on the cards ------------------------------------ */
+/* ---------- today, printed on the cards ------------------------------------
+   There used to be a status line under the blurb reading "Not played today",
+   which spent a whole line saying nothing on the ordinary case. The card's own
+   button carries the state now: "Play today" until the day's puzzle is done,
+   "Show score" afterwards. Same link either way -- a finished game opens on its
+   result -- so this is a label change, not a route change. It also runs on
+   every refresh, so signing out has to put the label back.
+   -------------------------------------------------------------------------- */
 function paintStatus(byGame) {
   document.querySelectorAll('.panel[data-slug]').forEach(p => {
     const slug = p.dataset.slug, face = p.querySelector('.face');
     if (!slug || !face) return;
-    face.querySelector('.status')?.remove();
-    const r = byGame[slug];
-    const el = document.createElement('div');
-    el.className = 'status' + (r ? ' done' : '');
-    el.innerHTML = `<span class="dot"></span>${r
-      ? `Played today${r.score != null ? ` · ${r.score}${r.max_score ? '/' + r.max_score : ''}` : ''}`
-      : 'Not played today'}`;
-    face.appendChild(el);
+    face.querySelector('.status')?.remove();      // clear the old markup once
+    const lab = face.querySelector('.playlabel');
+    if (lab) lab.textContent = byGame[slug] ? 'Show score' : 'Play today';
   });
 }
 
@@ -2252,7 +2256,7 @@ function paintDatum(streaks) {
   const all = (streaks || []).find(s => s.game === '*');
   d.textContent = all && all.current > 1
     ? `${date}  ·  ${all.current}-day streak`
-    : `${date}  ·  Today’s puzzles are live`;
+    : date;
 }
 
 async function refresh() {

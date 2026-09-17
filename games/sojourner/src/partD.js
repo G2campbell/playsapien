@@ -1733,7 +1733,7 @@ $('quitBtn').addEventListener('click', function(){
    round silently, which is exactly what the Quit button is careful not to do.
    So when a round is in progress it routes through the same confirmation, and
    "Leave" then honours the link's own destination instead of the intro. */
-$('brandLink').addEventListener('click', function(ev){
+$('psbarBrand').addEventListener('click', function(ev){
   if(ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button) return;
   if($('quitBtn').hidden) return;                     // not playing: just follow it
   if(S.mode === 'learn'){ return; }                   // nothing to lose in Learn
