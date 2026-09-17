@@ -1307,7 +1307,13 @@ document.addEventListener('DOMContentLoaded', function () {
   --sheet-z:51; --scrim-z:50;
   --btn-size:14.5px; --btn-pad:11px 20px;
   --btn-fill:var(--fg); --btn-fg:var(--bg);   /* an ink button, not an accent one */
-  --icon-fg:var(--fg-2); --icon-fg-on:var(--fg); --icon-wash:var(--hover-wash);
+  /* --icon-wash used to read var(--hover-wash), which nothing defines. A var()
+     pointing at an undefined variable is not "fall back to the default" -- it
+     makes the property invalid, so the bar's icons had NO hover wash at all and
+     had not had one for as long as the line existed. Same expression the game
+     template uses, so all three surfaces wash the same amount. */
+  --icon-fg:var(--fg-2); --icon-fg-on:var(--fg);
+  --icon-wash:color-mix(in srgb, var(--fg) 8%, transparent);
 }
 *{box-sizing:border-box}
 [hidden]{display:none !important}
@@ -1324,7 +1330,29 @@ body{
    vignette. All gone -- the ground is now the flat brand grey, which is what
    the fixed bar was already showing, so bar and page finally agree.
    -------------------------------------------------------------------------- */
-.page{position:relative; z-index:1}
+/* The front door is a full-height frame, not a stack that happens to end.
+   The bar is fixed at the top and the footer is the last flex item, so on any
+   screen taller than the content the footer sits ON the bottom edge instead of
+   floating halfway up with dead space beneath it. <main> takes the rest and
+   space-evenly divides it between its three children -- the promise, the date,
+   the games -- so the gaps above, between and below them are equal.
+   100dvh, not 100vh: on a phone 100vh means the viewport with the address bar
+   HIDDEN, so the footer would be pushed below the fold until you scrolled. */
+.page{
+  position:relative; z-index:1;
+  min-height:100vh; min-height:100dvh;
+  display:flex; flex-direction:column;
+}
+.page > main{
+  flex:1 0 auto;
+  display:flex; flex-direction:column; justify-content:space-evenly;
+  /* the fixed bar is out of flow, so the frame has to reserve its height */
+  padding-top:calc(var(--bar-h) + env(safe-area-inset-top));
+}
+/* The three bands keep their natural height; space-evenly divides what is left
+   between them. Without this they are shrinkable flex items, and on a short
+   screen the rail would be squeezed instead of the page scrolling. */
+.page > main > *{flex:none}
 
 /* ---------- fixed top bar -------------------------------------------------- */
 .bar{
@@ -1347,7 +1375,7 @@ body{
 
 /* ---------- hero ----------------------------------------------------------- */
 .hero{
-  padding:calc(var(--bar-h) + env(safe-area-inset-top) + 24px) 20px 2px;
+  padding:0 20px;
   text-align:center; display:flex; flex-direction:column; align-items:center;
 }
 /* RETAINED, UNUSED. The hero crest moved into the fixed bar, so nothing on this
@@ -1417,7 +1445,7 @@ body{
 }
 .datum{
   font-family:var(--f-mono); font-size:12.5px; letter-spacing:.17em; text-transform:uppercase;
-  color:var(--fg-3); margin:9px 0 0;
+  color:var(--fg-3); margin:0; text-align:center;
 }
 .rule{
   width:min(460px,78%); height:1px; margin:14px auto 0; border:0;
@@ -1425,7 +1453,7 @@ body{
 }
 
 /* ---------- gallery -------------------------------------------------------- */
-.gallery{padding:18px 16px 8px}
+.gallery{padding:0 16px}
 .rail{
   display:flex; gap:6px; justify-content:center; align-items:stretch;
   max-width:1180px; margin:0 auto;
@@ -1510,8 +1538,10 @@ body{
 }
 
 /* ---------- footer --------------------------------------------------------- */
+/* Last flex item in .page, so it is held against the bottom edge. */
 footer{
-  margin-top:26px; padding:18px 20px calc(env(safe-area-inset-bottom) + 22px);
+  flex:none; margin-top:20px;
+  padding:14px 20px calc(env(safe-area-inset-bottom) + 16px);
   border-top:1px solid var(--line); text-align:center;
 }
 footer .mk{width:74px; margin:0 auto 9px; display:block; opacity:.5; --mk-w:56}
@@ -1534,9 +1564,9 @@ footer a:hover{opacity:1}
      the divider the block is built around, so it stays. */
   .tagline{font-size:17px; line-height:1.3; max-width:20ch}
   .creed{font-size:12.5px; letter-spacing:.17em; margin:10px 0 0}
-  .gallery{padding:14px 14px 2px}
+  .gallery{padding:0 14px}
   .rail-foot{display:none}
-  footer{margin-top:8px; padding:9px 20px calc(env(safe-area-inset-bottom) + 10px)}
+  footer{margin-top:10px; padding:9px 20px calc(env(safe-area-inset-bottom) + 10px)}
   footer .mk{display:none}
   footer p{line-height:1.9}
   .spine{flex-direction:row; justify-content:flex-start; gap:15px; padding:0 22px}
@@ -1607,6 +1637,28 @@ footer a:hover{opacity:1}
 .empty{
   text-align:center; padding:26px 10px; font-size:14px; line-height:1.6;
   color:var(--fg-2); max-width:40ch; margin:0 auto;
+}
+
+/* The About sheet is the only long one, so subheads, a list and the
+   fill-me-in spans live here rather than in packages/ui. ui.css sets sheet
+   paragraphs with :where(), i.e. zero specificity, so a plain selector wins
+   without !important. */
+.sheet h3{
+  font-family:var(--f-disp); font-weight:700; font-variation-settings:"opsz" 24;
+  font-size:15.5px; line-height:1.25; letter-spacing:-.006em;
+  color:var(--fg); margin:22px 0 8px;
+}
+.sheet h3:first-of-type{margin-top:18px}
+.sheet ul{
+  margin:0 0 12px; padding-left:18px; max-width:56ch;
+  font-size:14.5px; line-height:1.62; color:var(--fg-2);
+}
+.sheet ul li{margin:0 0 5px}
+/* Unfilled copy. Deliberately conspicuous: these are the only words on the
+   site still waiting on a decision, and they are ALSO live on /about/. */
+.sheet .fill{
+  color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, transparent);
+  padding:0 4px; border-radius:4px; font-style:italic;
 }
 
 /* today's status, printed on each game card */
@@ -1754,8 +1806,11 @@ footer a:hover{opacity:1}
       <p class="tagline">Daily puzzles for your multiple intellisenses.</p>
       <hr class="rule">
       <p class="creed">Play &middot; Share &middot; Compare</p>
-      <p class="datum" id="datum">&nbsp;</p>
     </section>
+
+    <!-- The date is its own band, not a footnote to the hero: it is the middle
+         of the three blocks <main> spaces evenly down the page. -->
+    <p class="datum" id="datum">&nbsp;</p>
 
     <!-- The heading over the rail is gone: three cards that say Sojourner,
          Word Chain and More soon do not need a line above them saying "The
@@ -1766,28 +1821,91 @@ footer a:hover{opacity:1}
     </section>
   </main>
 
+  <!-- About has left the footer: it is the "?" in the bar, on every surface,
+       and the whole of it is in that sheet now. What is left down here is the
+       two documents a visitor may need to cite rather than read. -->
   <footer>
     <svg class="mk" viewBox="0 0 1132 595" aria-hidden="true"><use href="#psmark"/></svg>
-    <p><a href="/about/">About</a> &nbsp;&middot;&nbsp; <a href="/privacy/">Privacy</a> &nbsp;&middot;&nbsp; <a href="/terms/">Terms</a></p>
+    <p><a href="/privacy/">Privacy</a> &nbsp;&middot;&nbsp; <a href="/terms/">Terms</a></p>
   </footer>
 </div>
 
 <div class="scrim" id="scrim"></div>
 
 <!-- About ------------------------------------------------------------------ -->
+<!-- About. This is now the whole of it: what used to be a three-paragraph
+     teaser here with "the longer version" pointing at /about/ is the full text,
+     because the "?" in the bar is how anyone actually arrives at it. /about/
+     still exists -- the shell's wordmark links there, and a search engine needs
+     a real url to index -- so the two have to be kept in step. -->
 <section class="sheet" id="aboutSheet" role="dialog" aria-modal="true" aria-labelledby="aboutTitle" hidden>
-  <div class="sh-head"><h2 id="aboutTitle">PlaySapien</h2><span class="sh-sub">About</span></div>
-  <p>A small workshop of daily puzzles. One a day, each one a different kind of
-     thinking &mdash; a globe, a chain of words, and whatever is next on the bench.</p>
-  <p>The mark is two rings crossed by two rules &mdash; a knot you cannot pull
-     apart by force, which is the idea the name carries. It is set the way it was
-     first proofed: pressed into a sheet of cold-press rag paper.</p>
-  <p class="hint">Every game keeps your progress on your own device. An account is
-     optional, and only exists so a streak survives a new phone and so a friend can
-     see how you did today.</p>
+  <div class="sh-head"><h2 id="aboutTitle">About</h2>
+    <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+
+  <p>A small set of daily puzzle games. One puzzle a day per game, the same one for
+     everybody, rolling over at midnight UTC.</p>
+  <p>The mark is two rings crossed by two rules &mdash; a knot you cannot pull apart
+     by force, which is the idea the name carries. It is set the way it was first
+     proofed: pressed into a sheet of cold-press rag paper.</p>
+
+  <h3>The games</h3>
+  <p><strong>Sojourner</strong> is a game of geography. Five places a day, an unlabelled
+     globe, and a story for every place you find &mdash; each one checked against a
+     museum, a university or a library, and linked so you can read the original.</p>
+  <p><strong>Word Chain</strong> is a word puzzle. Eight words, every neighbouring pair
+     a compound, first letters only, and the clock is the score.</p>
   <div class="btnrow">
-    <a class="btn ghost" href="/about/">The longer version</a>
+    <a class="btn ghost" href="/sojourner/">Play Sojourner</a>
+    <a class="btn ghost" href="/wordchain/">Play Word Chain</a>
+  </div>
+
+  <h3>How it works</h3>
+  <p>Everything is one page in your browser. There is no app to install, nothing to
+     download, and no account needed to play &mdash; open a game and it starts. Your
+     scores and settings live in your own browser until you decide otherwise.</p>
+  <p>An account is optional and does three things a single browser cannot: it keeps
+     your streak when you change phone, it syncs your laptop and your phone, and it
+     lets you compare a day with a friend. Signing in is a six-digit code by email,
+     or Google if you prefer. There are no passwords on this site, which is the most
+     reliable way of never leaking one.</p>
+  <p>The day rolls over at <strong>midnight UTC</strong>, the same instant for every
+     player everywhere, so nobody&rsquo;s &ldquo;today&rdquo; is anybody else&rsquo;s
+     yesterday.</p>
+
+  <h3>What this site does not do</h3>
+  <ul>
+    <li>No advertising, and no advertising network.</li>
+    <li>No analytics, no tag manager, no session recording, no tracking pixels.</li>
+    <li>No global leaderboard. Boards are friends-only, on purpose &mdash;
+      <a href="/privacy/">the privacy page</a> explains why.</li>
+    <li>No selling or sharing of personal information. There is one email address per
+      account and it never goes anywhere.</li>
+    <li>No consent banner, because there is nothing to consent to.</li>
+  </ul>
+
+  <h3>Word Chain takes submissions</h3>
+  <p>If you make a chain you are pleased with, you can submit it. Accepted chains are
+     published as daily or practice puzzles, credited to you if you want the credit.
+     What happens to a submission is set out in <a href="/terms/">the terms</a>.</p>
+
+  <h3>Who makes it</h3>
+  <p>PlaySapien is made by <span class="fill">[your name or business name]</span>. It is
+     a small project, run by <span class="fill">[a person / a few people &mdash; say
+     which]</span>, and it is paid for out of pocket rather than by advertising.</p>
+  <p>Corrections, bug reports, a place that deserves to be in Sojourner, or a chain that
+     deserves to be in Word Chain: <span class="fill">[your contact email]</span>.
+     Mistakes get fixed.</p>
+
+  <h3>Credits</h3>
+  <p>Sojourner&rsquo;s map is built from <strong>Natural Earth</strong>, public domain.
+     Flags come from public-domain sources. Facts are summarised from institutional
+     sources and linked back to them. Typefaces are <strong>Fraunces</strong>,
+     <strong>Public Sans</strong> and <strong>IBM Plex Mono</strong>, all open licensed.
+     The site is hosted on <strong>Cloudflare</strong>.</p>
+
+  <div class="btnrow">
     <a class="btn ghost" href="/privacy/">Privacy</a>
+    <a class="btn ghost" href="/terms/">Terms</a>
   </div>
 </section>
 
