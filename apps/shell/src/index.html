@@ -464,12 +464,16 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- Audit S10. One union url across shell and both games, so navigating
-     shell -> game hits cache instead of re-downloading largely the same
-     faces. It is a superset: the shell does not use Fraunces 700 or Plex
-     Mono 600, Sojourner does. Must stay byte-identical in all three or
-     the shared cache entry is lost. -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,700;9..144,900&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Petit+Formal+Script&display=swap">
+<!-- Audit S10. One url across shell and both games, so navigating shell ->
+     game hits cache instead of re-downloading the same faces. It is a
+     superset: the shell does not use Fraunces 700 or Plex Mono 600,
+     Sojourner does. Must stay byte-identical in all three or the shared
+     cache entry is lost -- and it had drifted: the shell was asking for
+     Montserrat and Fraunces 300 that the games did not, which cost the
+     shared entry AND two faces nothing on the page used any more. Both are
+     dropped, so the three urls match again. Note for anyone reviving the
+     retained .lk-word block below: weight 300 is no longer downloaded. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,900&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Petit+Formal+Script&display=swap">
 <style>
 /* ===== BEGIN packages/tokens/tokens.css (inlined verbatim — do not edit here) ===== */
 /* ===========================================================================
@@ -554,13 +558,11 @@ document.addEventListener('DOMContentLoaded', function () {
   --f-body:   "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   --f-mono:   "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --f-script: "Petit Formal Script", "Snell Roundhand", "Apple Chancery", cursive;
-  /* A geometric sans, distinct from --f-body, used where the platform speaks in
-     its own voice rather than a game's -- currently the shell's tagline.
-     NOT the wordmark: PLAYSAPIEN is set in --f-disp (Fraunces), because the
-     letterpress proof it is taken from is a serif and Montserrat flattened it.
-     Defined here rather than in the shell because a value defined only in an
-     inlined copy is overwritten the next time sync-inline runs. */
-  --f-sans:   "Montserrat", "Helvetica Neue", Arial, sans-serif;
+  /* REMOVED: --f-sans (Montserrat). It existed for one line -- the shell's
+     tagline -- which is Fraunces now, so nothing on the platform spoke in a
+     second sans and no surface loads the face any more. Reinstating it means
+     adding Montserrat back to the font url in ALL THREE surfaces, not just
+     the one using it, or the shared cache entry is lost. */
 
   /* Sojourner sets display headings at 700, the platform and Word Chain at
      900. Deliberate: a serif at 900 on a black ground closes up, and
@@ -1392,20 +1394,30 @@ body{
 .lk-word span{font-weight:300; color:var(--lockup-play)}
 .lk-word b   {font-weight:700; color:var(--lockup-sapien)}
 .bar-brand .mk,footer .mk{filter:drop-shadow(0 .5px 0 rgba(255,255,255,.4))}
+/* The promise line. Fraunces, like every other name on the site -- Montserrat
+   was the last thing on the page still speaking in a second voice. opsz 72
+   asks Fraunces for its display cut, which has the finer hairlines the larger
+   size can carry; the tracking comes back to zero because a serif at this size
+   does not need the sans's extra air. */
 .tagline{
-  font-family:var(--f-sans); font-weight:600;
-  font-size:clamp(15px,3.2vw,19px); line-height:1.4; letter-spacing:.005em;
-  margin:0; max-width:24ch; color:var(--fg); text-wrap:balance;
+  font-family:var(--f-disp); font-weight:600;
+  font-optical-sizing:none; font-variation-settings:"opsz" 72;
+  font-size:clamp(17px,3.6vw,22px); line-height:1.3; letter-spacing:-.006em;
+  margin:0; max-width:22ch; color:var(--fg); text-wrap:balance;
 }
-/* The three verbs, under the rule. Same mono voice as the date below it, one
-   step larger and darker so the pair reads as heading-then-caption. */
+/* The three verbs, under the rule. Fraunces small caps: the serif holds wide
+   tracking better than the mono did, so this reads as a line of display type
+   rather than a system label. The date below it keeps the mono, which is what
+   now tells the two apart -- they are no longer the same thing at two sizes. */
 .creed{
-  font-family:var(--f-mono); font-size:11.5px; letter-spacing:.22em;
-  text-transform:uppercase; color:var(--fg-2); margin:12px 0 0;
+  font-family:var(--f-disp); font-weight:600;
+  font-optical-sizing:none; font-variation-settings:"opsz" 36;
+  font-size:14px; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--fg-2); margin:13px 0 0;
 }
 .datum{
-  font-family:var(--f-mono); font-size:10.5px; letter-spacing:.19em; text-transform:uppercase;
-  color:var(--fg-3); margin:7px 0 0;
+  font-family:var(--f-mono); font-size:12.5px; letter-spacing:.17em; text-transform:uppercase;
+  color:var(--fg-3); margin:9px 0 0;
 }
 .rule{
   width:min(460px,78%); height:1px; margin:14px auto 0; border:0;
@@ -1414,11 +1426,6 @@ body{
 
 /* ---------- gallery -------------------------------------------------------- */
 .gallery{padding:18px 16px 8px}
-.rail-head{
-  display:flex; align-items:baseline; justify-content:center; gap:10px; margin:0 0 14px;
-  font-family:var(--f-mono); font-size:11px; letter-spacing:.19em; text-transform:uppercase;
-  color:var(--fg-2);
-}
 .rail{
   display:flex; gap:6px; justify-content:center; align-items:stretch;
   max-width:1180px; margin:0 auto;
@@ -1525,10 +1532,9 @@ footer a:hover{opacity:1}
      so the hero gives up room rather than the games: the type tightens and the
      footer drops its mark. With the crest gone the rule now fits, and it is
      the divider the block is built around, so it stays. */
-  .tagline{font-size:15px; line-height:1.35; max-width:22ch}
-  .creed{font-size:10.5px; letter-spacing:.18em; margin:9px 0 0}
-  .gallery{padding:8px 14px 2px}
-  .rail-head{margin:0 0 8px}
+  .tagline{font-size:17px; line-height:1.3; max-width:20ch}
+  .creed{font-size:12.5px; letter-spacing:.17em; margin:10px 0 0}
+  .gallery{padding:14px 14px 2px}
   .rail-foot{display:none}
   footer{margin-top:8px; padding:9px 20px calc(env(safe-area-inset-bottom) + 10px)}
   footer .mk{display:none}
@@ -1545,7 +1551,7 @@ footer a:hover{opacity:1}
      goes rather than the games losing room. */
   .face .mark{display:none}
   .face .ghost{width:66%; right:-12%}
-  .datum{letter-spacing:.12em; font-size:10px; max-width:30ch; margin:6px 0 0}
+  .datum{letter-spacing:.12em; font-size:11.5px; max-width:30ch; margin:7px 0 0}
 }
 @media (min-width:760px) and (max-width:1000px){
   .panel{height:22.5rem; width:5rem}
@@ -1751,8 +1757,10 @@ footer a:hover{opacity:1}
       <p class="datum" id="datum">&nbsp;</p>
     </section>
 
-    <section class="gallery" aria-labelledby="railhead">
-      <p class="rail-head" id="railhead">The games</p>
+    <!-- The heading over the rail is gone: three cards that say Sojourner,
+         Word Chain and More soon do not need a line above them saying "The
+         games". Screen readers still get the name, through aria-label. -->
+    <section class="gallery" aria-label="The games">
       <div class="rail" id="rail" aria-label="Games"></div>
       <noscript><p class="rail-foot">Sojourner &middot; Word Chain</p></noscript>
     </section>
