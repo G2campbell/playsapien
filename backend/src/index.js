@@ -133,7 +133,11 @@ export function makeDeps(env) {
         link: signinLink(env.APP_ORIGIN || 'https://playsapien.com', to, code),
         ttlMinutes,
         apiKey: env.RESEND_API_KEY,
-        from: env.MAIL_FROM || 'PlaySapien <hello@playsapien.com>',
+        /* The fallback matters: an unset var here would otherwise send from a
+           domain Resend has not verified, and the send would 403 while the
+           endpoint still answered { sent: true }. Keep it equal to the
+           wrangler.toml value. */
+        from: env.MAIL_FROM || 'PlaySapien <no-reply@profiles.playsapien.com>',
         fetchImpl,
       })),
 
