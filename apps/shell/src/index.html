@@ -2063,6 +2063,35 @@ footer a:hover{opacity:1}
 .planwhy{font-size:14px; line-height:1.62; color:var(--fg-2); margin:0}
 .planwhy b{color:var(--fg)}
 
+
+/* ---------- the makers' photograph ---------------------------------------
+   Framed the way the game cards are: a hairline edge and a soft shadow cast
+   down and back, so it sits ON the page rather than being a hole cut in it.
+   The shadow is offset and blurred far more than it is spread -- a symmetric
+   glow reads as a glow; a card reads as a card.
+
+   Sized in ch rather than px so it keeps proportion with the column of text
+   beside it, and capped well under the file's own 320px width: the source is
+   a phone snap, and asking a browser to draw it larger than it is would make
+   the whole page look cheap.
+
+   Not lazy-loaded. It is the one thing on this page that answers "who is
+   behind this site", and on a page being read BECAUSE someone is wondering
+   that, it should already be there when they arrive. */
+.makers{
+  float:right; width:min(188px, 38%); margin:4px 0 16px 22px;
+  border-radius:16px; overflow:hidden;
+  border:1px solid rgba(0,0,0,.55);
+  box-shadow:0 1px 0 rgba(255,255,255,.5), 0 14px 34px -16px rgba(40,32,18,.55);
+  background:var(--bg-sink);
+}
+.makers img{display:block; width:100%; height:auto}
+@media (max-width:479px){
+  /* At phone width a float leaves a two-word gutter beside it, so it stops
+     floating and becomes a plate of its own. */
+  .makers{float:none; width:min(210px,62%); margin:6px auto 18px}
+}
+
 /* today's status, printed on each game card */
 .status{
   display:flex; align-items:center; gap:7px; margin-top:14px;
@@ -2296,6 +2325,8 @@ footer a:hover{opacity:1}
      What happens to a submission is set out in <a href="/terms/">the terms</a>.</p>
 
   <h3>Who makes it</h3>
+  <figure class="makers"><img src="/makers.jpg" width="320" height="584"
+    alt="The two people who make PlaySapien."></figure>
   <p>PlaySapien is made by <span class="fill">[your name or business name]</span>. It is
      a small project, run by <span class="fill">[a person / a few people &mdash; say
      which]</span>, and it is paid for out of pocket rather than by advertising.</p>

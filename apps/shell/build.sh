@@ -23,6 +23,7 @@ cp "$ROOT/packages/tokens/theme.js"   "$OUT/theme.js"
 # card silently loses its picture in every chat app, with nothing on the site
 # itself looking any different.
 cp "$HERE/src/og.png"            "$OUT/og.png"
+cp "$HERE/src/makers.jpg"        "$OUT/makers.jpg"
 cp "$HERE/src/mark-light.png"    "$OUT/mark-light.png"
 cp "$HERE/src/mark-dark.png"     "$OUT/mark-dark.png"
 
@@ -35,7 +36,7 @@ done
 cp "$ROOT/deploy/_headers"   "$OUT/_headers"
 cp "$ROOT/deploy/_redirects" "$OUT/_redirects"
 
-for f in index.html sdk.js tokens.css theme.js legal.css og.png mark-light.png mark-dark.png about/index.html; do
+for f in index.html sdk.js tokens.css theme.js legal.css og.png makers.jpg mark-light.png mark-dark.png about/index.html; do
   [ -f "$OUT/$f" ] || { echo "FATAL: $f missing"; exit 1; }
 done
 echo "shell built -> $OUT"
