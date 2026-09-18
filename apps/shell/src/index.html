@@ -4,7 +4,33 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>PlaySapien</title>
-<meta name="description" content="A daily puzzle for every kind of thinking — play, share, and see where your multiple intellisenses rank you.">
+<meta name="description" content="Daily puzzles for your multiple intellisenses. Play · Share · Compare.">
+
+<!-- The link preview. Without these a pasted link is a bare url with no card
+     at all, which is what every chat app, every timeline and every forward
+     was showing.
+
+     og:image MUST be absolute. A relative path works in the browser and fails
+     everywhere that matters here -- Slack, iMessage, WhatsApp and the rest
+     fetch the page from their own servers and have nothing to resolve "/og.png"
+     against, so the card silently comes back with no picture.
+
+     og:image:alt is not decoration either: it is what a screen reader announces
+     in place of the card, and several clients show it while the image loads. -->
+<meta property="og:type"        content="website">
+<meta property="og:site_name"   content="PlaySapien">
+<meta property="og:url"         content="https://playsapien.com/">
+<meta property="og:title"       content="PlaySapien">
+<meta property="og:description" content="Daily puzzles for your multiple intellisenses. Play · Share · Compare.">
+<meta property="og:image"       content="https://playsapien.com/og.png">
+<meta property="og:image:type"  content="image/png">
+<meta property="og:image:width"  content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt"   content="PlaySapien — daily puzzles for your multiple intellisenses.">
+<!-- Twitter/X reads og:* for everything except the card SHAPE, which it will
+     not infer: without this it picks the small square thumbnail. -->
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://playsapien.com/">
 <!-- Audit S11. The shell and Sojourner both set no icon, so on the shared
      origin both fell back to a /favicon.ico that does not exist. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-40 -40 1299 722'%3E%3Crect x='-40' y='-40' width='1299' height='722' rx='90' fill='%23C5C6C1'/%3E%3Cg fill='none' stroke='%235A7085' stroke-width='62' stroke-linecap='round'%3E%3Ccircle cx='472' cy='321' r='301'/%3E%3Ccircle cx='745' cy='321' r='301'/%3E%3Cpath d='M20 220H1199'/%3E%3Cpath d='M20 422H1199'/%3E%3C/g%3E%3C/svg%3E">

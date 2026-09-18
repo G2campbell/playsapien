@@ -30,6 +30,10 @@ WORDCHAIN_DIST=${WORDCHAIN_DIST:-"$ROOT/games/wordchain/dist"}
 rm -rf "$OUT"; mkdir -p "$OUT"
 
 cp "$ROOT/apps/shell/src/index.html" "$OUT/index.html"
+# The link-preview card. og:image names it absolutely at /og.png, so a build
+# that forgets it produces a site that looks perfect and shares as a url with a
+# blank rectangle -- a failure nothing on the site itself reveals.
+cp "$ROOT/apps/shell/src/og.png"     "$OUT/og.png"
 
 # The three files every surface loads from the platform root. The shell asks
 # for /sdk.js as a module; the legal pages link /tokens.css and /theme.js.

@@ -18,6 +18,11 @@ cp "$ROOT/packages/tokens/theme.js"   "$OUT/theme.js"
 # The mark. Two variants because the emboss ring is paper-coloured: kept on
 # the light ground where it reads as depth, dropped on the dark one where it
 # would read as a halo. CSS picks by theme.
+# The link-preview card, 1200x630. Served from the site root because og:image
+# names it absolutely at https://playsapien.com/og.png -- move the file and the
+# card silently loses its picture in every chat app, with nothing on the site
+# itself looking any different.
+cp "$HERE/src/og.png"            "$OUT/og.png"
 cp "$HERE/src/mark-light.png"    "$OUT/mark-light.png"
 cp "$HERE/src/mark-dark.png"     "$OUT/mark-dark.png"
 
@@ -30,7 +35,7 @@ done
 cp "$ROOT/deploy/_headers"   "$OUT/_headers"
 cp "$ROOT/deploy/_redirects" "$OUT/_redirects"
 
-for f in index.html sdk.js tokens.css theme.js legal.css mark-light.png mark-dark.png about/index.html; do
+for f in index.html sdk.js tokens.css theme.js legal.css og.png mark-light.png mark-dark.png about/index.html; do
   [ -f "$OUT/$f" ] || { echo "FATAL: $f missing"; exit 1; }
 done
 echo "shell built -> $OUT"
