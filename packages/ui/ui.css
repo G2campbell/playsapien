@@ -295,6 +295,54 @@
 .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px }
 .seg.grid { display: grid; grid-template-columns: repeat(3, 1fr) }
 
+/* ------------------------------------------------------ the first minute ----
+   A slow breath of colour on the profile button, so a first-time visitor
+   notices there is an account behind it at all. It is a FADE, not a bounce or
+   a badge: the button has to be noticed without becoming the loudest thing on
+   a page whose whole point is the puzzle.
+
+   Colour only -- no scale, no shadow, no movement. Animating the glyph's size
+   would make the whole bar appear to twitch, and a dot badge would promise a
+   notification that does not exist.
+
+   3.2s per cycle, which is slow enough to read as breathing rather than
+   blinking; anything under about two seconds starts to feel like an error
+   state. It stops on its own; see ui.js for when and why. */
+/* Hollow to solid and back: the outline fills IN rather than merely changing
+   colour, which is a much stronger signal at 21px than a tint is.
+
+   It works on this glyph because of what the two shapes are. The head is a
+   circle, so it fills to a disc. The shoulders are an OPEN arc, and filling an
+   open path closes it across the chord -- here a horizontal line between the
+   two ends -- so it fills to a half-disc. Together that is exactly the solid
+   person icon, which is why no second piece of artwork is needed.
+
+   fill and stroke are animated together, so the solid state is one flat blue
+   shape rather than a blue fill wearing a grey outline. Nothing moves: no
+   scale, no shadow, no badge. A size change would make the whole bar appear to
+   twitch, and a dot would promise a notification that does not exist.
+
+   3.2s per cycle -- slow enough to read as breathing. Under about two seconds
+   it starts to look like an error state. It stops on its own; ui.js says when
+   and why. */
+@keyframes ps-attn {
+  0%, 100% { fill: transparent;       stroke: var(--icon-fg, var(--fg-2)) }
+  50%      { fill: var(--attn);       stroke: var(--attn) }
+}
+/* The children, not the button: fill="none" is a presentation attribute on the
+   <svg>, and a CSS declaration on the shapes themselves outranks it. */
+.iconbtn.attn svg > * { animation: ps-attn 3.2s ease-in-out infinite }
+
+/* Reduced motion does not mean "no emphasis" -- someone who turns it on still
+   has to find the button. It means no ANIMATION, so the icon simply rests
+   solid, which carries the same message without the pulse. */
+@media (prefers-reduced-motion: reduce) {
+  .iconbtn.attn svg > * {
+    animation: none;
+    fill: var(--attn); stroke: var(--attn);
+  }
+}
+
 /* --------------------------------------------------------------- avatar ----
    The three shapes PSUI.avatar() can return, plus the round frame they sit in.
    Sized by whatever contains them, never by themselves, so one renderer serves

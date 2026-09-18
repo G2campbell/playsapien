@@ -99,6 +99,25 @@
   --corner-gap: 4px;
   --sheet-radius: 20px;
   --sheet-ease: transform .42s cubic-bezier(.22,.9,.3,1);
+
+  /* ---------------------------------------------------------- attention --
+     The one colour used to say "there is something here you have not
+     noticed". It is the blue of PLAY in the wordmark, so the nudge is in the
+     brand's own voice rather than a generic alert red.
+
+     Declared HERE, in the shared root, rather than beside --lockup-play in
+     .ps-shell: the games do not carry the shell's palette, so a game reading
+     var(--lockup-play) would get nothing at all -- and a var() naming an
+     undefined variable does not fall back, it invalidates the property.
+     Every surface needs this one, so it lives where every surface can see it. */
+  --attn: #62768a;
+}
+/* The same blue is too dark to read on a dark ground; this is the wordmark's
+   own dark-theme value. Set on :root so it applies whichever palette class the
+   surface is using. */
+:root[data-theme="dark"] { --attn: #93A7B8 }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --attn: #93A7B8 }
 }
 
 /* ===========================================================================

@@ -208,6 +208,7 @@
       });
       return UI;
     },
+    attnStop: attnStop,
     avatar: avatar,
     avatarTokens: avatarTokens,
     setAvatar: setAvatar,
@@ -298,6 +299,55 @@
     return '<span class="psav-ltr" aria-hidden="true">' + escapeAttr(initial || '?') + '</span>';
   }
 
+  /* ---------------------------------------------------- the first minute ----
+     The profile button is the only control on the bar that leads anywhere a
+     visitor has a reason to go, and it looks like every other icon beside it.
+     So for one minute it breathes -- hollow to solid blue and back -- and then
+     stops.
+
+     Four rules about when it does NOT run, each of them the difference between
+     a hint and a nag:
+
+       - Once it has been clicked, ever. Remembered across visits, because the
+         message is "there is something here", and that message has landed the
+         moment someone opens it. Repeating it afterwards is just a flashing
+         icon on a page about puzzles.
+       - When the player is wearing an avatar. Pulsing somebody's own face at
+         them is not a hint, it is a glitch.
+       - After a minute. A pulse with no end stops reading as a pointer and
+         starts reading as something broken.
+       - When browser storage is unavailable -- a private window, blocked site
+         data. Then it runs for this page and is simply not remembered, which
+         is a worse experience than remembering and a much better one than
+         throwing on a read that was never essential.
+
+     Sixty seconds is also long enough to survive a page that takes a moment to
+     settle, and short enough that nobody who ignored it sits through it twice
+     on the same visit. */
+  var ATTN_KEY = 'ps:seen-profile';
+  var ATTN_MS = 60000;
+
+  function attnSeen() {
+    try { return localStorage.getItem(ATTN_KEY) === '1'; } catch (e) { return false; }
+  }
+  function attnStop(remember) {
+    var b = document.getElementById('profileBtn');
+    if (b) b.classList.remove('attn');
+    if (remember) { try { localStorage.setItem(ATTN_KEY, '1'); } catch (e) { /* fine */ } }
+  }
+  function attnStart() {
+    var b = document.getElementById('profileBtn');
+    if (!b || b.__attn || attnSeen()) return;
+    if (b.classList.contains('has-av')) return;     // they already have a face
+    b.__attn = true;
+    b.classList.add('attn');
+    /* Stop on the first press, whatever opens as a result -- the button's own
+       handler belongs to the surface, and this must not depend on any of them
+       having remembered to call it. */
+    b.addEventListener('click', function () { attnStop(true); }, { once: true });
+    setTimeout(function () { attnStop(false); }, ATTN_MS);
+  }
+
   /* Swap the bar's profile button between the generic outline person and the
      player's own face. Called with null on sign-out, which puts the icon back
      -- a bar still showing yesterday's face after signing out is a bug people
@@ -309,6 +359,20 @@
     var on = !!(user && (user.avatar || user.avatar_img));
     b.classList.toggle('has-av', on);
     b.innerHTML = on ? avatar(user, { label: 'Your profile' }) : b.__icon;
+    /* A face arriving ends the pulse, and remembers it: someone with an avatar
+       has plainly found the button already. It is also a correctness fix
+       rather than only a nicety -- the animation targets the SVG's children,
+       and replacing the button's contents with an <img> leaves the class on
+       with nothing to animate. */
+    if (on) attnStop(true);
+
+    /* A Sapien subscriber never sees it. The pulse exists to point at an
+       account and, past that, at the paid option -- both of which they already
+       have, so to them it is an advertisement for something they are paying
+       for. Stopped WITHOUT remembering, so the suppression follows the plan:
+       if they ever come back down to Free the nudge is available again,
+       subject to every other rule that governs it. */
+    if (user && user.plan === 'sapien') attnStop(false);
   }
 
   /* The bar's brand link. One markup for every surface, so where it points is
@@ -353,6 +417,10 @@
        So the bar asks for itself: one cookie'd GET, once per load, and silence
        if anything at all goes wrong. Nothing here is allowed to affect a game
        that is working perfectly well without it. */
+    /* Last, so a surface that is about to paint a real avatar has had its
+       chance: attnStart bails out on a button already wearing one. */
+    attnStart();
+
     if (!shell && typeof fetch === 'function' && !bar.__asked) {
       bar.__asked = true;
       try {
