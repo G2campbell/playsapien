@@ -2174,15 +2174,23 @@ footer a:hover{opacity:1}
   </div>
 </section>
 
-<!-- Downgrade, confirmed. Its own sheet rather than confirm(): this is the one
-     place on the screen where a mis-tap sounds expensive. -->
+<!-- Downgrade, confirmed. Its own sheet rather than confirm(), which a browser
+     may style, suppress or queue behind another dialog -- not what you want in
+     front of the one choice here that sounds expensive.
+
+     The wording is exact on purpose. Downgrading takes away ACCESS, not the
+     rows: nothing is deleted, and coming back to Sapien brings the history back
+     with you. Saying "lost" would have been the easier sentence and a false
+     one, and the first person to find out it was false would be someone who
+     downgraded believing it. -->
 <section class="sheet" id="downSheet" role="dialog" aria-modal="true" aria-labelledby="downTitle" hidden>
   <div class="sh-head"><h2 id="downTitle">Downgrade to Free?</h2>
     <button class="donebtn" type="button" data-sheet-close>Close</button></div>
-  <p>On the Free plan you can play each day\u2019s puzzle, but <b>all of your game
-     score history will be lost</b> \u2014 past days, streaks and comparisons with
-     friends all go with it.</p>
-  <p class="hint">You can come back to Sapien later, but the history does not come back with you.</p>
+  <p>On the Free plan you can still play each day\u2019s puzzle, but you will
+     <b>lose access to your game score history</b> \u2014 past days, streaks and
+     comparisons with friends all stop being visible.</p>
+  <p class="hint">Nothing is deleted. Your history is kept, and it comes back if you
+     return to Sapien.</p>
   <div class="btnrow">
     <button class="btn" type="button" id="downYes">Downgrade to Free</button>
     <button class="btn ghost" type="button" data-sheet-close>Keep Sapien</button>

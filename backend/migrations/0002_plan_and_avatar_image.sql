@@ -14,6 +14,13 @@
 -- every "is this player entitled to X" check a single column read, with no
 -- knowledge of Stripe in the games.
 --
+-- `plan` gates ACCESS, never storage. A downgrade flips this column and
+-- deletes nothing: results, streaks and friend records all stay exactly where
+-- they are, and going back to Sapien makes them visible again. That is a
+-- decision, not an omission -- the alternative punishes a mis-tap with data
+-- loss, and the first person to hit it would be someone who had been paying.
+-- Anything added later that reads `plan` must hide rows, not remove them.
+--
 -- plan_since is when the CURRENT plan started -- rewritten on every change, not
 -- a history. Real history belongs in that same future table; this exists so
 -- "Sapien since March" can be shown without one.
