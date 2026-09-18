@@ -95,6 +95,7 @@ export async function loadSession(db, request, now) {
     `SELECT s.id AS sid, s.user_id, s.created_at AS s_created, s.expires_at,
             s.last_used_at, s.ua, s.ip_cc,
             u.handle, u.display_name, u.email, u.email_verified, u.avatar,
+            u.plan, u.plan_since,
             u.created_at AS u_created, u.tz, u.strikes, u.blocked_at
        FROM sessions s
        JOIN users u ON u.id = s.user_id
@@ -132,6 +133,13 @@ export async function loadSession(db, request, now) {
       email: row.email,
       email_verified: !!row.email_verified,
       avatar: row.avatar,
+      /* plan travels on every authenticated request because entitlement checks
+         are cheap only if the answer is already here. avatar_img deliberately
+         does NOT -- this row is read on EVERY request, and 8 KB of picture on
+         each one to serve the handful that draw it is the wrong trade. It
+         comes down on /player/me instead. */
+      plan: row.plan || 'free',
+      plan_since: row.plan_since || null,
       created_at: row.u_created,
       tz: row.tz,
       strikes: row.strikes,

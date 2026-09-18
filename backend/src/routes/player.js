@@ -15,8 +15,13 @@ import { shapeUser } from './auth.js';
 /* GET /api/player/me -> profile + all streaks */
 export async function me(ctx) {
   if (!ctx.user) return ERRORS.unauthorised();
+  /* ctx.user comes from the session lookup, which deliberately leaves
+     avatar_img out because that row is read on every single request. This is
+     the one endpoint that needs the picture -- it is what the profile screen
+     draws -- so it is fetched here, once, rather than carried everywhere. */
+  const img = await first(ctx.db, 'SELECT avatar_img FROM users WHERE id = ?', ctx.user.id);
   return ok({
-    user: ctx.user,
+    user: { ...ctx.user, avatar_img: (img && img.avatar_img) || null },
     streaks: await readStreaks(ctx.db, ctx.user.id),
     today: utcDay(ctx.now),
   });
@@ -34,7 +39,7 @@ export async function readStreaks(db, userId) {
   return out;
 }
 
-/* PATCH /api/player/me  { handle?, display_name?, avatar?, tz? } */
+/* PATCH /api/player/me  { handle?, display_name?, avatar?, avatar_img?, plan?, tz? } */
 export async function updateMe(ctx) {
   if (!ctx.user) return ERRORS.unauthorised();
   const body = await readJson(ctx.req);
@@ -71,6 +76,41 @@ export async function updateMe(ctx) {
     sets.push('avatar = ?'); params.push(a || null);
   }
 
+  if ('avatar_img' in patch) {
+    /* The picture itself, not a pointer to one -- see migrations/0002. The
+       browser has already cropped and downscaled; this checks that what
+       arrived is what was promised and is small enough to sit in a row.
+
+       The regex is strict on purpose. It admits three raster types and base64
+       only, which rules out data:image/svg+xml -- an SVG is a document that
+       can carry script, and this string is rendered by other parts of the app.
+       No svg, no html, no plain text pretending to be an image. */
+    const v = patch.avatar_img == null ? null : String(patch.avatar_img);
+    if (v !== null && v !== '') {
+      if (v.length > 24000) {
+        return err('avatar_too_large', 'That picture is too big. Try a smaller one.', 413);
+      }
+      if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(v)) {
+        return err('invalid_avatar_img', 'That is not an image this can store.', 400);
+      }
+    }
+    sets.push('avatar_img = ?'); params.push(v || null);
+  }
+
+  if ('plan' in patch) {
+    /* Entitlement, not payment. Nothing charges for either value yet, so this
+       is simply the player's choice -- but it is written server-side so it
+       survives a new device and a game can read it. When billing exists this
+       endpoint must STOP accepting plan from the client: an upgrade will come
+       from the payment provider's webhook, and a downgrade at the end of a
+       paid period, neither of which is a PATCH from a browser. */
+    const p = String(patch.plan == null ? '' : patch.plan).trim().toLowerCase();
+    if (p !== 'free' && p !== 'sapien') {
+      return err('invalid_plan', 'That is not an account type.', 400);
+    }
+    sets.push('plan = ?', 'plan_since = ?'); params.push(p, ctx.now);
+  }
+
   if ('tz' in patch) {
     /* Advisory only -- days are UTC everywhere (spec §5). It is stored so the
        client can say "your streak ends in four hours" without guessing, and it
@@ -92,7 +132,8 @@ export async function updateMe(ctx) {
   }
 
   const row = await first(ctx.db,
-    `SELECT id, handle, display_name, email, email_verified, avatar, created_at,
+    `SELECT id, handle, display_name, email, email_verified, avatar,
+            avatar_img, plan, plan_since, created_at,
             tz, strikes, blocked_at FROM users WHERE id = ?`, ctx.user.id);
   return ok({ user: shapeUser(row) });
 }

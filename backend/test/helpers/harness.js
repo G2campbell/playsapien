@@ -20,11 +20,20 @@
 
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { readdirSync } from 'node:fs';
 import worker from '../../src/index.js';
 import { makeDb } from './d1.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-export const MIGRATION = join(here, '..', '..', 'migrations', '0001_init.sql');
+/* Read the folder rather than naming files: the next migration should not be
+   able to be forgotten here, which is exactly how 0002 broke the suite. Sorted,
+   because migrations are ordered by their numeric prefix and readdirSync is not
+   required to hand them back that way. */
+const MIGRATIONS_DIR = join(here, '..', '..', 'migrations');
+export const MIGRATION = readdirSync(MIGRATIONS_DIR)
+  .filter((f) => f.endsWith('.sql'))
+  .sort()
+  .map((f) => join(MIGRATIONS_DIR, f));
 
 export const ORIGIN = 'https://playsapien.test';
 

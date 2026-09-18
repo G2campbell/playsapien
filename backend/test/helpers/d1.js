@@ -144,12 +144,18 @@ class D1Shim {
   }
 }
 
-export function makeDb(migrationPath) {
+export function makeDb(migrationPaths) {
   const db = new Database(':memory:');
   /* D1 enforces foreign keys; plain SQLite does not unless asked. Without this
      the cascade behaviour in the delete-account path would silently pass a test
      it should fail. */
   db.pragma('foreign_keys = ON');
-  db.exec(readFileSync(migrationPath, 'utf8'));
+  /* EVERY migration, in order -- not just the initial schema. This took one
+     argument and one file until 0002 added columns, at which point the tests
+     were running against a schema the code no longer targets, and failing on
+     "no such column" rather than on anything real. A test database that is not
+     the deployed database is not a test. */
+  const list = Array.isArray(migrationPaths) ? migrationPaths : [migrationPaths];
+  for (const f of list) db.exec(readFileSync(f, 'utf8'));
   return new D1Shim(db);
 }

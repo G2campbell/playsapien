@@ -413,6 +413,9 @@ document.addEventListener('DOMContentLoaded', function () {
       });
       return UI;
     },
+    avatar: avatar,
+    avatarTokens: avatarTokens,
+    setAvatar: setAvatar,
     open: open,
     close: close,
     closeAll: closeAll,
@@ -423,6 +426,95 @@ document.addEventListener('DOMContentLoaded', function () {
     /* Called after each close with the id that closed, so a game can resync. */
     onClose: function (fn) { if (typeof fn === 'function') closers.push(fn); }
   };
+
+  /* ------------------------------------------------------------ avatars ----
+     One renderer, shared by the profile screen that PICKS an avatar and the
+     bar that WEARS it, on every surface. Two copies of this would drift the
+     first time a colour changed, and the drift would show as the same person
+     looking like two people on two screens of the same app.
+
+     A preset is drawn, not fetched: the crest is already on the page as the
+     <symbol id="psmark"> sprite, so a preset is that symbol on a coloured
+     disc, recoloured through currentColor and --mk-w. No image request, no
+     file to ship, and it themes itself.
+
+     A custom picture is a data: url the player uploaded, already cropped
+     square and downscaled by the browser before it was ever sent. It is drawn
+     in a round frame with object-fit:cover, so a square source is
+     circle-cropped rather than squashed.
+
+     The fallback, for a player with neither, is their initial. */
+  var AV_INK = [
+    ['#213946', '#C5C6C1'],   /* platform ink on paper      */
+    ['#5A7085', '#EDE7DC'],   /* the proof's steel foil     */
+    ['#3F5569', '#C5C6C1'],
+    ['#2F434C', '#9D8D85'],
+    ['#8E3A5A', '#F0E0E7'],   /* Word Chain                 */
+    ['#E0A44A', '#2A1F12'],   /* Sojourner                  */
+    ['#325843', '#E3EDE6'],
+    ['#863921', '#F3E3DC'],
+  ];
+  var AV_COUNT = AV_INK.length;
+
+  function avatarTokens() {
+    var out = [], i;
+    for (i = 1; i <= AV_COUNT; i++) out.push('ps-' + (i < 10 ? '0' : '') + i);
+    return out;
+  }
+
+  function escapeAttr(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  /* The disc, as markup. `user` may be null (signed out) or a partial record.
+     Returns a string so it can go straight into innerHTML at any size -- the
+     caller sizes the box; this always fills it. */
+  function avatar(user, opts) {
+    var o = opts || {};
+    var token = user && user.avatar ? String(user.avatar) : '';
+    var img = user && user.avatar_img ? String(user.avatar_img) : '';
+    var label = o.label || '';
+
+    /* A custom picture wins only when the token says so. The token is the one
+       source of truth for WHICH avatar is in use, so a leftover upload cannot
+       quietly override a preset the player has since chosen. */
+    if (token === 'custom' && /^data:image\/(png|jpeg|webp);base64,/.test(img)) {
+      return '<img class="psav-img" src="' + escapeAttr(img) + '" alt="' +
+             escapeAttr(label) + '">';
+    }
+
+    var m = /^ps-(\d{2})$/.exec(token);
+    if (m) {
+      var pair = AV_INK[(parseInt(m[1], 10) - 1) % AV_COUNT];
+      /* The nested <svg> is how the 1132x595 crest gets placed inside a square
+         disc without distorting: the inner viewBox keeps its own aspect ratio
+         and the outer one only says where to put it. */
+      return '<svg class="psav-svg" viewBox="0 0 100 100" aria-hidden="true">' +
+             '<circle cx="50" cy="50" r="50" fill="' + pair[0] + '"/>' +
+             '<svg x="17" y="32.6" width="66" height="34.7" viewBox="0 0 1132 595" ' +
+               'style="color:' + pair[1] + ';--mk-w:70">' +
+               '<use href="#psmark"/></svg>' +
+             '</svg>';
+    }
+
+    var initial = (user && (user.display_name || user.email) || '?').trim().charAt(0).toUpperCase();
+    return '<span class="psav-ltr" aria-hidden="true">' + escapeAttr(initial || '?') + '</span>';
+  }
+
+  /* Swap the bar's profile button between the generic outline person and the
+     player's own face. Called with null on sign-out, which puts the icon back
+     -- a bar still showing yesterday's face after signing out is a bug people
+     read as "it did not sign me out". */
+  function setAvatar(user) {
+    var b = document.getElementById('profileBtn');
+    if (!b) return;
+    if (b.__icon == null) b.__icon = b.innerHTML;      // keep the original once
+    var on = !!(user && (user.avatar || user.avatar_img));
+    b.classList.toggle('has-av', on);
+    b.innerHTML = on ? avatar(user, { label: 'Your profile' }) : b.__icon;
+  }
 
   /* The bar's brand link. One markup for every surface, so where it points is
      decided here rather than by each surface shipping a different href:
@@ -455,6 +547,28 @@ document.addEventListener('DOMContentLoaded', function () {
     if (shell && ab && !ab.__wired) {
       ab.__wired = true;
       ab.addEventListener('click', function () { UI.open('addSheet'); });
+    }
+
+    /* The face in the bar. The shell already loads the account layer and calls
+       setAvatar itself with a fuller record, so it is left alone; a GAME has no
+       account layer at all — both games are entirely local — and would
+       otherwise show the generic icon to a signed-in player, which reads as
+       having been signed out by walking into a game.
+
+       So the bar asks for itself: one cookie'd GET, once per load, and silence
+       if anything at all goes wrong. Nothing here is allowed to affect a game
+       that is working perfectly well without it. */
+    if (!shell && typeof fetch === 'function' && !bar.__asked) {
+      bar.__asked = true;
+      try {
+        fetch('/api/auth/session', { credentials: 'include', headers: { Accept: 'application/json' } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) {
+            var u = j && j.data && j.data.user;
+            if (u) setAvatar(u);
+          })
+          .catch(function () { /* offline, or no backend: keep the icon */ });
+      } catch (e) { /* no fetch, ancient browser: keep the icon */ }
     }
   }
 
@@ -1210,7 +1324,40 @@ document.addEventListener('DOMContentLoaded', function () {
 .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px }
 .seg.grid { display: grid; grid-template-columns: repeat(3, 1fr) }
 
+/* --------------------------------------------------------------- avatar ----
+   The three shapes PSUI.avatar() can return, plus the round frame they sit in.
+   Sized by whatever contains them, never by themselves, so one renderer serves
+   a 26px bar button and a 64px profile disc. */
+.psav {
+  border-radius: 50%; overflow: hidden; flex: none;
+  display: grid; place-items: center;
+  background: var(--bg-sink); color: var(--fg);
+}
+.psav-img { width: 100%; height: 100%; display: block; object-fit: cover }
+.psav-svg { width: 100%; height: 100%; display: block }
+.psav-ltr {
+  font-family: var(--f-disp); font-weight: 900;
+  font-size: .52em;            /* of the frame, so it scales with the disc */
+  line-height: 1; user-select: none;
+}
+/* Wearing a face, the button holds a filled disc rather than a 21px outline.
+   30px inside a 38px button: a solid shape reads heavier than a stroked one at
+   the same size, so matching the icons' optical weight means going smaller
+   than the button, not filling it. */
+.iconbtn.has-av > * { width: 30px; height: 30px; display: block; border-radius: 50% }
+.iconbtn.has-av .psav-ltr {
+  display: grid; place-items: center; background: var(--bg-sink);
+  color: var(--fg); font-family: var(--f-disp); font-weight: 900; font-size: 15px;
+}
+
 /* -------------------------------------------------------------- utility ---- */
+/* Present to a screen reader, absent to everything else. Used where a control
+   is obvious by position but has no visible label -- clip-path rather than
+   display:none, which would take it out of the accessibility tree too. */
+.ui-sr {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
 .ui-note {
   margin: 10px 0 0; padding: 10px 12px; border-radius: 9px;
   font-size: 13px; line-height: 1.5;
@@ -1665,6 +1812,96 @@ footer a:hover{opacity:1}
   padding:0 4px; border-radius:4px; font-style:italic;
 }
 
+/* ---------- profile: the signed-out card ----------------------------------
+   Modelled on the reference: one instruction, the address and its button on
+   one line, a labelled rule, the provider row at the same size as the field,
+   a second rule, and the legal line. Nothing else -- every extra control here
+   is a reason not to sign in. */
+.pf-lead{font-size:14.5px; line-height:1.6; color:var(--fg-2); margin:0 0 16px; max-width:46ch}
+.pf-mailrow{display:flex; gap:8px; align-items:center}
+.pf-mailrow .fld{margin:0; flex:1 1 auto; min-width:0}
+.pf-mailrow .btn{flex:none; white-space:nowrap; --btn-radius:10px; --btn-pad:12px 16px}
+/* Below this the field and the button together are narrower than the words in
+   the button, so the row stacks rather than squeezing the address to nothing. */
+@media (max-width:429px){
+  .pf-mailrow{flex-wrap:wrap}
+  .pf-mailrow .btn{width:100%}
+}
+
+/* ---- OR ---- : the rule is two flex children of the row, so it cannot
+   overlap the word no matter how wide the sheet gets. */
+.pf-rule{
+  display:flex; align-items:center; gap:14px; margin:22px 0;
+  font-family:var(--f-mono); font-size:10.5px; letter-spacing:.2em;
+  text-transform:uppercase; color:var(--fg-3);
+}
+.pf-rule::before,.pf-rule::after{content:""; flex:1; height:1px; background:var(--line-2)}
+.pf-rule.bare{gap:0}
+
+/* The whole line is the button, per the brief: the words, the logo and the
+   provider name are one target, sized like the field above it. */
+.oauth{
+  display:flex; align-items:center; justify-content:center; gap:10px;
+  width:100%; box-sizing:border-box; cursor:pointer;
+  font:inherit; font-size:15px; font-weight:600;
+  padding:11px 13px; border-radius:10px;
+  border:1px solid var(--line-2); background:var(--bg-raise); color:var(--fg);
+  transition:background .16s, border-color .16s;
+}
+.oauth:hover{background:var(--bg-sink); border-color:var(--fg-3)}
+.oauth:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.oauth svg{width:18px; height:18px; flex:none}
+.oauth .lead{
+  font-family:var(--f-mono); font-size:10.5px; font-weight:400; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--fg-2);
+}
+.pf-legal{font-size:12.5px; line-height:1.65; color:var(--fg-3); text-align:center; margin:0}
+.pf-legal a{color:var(--fg-2); text-decoration-color:var(--accent); text-underline-offset:2px}
+
+/* ---------- profile: the signed-in sections ------------------------------- */
+.pfsec{padding:0 0 20px; margin:0 0 20px; border-bottom:1px solid var(--line)}
+.pfsec:last-of-type{border-bottom:0; padding-bottom:4px; margin-bottom:0}
+.pfsec > h3:first-child{margin-top:0}
+
+.avnow{display:flex; align-items:center; gap:15px; margin:0 0 16px}
+.avnow .psav{width:66px; height:66px; font-size:66px}   /* .psav-ltr is .52em */
+.avnow .who{min-width:0}
+.avnow .who strong{display:block; font-family:var(--f-disp); font-size:18px; font-weight:600; color:var(--fg)}
+.avnow .who span{display:block; font-size:13px; color:var(--fg-2); word-break:break-all}
+
+.avgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(50px,1fr)); gap:10px; margin:0 0 12px}
+.avgrid button{
+  padding:0; background:none; cursor:pointer; aspect-ratio:1;
+  border:2px solid transparent; border-radius:50%;
+}
+.avgrid .psav{width:100%; height:100%; font-size:46px}
+.avgrid button[aria-pressed="true"]{border-color:var(--accent)}
+.avgrid button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+/* ---------- account type -------------------------------------------------
+   The same two-wide-buttons pattern Sojourner uses for Wanderer/Globetrotter:
+   equal widths, the chosen one lit, the other faded rather than hidden, so the
+   alternative is always legible as a thing you could switch to. */
+.planset{display:flex; gap:10px; margin:2px 0 14px}
+.planset button{
+  flex:1 1 0; font-family:var(--f-mono); font-size:15px; letter-spacing:.03em;
+  padding:15px 10px; border-radius:11px; cursor:pointer;
+  border:1px solid var(--line); background:var(--bg-sink); color:var(--fg-2);
+  opacity:.55; transition:background .15s, color .15s, border-color .15s, opacity .15s;
+}
+.planset button:hover{opacity:.8; border-color:var(--line-2); color:var(--fg)}
+.planset button[aria-pressed="true"]{
+  background:var(--line-2); border-color:var(--line-2); color:var(--fg); opacity:1;
+}
+.planset button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.planset em{
+  display:block; margin-top:4px; font-style:normal;
+  font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--accent);
+  min-height:11px;      /* reserved, so the row does not jump when it appears */
+}
+.planwhy{font-size:14px; line-height:1.62; color:var(--fg-2); margin:0}
+.planwhy b{color:var(--fg)}
+
 /* today's status, printed on each game card */
 .status{
   display:flex; align-items:center; gap:7px; margin-top:14px;
@@ -1784,7 +2021,12 @@ footer a:hover{opacity:1}
   <div class="sheet-in">
     <div class="sh-head"><h2 id="statsTitle">Analytics</h2>
       <button class="donebtn" type="button" data-sheet-close>Close</button></div>
-    <p class="sethint" id="statsBody">Not built yet.</p>
+    <!-- A div, not a p: a surface that HAS numbers replaces this with real
+         blocks, and a <p> cannot legally contain them -- the browser would
+         silently break the paragraph apart around them. ui.js writes the
+         placeholder sentence in as text; a surface that knows better
+         overwrites it. -->
+    <div class="sethint" id="statsBody">Not built yet.</div>
   </div>
 </section>
 
@@ -1913,29 +2155,54 @@ footer a:hover{opacity:1}
   </div>
 </section>
 
+<!-- Upgrade. There is no checkout yet, and a button that goes nowhere is worse
+     than one that says where it is going, so this is deliberately a holding
+     screen rather than a dead link or a 404.
+     TODO(billing): replace the body with the checkout hand-off. When that
+     exists, routes/player.js must STOP accepting `plan` from the browser --
+     an upgrade comes from the payment provider's webhook, not a PATCH. -->
+<section class="sheet" id="payWall" role="dialog" aria-modal="true" aria-labelledby="payTitle" hidden>
+  <div class="sh-head"><h2 id="payTitle">Sapien</h2>
+    <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+  <p>Sapien is <b>$2 a month, billed annually</b>. It opens up tracking all your
+     results, comparing your results against friends and others, making up and
+     sharing games with friends, and more.</p>
+  <p class="hint">Payment is not switched on yet, so there is nothing to buy today.
+     This is where the checkout will be.</p>
+  <div class="btnrow">
+    <button class="btn ghost" type="button" data-sheet-close>Back</button>
+  </div>
+</section>
+
+<!-- Downgrade, confirmed. Its own sheet rather than confirm(): this is the one
+     place on the screen where a mis-tap sounds expensive. -->
+<section class="sheet" id="downSheet" role="dialog" aria-modal="true" aria-labelledby="downTitle" hidden>
+  <div class="sh-head"><h2 id="downTitle">Downgrade to Free?</h2>
+    <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+  <p>On the Free plan you can play each day\u2019s puzzle, but <b>all of your game
+     score history will be lost</b> \u2014 past days, streaks and comparisons with
+     friends all go with it.</p>
+  <p class="hint">You can come back to Sapien later, but the history does not come back with you.</p>
+  <div class="btnrow">
+    <button class="btn" type="button" id="downYes">Downgrade to Free</button>
+    <button class="btn ghost" type="button" data-sheet-close>Keep Sapien</button>
+  </div>
+</section>
+
 <!-- Profile / sign-in ------------------------------------------------------- -->
 <section class="sheet" id="profileSheet" role="dialog" aria-modal="true" aria-labelledby="profileTitle" hidden>
   <div class="sh-head"><h2 id="profileTitle">Profile</h2><span class="sh-sub" id="pfSub">Not signed in</span></div>
 
-  <!-- signed out: ask for an email -->
+  <!-- signed out -->
   <div id="pfOut">
-    <p>Sign in to keep your streaks when you change phone, and to see how your
-       friends did today. Everything works without it &mdash; this only adds the
-       parts one device cannot do on its own.</p>
+    <p class="pf-lead">We send a six-digit code to your email &mdash; enter the code;
+       no passwords to manage.</p>
 
-    <button class="btn google" type="button" id="googleBtn">
-      <svg viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.83.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
-      Continue with Google
-    </button>
-
-    <div class="or">or</div>
-
-    <form id="emailForm" autocomplete="on">
-      <label class="setlabel" for="emailIn">Your email</label>
-      <p class="sethint" style="margin-bottom:9px">We send a six-digit code. No password to make up or forget.</p>
+    <form id="emailForm" class="pf-mailrow" autocomplete="on">
+      <label class="ui-sr" for="emailIn">Your email address</label>
       <input class="fld" type="email" id="emailIn" name="email" inputmode="email"
              autocomplete="email" placeholder="you@example.com" required>
-      <button class="btn wide" type="submit" id="emailBtn">Send me a code</button>
+      <button class="btn" type="submit" id="emailBtn">Send me a code</button>
     </form>
 
     <!-- step two: the code -->
@@ -1951,30 +2218,76 @@ footer a:hover{opacity:1}
       </div>
     </form>
     <div class="ui-note" id="pfNote" hidden></div>
+
+    <div class="pf-rule"><span>or</span></div>
+
+    <button class="oauth" type="button" id="googleBtn">
+      <span class="lead">Login with:</span>
+      <svg viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.83.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+      <span>Google</span>
+    </button>
+
+    <div class="pf-rule bare"></div>
+
+    <p class="pf-legal">By signing in, you confirm that you have read and accepted the
+      <a href="/terms/">Terms</a> and <a href="/privacy/">Privacy Policy</a>.</p>
   </div>
 
-  <!-- signed in: the cross-game profile -->
+  <!-- signed in.
+
+       The streak numbers and the per-game breakdown that used to live here
+       have moved to the Analytics sheet, which is where someone goes looking
+       for them and which was otherwise an empty promise. This screen is now
+       only the things you come here to CHANGE. -->
   <div id="pfIn" hidden>
-    <div class="pf">
-      <div class="av" id="pfAv">&nbsp;</div>
-      <div class="who"><strong id="pfName">&nbsp;</strong><span id="pfMail">&nbsp;</span></div>
-    </div>
-    <div class="stats">
-      <div class="stat"><b id="stStreak">0</b><span>Day streak</span></div>
-      <div class="stat"><b id="stPlayed">0</b><span>Puzzles</span></div>
-      <div class="stat"><b id="stBest">0</b><span>Best run</span></div>
-    </div>
-    <p class="hint" style="margin:14px 0 2px">Per game</p>
-    <div id="pfGames"></div>
-    <div class="setrow">
-      <div class="col">
-        <label class="setlabel" for="nameIn">Display name</label>
-        <p class="sethint">What your friends see on a leaderboard.</p>
+
+    <!-- General. Deliberately unnamed: a heading over the first section of a
+         screen called Profile only repeats the screen. -->
+    <section class="pfsec">
+      <div class="avnow">
+        <div class="psav" id="pfAv"></div>
+        <div class="who"><strong id="pfName">&nbsp;</strong><span id="pfMail">&nbsp;</span></div>
       </div>
-    </div>
-    <input class="fld" type="text" id="nameIn" maxlength="32" placeholder="Your name">
-    <div class="btnrow">
-      <button class="btn" type="button" id="saveNameBtn">Save</button>
+
+      <p class="sethint" style="margin:0 0 10px">Pick a face, or use one of your own.</p>
+      <div class="avgrid" id="avGrid" role="group" aria-label="Choose an avatar"></div>
+      <div class="btnrow">
+        <button class="btn ghost" type="button" id="avUpBtn">Upload a picture</button>
+        <button class="btn ghost" type="button" id="avClrBtn" hidden>Remove picture</button>
+      </div>
+      <!-- accept is a hint, not a guarantee; the handler checks the type. -->
+      <input type="file" id="avFile" accept="image/png,image/jpeg,image/webp" hidden>
+      <div class="ui-note" id="avNote" hidden></div>
+
+      <div class="setrow" style="margin-top:18px">
+        <div class="col">
+          <label class="setlabel" for="nameIn">Display name</label>
+          <p class="sethint">What your friends see on a leaderboard.</p>
+        </div>
+      </div>
+      <input class="fld" type="text" id="nameIn" maxlength="32" placeholder="Your name">
+      <div class="btnrow">
+        <button class="btn" type="button" id="saveNameBtn">Save</button>
+      </div>
+    </section>
+
+    <!-- Account type -->
+    <section class="pfsec">
+      <h3>Account type</h3>
+      <!-- The two buttons choose which option you are READING about; the
+           button underneath is what actually changes anything. They cannot be
+           the same control, because Sapien costs money: a tap that silently
+           upgraded you would be a purchase made by mistake. Your current plan
+           is marked, so the pair still answers "which am I on?" at a glance. -->
+      <div class="planset" id="planSet" role="group" aria-label="Account type">
+        <button type="button" data-plan="free"   aria-pressed="true">Free<em></em></button>
+        <button type="button" data-plan="sapien" aria-pressed="false">Sapien<em></em></button>
+      </div>
+      <p class="planwhy" id="planWhy"></p>
+      <div class="btnrow" id="planActions" style="margin-top:14px"></div>
+    </section>
+
+    <div class="btnrow" style="margin-top:20px">
       <button class="btn ghost" type="button" id="signOutBtn">Sign out</button>
     </div>
   </div>
@@ -2195,7 +2508,8 @@ const GAME_NAMES = { sojourner: 'Sojourner', wordchain: 'Word Chain' };
    another, and Sojourner had two. This is the one.
    -------------------------------------------------------------------------- */
 PSUI.init({
-  sheets: ['aboutSheet', 'profileSheet', 'friendsSheet', 'settingsSheet'],
+  sheets: ['aboutSheet', 'profileSheet', 'friendsSheet', 'settingsSheet',
+           'payWall', 'downSheet'],
   scrim: 'scrim',
   toast: 'toast'
 });
@@ -2227,27 +2541,185 @@ function paintSession(user) {
   $('frOut').hidden = !!user;
   $('frIn').hidden = !user;
   $('pfSub').textContent = user ? 'Signed in' : 'Not signed in';
+  /* The bar wears the face on every surface, and null puts the generic icon
+     back -- a bar still showing yesterday's avatar after a sign-out reads as
+     "it did not sign me out". */
+  PSUI.setAvatar(user);
   if (!user) return;
   const name = user.display_name || user.handle || 'Player';
-  $('pfAv').textContent = initials(name);
+  $('pfAv').innerHTML = PSUI.avatar(user, { label: 'Your avatar' });
   $('pfName').textContent = name;
   $('pfMail').textContent = user.email || '';
   $('nameIn').value = user.display_name || '';
+  paintAvatarGrid(user);
+  paintPlan(user);
 }
 
+/* ---------- avatars --------------------------------------------------------
+   The grid is drawn from PSUI.avatarTokens() rather than a list kept here, so
+   adding a face is one array in packages/ui and every surface gets it.
+   -------------------------------------------------------------------------- */
+function paintAvatarGrid(user) {
+  const cur = (user && user.avatar) || '';
+  $('avGrid').innerHTML = PSUI.avatarTokens().map(t => `
+    <button type="button" data-av="${t}" aria-pressed="${t === cur}"
+            aria-label="Avatar ${t.slice(3)}">
+      <span class="psav">${PSUI.avatar({ avatar: t })}</span>
+    </button>`).join('');
+  $('avClrBtn').hidden = cur !== 'custom';
+}
+
+async function setAvatar(patch) {
+  const r = await PS.updateMe(patch);
+  if (!r.ok) { note('avNote', 'That did not save. Try again.', true); return; }
+  note('avNote', '', false);
+  $('avNote').hidden = true;
+  paintSession(r.user);
+}
+
+$('avGrid').addEventListener('click', e => {
+  const b = e.target.closest('button[data-av]');
+  if (b) setAvatar({ avatar: b.dataset.av, avatar_img: null });
+});
+$('avUpBtn').addEventListener('click', () => $('avFile').click());
+$('avClrBtn').addEventListener('click', () => setAvatar({ avatar: null, avatar_img: null }));
+
+/* The upload never leaves the browser at full size. It is centre-cropped to a
+   square and drawn at 128px, then encoded as JPEG and stepped down in quality
+   until it fits the API's 24 KB cap -- which a 128px photo does at the first
+   attempt, the loop being there for the pathological ones. Cropping here, not
+   on the server, is what lets the whole thing be a single column in D1 rather
+   than an image service. */
+const AV_PX = 128, AV_MAX = 24000;
+
+function squareDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = () => {
+      try {
+        const side = Math.min(im.width, im.height);
+        const c = document.createElement('canvas');
+        c.width = c.height = AV_PX;
+        const g = c.getContext('2d');
+        /* White underneath: JPEG has no alpha, and a transparent PNG would
+           otherwise composite onto black. */
+        g.fillStyle = '#fff'; g.fillRect(0, 0, AV_PX, AV_PX);
+        g.drawImage(im, (im.width - side) / 2, (im.height - side) / 2, side, side,
+                    0, 0, AV_PX, AV_PX);
+        let q = 0.82, out = c.toDataURL('image/jpeg', q);
+        while (out.length > AV_MAX && q > 0.3) { q -= 0.12; out = c.toDataURL('image/jpeg', q); }
+        resolve(out.length > AV_MAX ? null : out);
+      } catch (err) { reject(err); }
+      finally { URL.revokeObjectURL(url); }
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); reject(new Error('not an image')); };
+    im.src = url;
+  });
+}
+
+$('avFile').addEventListener('change', async e => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';                       // so the same file can be re-picked
+  if (!f) return;
+  if (!/^image\/(png|jpeg|webp)$/.test(f.type)) {
+    note('avNote', 'PNG, JPEG or WebP, please.', true); return;
+  }
+  note('avNote', 'Resizing\u2026', false);
+  let data = null;
+  try { data = await squareDataUrl(f); }
+  catch (err) { note('avNote', 'That file could not be read as a picture.', true); return; }
+  if (!data) { note('avNote', 'That picture will not compress small enough. Try another.', true); return; }
+  setAvatar({ avatar: 'custom', avatar_img: data });
+});
+
+/* ---------- account type ---------------------------------------------------
+   Two wide buttons, the chosen one lit and the other faded, the same way
+   Sojourner offers Wanderer and Globetrotter. Nothing charges for either yet;
+   what the choice buys today is that it is stored against the account rather
+   than the browser, so a game can read it and a new phone inherits it.
+   -------------------------------------------------------------------------- */
+const PLAN_WHY = {
+  free: 'The Free option allows you to play the daily challenge for the current day, ' +
+        'but doesn\u2019t allow you to go back and play prior days\u2019 challenges or to ' +
+        'track results and compare results against others.',
+  sapien: 'The Sapien option is a paid option \u2014 just <b>$2/mo billed annually</b> \u2014 ' +
+          'which opens up tracking all your results, comparing your results against friends ' +
+          'and others, being able to make up and share games with friends, and more.',
+};
+
+/* Which option the player is reading about. It starts on whatever they are on
+   and is only ever changed by them; PLAN is what they actually have. */
+let planView = 'free';
+
+function paintPlan(user) {
+  const plan = (user && user.plan) === 'sapien' ? 'sapien' : 'free';
+  if (!paintPlan.touched) planView = plan;        // follow the account until they browse
+  [...$('planSet').children].forEach(b => {
+    b.setAttribute('aria-pressed', String(b.dataset.plan === planView));
+    b.querySelector('em').textContent = b.dataset.plan === plan ? 'Current' : '';
+  });
+  $('planWhy').innerHTML = PLAN_WHY[planView];
+
+  /* The action belongs to the plan you HAVE, not the one you are reading, so
+     that browsing the other option never changes what the button would do. */
+  $('planActions').innerHTML = plan === 'sapien'
+    ? '<button class="btn ghost" type="button" id="planDownBtn">Downgrade to Free</button>'
+    : '<button class="btn" type="button" id="planUpBtn">Upgrade to Sapien</button>';
+}
+
+$('planSet').addEventListener('click', e => {
+  const b = e.target.closest('button[data-plan]');
+  if (!b) return;
+  planView = b.dataset.plan;
+  paintPlan.touched = true;
+  paintPlan(ME);
+});
+
+$('planActions').addEventListener('click', e => {
+  if (e.target.closest('#planUpBtn')) { openSheet('payWall'); return; }
+  if (e.target.closest('#planDownBtn')) { openSheet('downSheet'); return; }
+});
+
+/* Downgrade is confirmed on its own sheet rather than with confirm(), which a
+   browser is free to style, suppress or queue behind another dialog -- not what
+   you want in front of the one irreversible-sounding choice on the screen. */
+$('downYes').addEventListener('click', async () => {
+  const r = await PS.updateMe({ plan: 'free' });
+  closeSheets();
+  if (!r.ok) { PSUI.toast('That did not save.'); return; }
+  paintPlan.touched = false;                       // snap the view back to Free
+  paintSession(r.user);
+  PSUI.toast('You are on the Free plan.');
+});
+
+/* The streak numbers, which used to sit on the profile screen. They are facts
+   about how you are doing rather than settings you change, so they belong
+   behind the Analytics icon -- which until now was a sheet apologising for
+   being empty while the real numbers hid under Profile. ui.js writes the
+   placeholder copy into #statsBody when the bar is built; this overwrites it
+   for a signed-in player, and leaves it alone otherwise. */
 function paintStats(streaks) {
   const rows = streaks || [];
+  const body = $('statsBody');
+  if (!body) return;
   const all = rows.find(s => s.game === '*') || {};
-  $('stStreak').textContent = all.current || 0;
-  $('stPlayed').textContent = rows.reduce((n, s) => s.game === '*' ? n : n + (s.played || 0), 0);
-  $('stBest').textContent = all.longest || 0;
-  $('pfGames').innerHTML = Object.keys(GAME_NAMES).map(g => {
-    const s = rows.find(r => r.game === g) || {};
-    return `<div class="gstat">
-      <span class="gn">${GAME_NAMES[g]}</span>
-      <span class="gv">${s.played ? `${s.current || 0}-day streak · ${s.played} played` : 'Not played yet'}</span>
-    </div>`;
-  }).join('');
+  const played = rows.reduce((n, s) => s.game === '*' ? n : n + (s.played || 0), 0);
+  body.innerHTML = `
+    <div class="stats">
+      <div class="stat"><b>${all.current || 0}</b><span>Day streak</span></div>
+      <div class="stat"><b>${played}</b><span>Puzzles</span></div>
+      <div class="stat"><b>${all.longest || 0}</b><span>Best run</span></div>
+    </div>
+    <p class="hint" style="margin:14px 0 2px">Per game</p>
+    ${Object.keys(GAME_NAMES).map(g => {
+      const s = rows.find(r => r.game === g) || {};
+      return `<div class="gstat">
+        <span class="gn">${GAME_NAMES[g]}</span>
+        <span class="gv">${s.played ? `${s.current || 0}-day streak &middot; ${s.played} played` : 'Not played yet'}</span>
+      </div>`;
+    }).join('')}
+    <p class="hint" style="margin:16px 0 0">Leaderboards and per-category scoring are not built yet.</p>`;
 }
 
 /* ---------- email sign-in -------------------------------------------------- */

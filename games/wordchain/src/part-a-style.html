@@ -767,7 +767,40 @@
 .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px }
 .seg.grid { display: grid; grid-template-columns: repeat(3, 1fr) }
 
+/* --------------------------------------------------------------- avatar ----
+   The three shapes PSUI.avatar() can return, plus the round frame they sit in.
+   Sized by whatever contains them, never by themselves, so one renderer serves
+   a 26px bar button and a 64px profile disc. */
+.psav {
+  border-radius: 50%; overflow: hidden; flex: none;
+  display: grid; place-items: center;
+  background: var(--bg-sink); color: var(--fg);
+}
+.psav-img { width: 100%; height: 100%; display: block; object-fit: cover }
+.psav-svg { width: 100%; height: 100%; display: block }
+.psav-ltr {
+  font-family: var(--f-disp); font-weight: 900;
+  font-size: .52em;            /* of the frame, so it scales with the disc */
+  line-height: 1; user-select: none;
+}
+/* Wearing a face, the button holds a filled disc rather than a 21px outline.
+   30px inside a 38px button: a solid shape reads heavier than a stroked one at
+   the same size, so matching the icons' optical weight means going smaller
+   than the button, not filling it. */
+.iconbtn.has-av > * { width: 30px; height: 30px; display: block; border-radius: 50% }
+.iconbtn.has-av .psav-ltr {
+  display: grid; place-items: center; background: var(--bg-sink);
+  color: var(--fg); font-family: var(--f-disp); font-weight: 900; font-size: 15px;
+}
+
 /* -------------------------------------------------------------- utility ---- */
+/* Present to a screen reader, absent to everything else. Used where a control
+   is obvious by position but has no visible label -- clip-path rather than
+   display:none, which would take it out of the accessibility tree too. */
+.ui-sr {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
 .ui-note {
   margin: 10px 0 0; padding: 10px 12px; border-radius: 9px;
   font-size: 13px; line-height: 1.5;
@@ -1812,6 +1845,9 @@ PSTheme.init('wc-game');
       });
       return UI;
     },
+    avatar: avatar,
+    avatarTokens: avatarTokens,
+    setAvatar: setAvatar,
     open: open,
     close: close,
     closeAll: closeAll,
@@ -1822,6 +1858,95 @@ PSTheme.init('wc-game');
     /* Called after each close with the id that closed, so a game can resync. */
     onClose: function (fn) { if (typeof fn === 'function') closers.push(fn); }
   };
+
+  /* ------------------------------------------------------------ avatars ----
+     One renderer, shared by the profile screen that PICKS an avatar and the
+     bar that WEARS it, on every surface. Two copies of this would drift the
+     first time a colour changed, and the drift would show as the same person
+     looking like two people on two screens of the same app.
+
+     A preset is drawn, not fetched: the crest is already on the page as the
+     <symbol id="psmark"> sprite, so a preset is that symbol on a coloured
+     disc, recoloured through currentColor and --mk-w. No image request, no
+     file to ship, and it themes itself.
+
+     A custom picture is a data: url the player uploaded, already cropped
+     square and downscaled by the browser before it was ever sent. It is drawn
+     in a round frame with object-fit:cover, so a square source is
+     circle-cropped rather than squashed.
+
+     The fallback, for a player with neither, is their initial. */
+  var AV_INK = [
+    ['#213946', '#C5C6C1'],   /* platform ink on paper      */
+    ['#5A7085', '#EDE7DC'],   /* the proof's steel foil     */
+    ['#3F5569', '#C5C6C1'],
+    ['#2F434C', '#9D8D85'],
+    ['#8E3A5A', '#F0E0E7'],   /* Word Chain                 */
+    ['#E0A44A', '#2A1F12'],   /* Sojourner                  */
+    ['#325843', '#E3EDE6'],
+    ['#863921', '#F3E3DC'],
+  ];
+  var AV_COUNT = AV_INK.length;
+
+  function avatarTokens() {
+    var out = [], i;
+    for (i = 1; i <= AV_COUNT; i++) out.push('ps-' + (i < 10 ? '0' : '') + i);
+    return out;
+  }
+
+  function escapeAttr(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  /* The disc, as markup. `user` may be null (signed out) or a partial record.
+     Returns a string so it can go straight into innerHTML at any size -- the
+     caller sizes the box; this always fills it. */
+  function avatar(user, opts) {
+    var o = opts || {};
+    var token = user && user.avatar ? String(user.avatar) : '';
+    var img = user && user.avatar_img ? String(user.avatar_img) : '';
+    var label = o.label || '';
+
+    /* A custom picture wins only when the token says so. The token is the one
+       source of truth for WHICH avatar is in use, so a leftover upload cannot
+       quietly override a preset the player has since chosen. */
+    if (token === 'custom' && /^data:image\/(png|jpeg|webp);base64,/.test(img)) {
+      return '<img class="psav-img" src="' + escapeAttr(img) + '" alt="' +
+             escapeAttr(label) + '">';
+    }
+
+    var m = /^ps-(\d{2})$/.exec(token);
+    if (m) {
+      var pair = AV_INK[(parseInt(m[1], 10) - 1) % AV_COUNT];
+      /* The nested <svg> is how the 1132x595 crest gets placed inside a square
+         disc without distorting: the inner viewBox keeps its own aspect ratio
+         and the outer one only says where to put it. */
+      return '<svg class="psav-svg" viewBox="0 0 100 100" aria-hidden="true">' +
+             '<circle cx="50" cy="50" r="50" fill="' + pair[0] + '"/>' +
+             '<svg x="17" y="32.6" width="66" height="34.7" viewBox="0 0 1132 595" ' +
+               'style="color:' + pair[1] + ';--mk-w:70">' +
+               '<use href="#psmark"/></svg>' +
+             '</svg>';
+    }
+
+    var initial = (user && (user.display_name || user.email) || '?').trim().charAt(0).toUpperCase();
+    return '<span class="psav-ltr" aria-hidden="true">' + escapeAttr(initial || '?') + '</span>';
+  }
+
+  /* Swap the bar's profile button between the generic outline person and the
+     player's own face. Called with null on sign-out, which puts the icon back
+     -- a bar still showing yesterday's face after signing out is a bug people
+     read as "it did not sign me out". */
+  function setAvatar(user) {
+    var b = document.getElementById('profileBtn');
+    if (!b) return;
+    if (b.__icon == null) b.__icon = b.innerHTML;      // keep the original once
+    var on = !!(user && (user.avatar || user.avatar_img));
+    b.classList.toggle('has-av', on);
+    b.innerHTML = on ? avatar(user, { label: 'Your profile' }) : b.__icon;
+  }
 
   /* The bar's brand link. One markup for every surface, so where it points is
      decided here rather than by each surface shipping a different href:
@@ -1854,6 +1979,28 @@ PSTheme.init('wc-game');
     if (shell && ab && !ab.__wired) {
       ab.__wired = true;
       ab.addEventListener('click', function () { UI.open('addSheet'); });
+    }
+
+    /* The face in the bar. The shell already loads the account layer and calls
+       setAvatar itself with a fuller record, so it is left alone; a GAME has no
+       account layer at all — both games are entirely local — and would
+       otherwise show the generic icon to a signed-in player, which reads as
+       having been signed out by walking into a game.
+
+       So the bar asks for itself: one cookie'd GET, once per load, and silence
+       if anything at all goes wrong. Nothing here is allowed to affect a game
+       that is working perfectly well without it. */
+    if (!shell && typeof fetch === 'function' && !bar.__asked) {
+      bar.__asked = true;
+      try {
+        fetch('/api/auth/session', { credentials: 'include', headers: { Accept: 'application/json' } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) {
+            var u = j && j.data && j.data.user;
+            if (u) setAvatar(u);
+          })
+          .catch(function () { /* offline, or no backend: keep the icon */ });
+      } catch (e) { /* no fetch, ancient browser: keep the icon */ }
     }
   }
 

@@ -380,6 +380,7 @@ function base64urlToBytesLocal(s) {
 export async function upsertUserForIdentity(ctx, { provider, subject, email, emailVerified, displayName }) {
   const existing = await first(ctx.db,
     `SELECT u.id, u.handle, u.display_name, u.email, u.email_verified, u.avatar,
+            u.avatar_img, u.plan, u.plan_since,
             u.created_at, u.tz, u.strikes, u.blocked_at
        FROM identities i JOIN users u ON u.id = i.user_id
       WHERE i.provider = ? AND i.subject = ? AND u.deleted_at IS NULL`, provider, subject);
@@ -408,7 +409,8 @@ export async function upsertUserForIdentity(ctx, { provider, subject, email, ema
 
   if (email && emailVerified) {
     const byEmail = await first(ctx.db,
-      `SELECT id, handle, display_name, email, email_verified, avatar, created_at,
+      `SELECT id, handle, display_name, email, email_verified, avatar,
+              avatar_img, plan, plan_since, created_at,
               tz, strikes, blocked_at
          FROM users WHERE email = ? AND deleted_at IS NULL`, email);
     if (byEmail) {
@@ -435,6 +437,9 @@ export async function upsertUserForIdentity(ctx, { provider, subject, email, ema
     email: email || null,
     email_verified: emailVerified ? 1 : 0,
     avatar: null,
+    avatar_img: null,
+    plan: 'free',
+    plan_since: null,
     created_at: ctx.now,
     tz: null,
     strikes: 0,
@@ -454,6 +459,10 @@ export async function upsertUserForIdentity(ctx, { provider, subject, email, ema
   return shapeUser(row);
 }
 
+/* The SELF shape. Everything here is sent to the player about themselves, on
+   /auth/session and /player/me and nowhere else. avatar_img is the reason that
+   distinction matters: it is kilobytes, so it must never leak into a list of
+   other people -- friends and leaderboards build their own, smaller shapes. */
 export function shapeUser(row) {
   return {
     id: row.id,
@@ -462,6 +471,9 @@ export function shapeUser(row) {
     email: row.email,
     email_verified: !!row.email_verified,
     avatar: row.avatar,
+    avatar_img: row.avatar_img || null,
+    plan: row.plan || 'free',
+    plan_since: row.plan_since || null,
     created_at: row.created_at,
     tz: row.tz,
     strikes: row.strikes || 0,
@@ -484,7 +496,17 @@ async function signIn(ctx, user) {
    to ask, and answering it with an error makes every caller special-case a
    status code for the ordinary path. */
 export async function sessionInfo(ctx) {
-  return ok({ user: ctx.user, today: utcDay(ctx.now) });
+  /* ctx.user has no avatar_img -- the session lookup leaves it out because
+     that row is read on every request. This endpoint is what a GAME calls to
+     find out whose face to put in the bar, so it is one of the two places the
+     picture has to come down. One extra read, on a call each surface makes
+     once per load. */
+  let user = ctx.user;
+  if (user) {
+    const img = await first(ctx.db, 'SELECT avatar_img FROM users WHERE id = ?', user.id);
+    user = { ...user, avatar_img: (img && img.avatar_img) || null };
+  }
+  return ok({ user, today: utcDay(ctx.now) });
 }
 
 /* POST /api/auth/logout -> clears cookie */

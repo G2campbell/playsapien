@@ -1,0 +1,41 @@
+-- PlaySapien 0002: account type, and a custom avatar image.
+--
+-- Two unrelated-looking additions that arrive together because both are the
+-- profile screen finally having somewhere to put what it asks for.
+--
+-- ---------- account type ----------
+--
+-- `plan` is the entitlement, not the billing. Free and Sapien are the only two
+-- values today and nothing charges for either; what this column buys now is
+-- that the choice survives a new phone and that a game can read it. When there
+-- IS billing, it does not belong here: a subscriptions table holds the
+-- provider, the customer and subscription ids, the status and the period end,
+-- and `plan` stays the one thing the rest of the codebase reads. That keeps
+-- every "is this player entitled to X" check a single column read, with no
+-- knowledge of Stripe in the games.
+--
+-- plan_since is when the CURRENT plan started -- rewritten on every change, not
+-- a history. Real history belongs in that same future table; this exists so
+-- "Sapien since March" can be shown without one.
+ALTER TABLE users ADD COLUMN plan       TEXT NOT NULL DEFAULT 'free';
+ALTER TABLE users ADD COLUMN plan_since INTEGER;
+
+-- ---------- custom avatar ----------
+--
+-- users.avatar stays a TOKEN and never becomes a URL; the reason is in
+-- routes/player.js and it still holds -- rendering a profile must never fetch
+-- from a location the player chose. So a custom picture is stored here, as the
+-- bytes themselves in a data: url, rather than as a pointer to anywhere.
+--
+-- The browser crops to a circle-safe square and downscales to 128px before
+-- upload, which lands around 6-10 KB. The API caps it at 24 KB, which is both
+-- generous for that and far under D1's row limit.
+--
+-- The token still decides WHICH avatar is in use: avatar = 'custom' means read
+-- this column. One source of truth, so there is never a stored preset and a
+-- stored upload disagreeing about what to draw.
+--
+-- Deliberately NOT returned on friends lists or leaderboards -- those show many
+-- players at once and would turn a 2 KB response into a 200 KB one. They get
+-- the token, and fall back to initials for anyone using a custom picture.
+ALTER TABLE users ADD COLUMN avatar_img TEXT;

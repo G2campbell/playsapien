@@ -95,7 +95,12 @@
   <div class="sheet-in">
     <div class="sh-head"><h2 id="statsTitle">Analytics</h2>
       <button class="donebtn" type="button" data-sheet-close>Close</button></div>
-    <p class="sethint" id="statsBody">Not built yet.</p>
+    <!-- A div, not a p: a surface that HAS numbers replaces this with real
+         blocks, and a <p> cannot legally contain them -- the browser would
+         silently break the paragraph apart around them. ui.js writes the
+         placeholder sentence in as text; a surface that knows better
+         overwrites it. -->
+    <div class="sethint" id="statsBody">Not built yet.</div>
   </div>
 </section>
 
