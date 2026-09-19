@@ -124,23 +124,36 @@
   <section>
     <h2>Scores</h2>
     <p>Your scores are included in the aggregate reporting of scores.</p>
-    <p>Your individual scores are shown only to people you have added as friends. There is no
-      public or global leaderboard on PlaySapien today, and no score of yours is visible to a
-      player you have not accepted. Removing a friend ends their access immediately.</p>
-    <p class="fill">[PENDING: the per-player choice between friends-only and a public board,
-      and the option to leave individual score reporting entirely, is not built yet. This
-      paragraph is written to describe what the site does now and must be rewritten on the day
-      that control ships — before it ships, not after.]</p>
+    <p>Your individual scores appear on leaderboards, shown beside whatever display name and
+      avatar you have chosen &mdash; never beside your email address, which is not shown to
+      other players under any setting. You control how far that goes:</p>
+    <ul>
+      <li><strong>Public</strong> &mdash; your result can appear on a leaderboard open to every
+        player. This is the default.</li>
+      <li><strong>Friends only</strong> &mdash; your result is shown only to people whose friend
+        request you have accepted.</li>
+      <li><strong>Off</strong> &mdash; your result is not shown beside your name to anyone. It
+        still counts towards aggregate totals, which describe a population and identify no
+        one.</li>
+    </ul>
+    <p>Leaderboards are being built and are not live yet. Until they are, no score of yours is
+      shown to anyone but a friend you have accepted, and the setting above will be on your
+      profile before the first board goes live &mdash; not after it.</p>
   </section>
 
   <section>
     <h2>Friends</h2>
-    <p>To add a friend you share an invite code &mdash; eight characters, rotatable, revocable
-      at any time. We store the friendship (who, with whom, its state, and when), and your
-      current invite code. There is no directory and no search: a player cannot be looked up by
-      email address, by display name, or by anything else — the only way anyone reaches you
-      is a code you chose to give them. Removing a friend removes their access to your results
-      immediately.</p>
+    <p>There are two ways to add a friend. You can share an invite code &mdash; eight
+      characters, rotatable, revocable at any time. Or you can enter the email address of
+      someone you already know, and we will pass your request to them.</p>
+    <p>The second one is built so that it cannot be turned into a way of finding out who has an
+      account. When you enter an address we do not tell you whether it belongs to a player: the
+      answer is the same either way. If it does, that person gets a friend request they can
+      accept or ignore. If it does not, nothing further happens. You never learn which, no
+      address is ever revealed to you, and there is no directory to browse, no partial matching
+      and no list of results &mdash; only an exact address you already had.</p>
+    <p>We store the friendship (who, with whom, its state, and when), and your current invite
+      code. Removing a friend removes their access to your results immediately.</p>
     <p>We also store short in-app notices to and from friends (for example, friend requests and
       acceptance notices) until you have read them.</p>
   </section>
