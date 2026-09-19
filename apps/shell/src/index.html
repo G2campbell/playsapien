@@ -1973,6 +1973,14 @@ footer a:hover{opacity:1}
   padding:0 4px; border-radius:4px; font-style:italic;
 }
 
+/* The eyebrow that used to sit in a sheet's top-right corner, before the
+   corner became Close. Same mono voice it had there, now a line of its own
+   directly under the heading. */
+.sh-status{
+  font-family:var(--f-mono); font-size:10.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--fg-3); margin:-12px 0 16px;
+}
+
 /* ---------- profile: the signed-out card ----------------------------------
    Modelled on the reference: one instruction, the address and its button on
    one line, a labelled rule, the provider row at the same size as the field,
@@ -2062,6 +2070,13 @@ footer a:hover{opacity:1}
 }
 .planwhy{font-size:14px; line-height:1.62; color:var(--fg-2); margin:0}
 .planwhy b{color:var(--fg)}
+
+/* The one button on the site that destroys something. Coloured like the
+   warning it is, but still a ghost button rather than a filled red slab: it
+   should be findable by someone looking for it and not the loudest thing in
+   the corner of the eye of someone who is not. */
+.btn.ghost.danger{color:var(--warn); border-color:color-mix(in srgb, var(--warn) 40%, transparent)}
+.btn.ghost.danger:hover{background:color-mix(in srgb, var(--warn) 10%, transparent)}
 
 
 /* ---------- the makers' photograph ---------------------------------------
@@ -2347,6 +2362,33 @@ footer a:hover{opacity:1}
   </div>
 </section>
 
+<!-- Delete the account. The endpoint has existed since the first version of
+     the API; only the button was missing, which meant the privacy page could
+     not honestly say the control was there. It can now.
+
+     Two confirmations' worth of friction in one screen: the consequences in
+     plain words, and the word DELETE typed out. A single tap is too cheap for
+     something with no undo, and "are you sure?" has been trained out of people
+     by a decade of dialogs that did not mean it. -->
+<section class="sheet" id="delSheet" role="dialog" aria-modal="true" aria-labelledby="delTitle" hidden>
+  <div class="sh-head"><h2 id="delTitle">Delete your account?</h2>
+    <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+  <p>This removes your account, your email address, your sign-in methods, your sessions,
+     your results, your streaks, your friendships, your invite codes and your notices.
+     It is a real deletion from the database, not a flag, and <b>it cannot be undone</b>.</p>
+  <p class="hint">The one exception is the moderation record of any puzzle submission that
+     was rejected on safety grounds, which is kept with its author removed.
+     <a href="/privacy/">The privacy page</a> explains why.</p>
+  <label class="setlabel" for="delIn">Type DELETE to confirm</label>
+  <input class="fld" type="text" id="delIn" autocomplete="off" autocapitalize="characters"
+         spellcheck="false" placeholder="DELETE">
+  <div class="btnrow">
+    <button class="btn" type="button" id="delGo" disabled>Delete for ever</button>
+    <button class="btn ghost" type="button" data-sheet-close>Keep my account</button>
+  </div>
+  <div class="ui-note" id="delNote" hidden></div>
+</section>
+
 <!-- Upgrade. There is no checkout yet, and a button that goes nowhere is worse
      than one that says where it is going, so this is deliberately a holding
      screen rather than a dead link or a 404.
@@ -2391,7 +2433,13 @@ footer a:hover{opacity:1}
 
 <!-- Profile / sign-in ------------------------------------------------------- -->
 <section class="sheet" id="profileSheet" role="dialog" aria-modal="true" aria-labelledby="profileTitle" hidden>
-  <div class="sh-head"><h2 id="profileTitle">Profile</h2><span class="sh-sub" id="pfSub">Not signed in</span></div>
+  <!-- Close, top right, the same control in the same place as About, Analytics
+       and Add. Six sheets that dismiss six different ways is six things to
+       learn; one is none. The signed-in/out status that used to sit here has
+       not been dropped, it has moved under the heading -- a status line is not
+       a control and was only ever in the corner because the corner was free. -->
+  <div class="sh-head"><h2 id="profileTitle">Profile</h2><button class="donebtn" type="button" data-sheet-close>Close</button></div>
+  <p class="sh-status" id="pfSub">Not signed in</p>
 
   <!-- signed out -->
   <div id="pfOut">
@@ -2489,13 +2537,15 @@ footer a:hover{opacity:1}
 
     <div class="btnrow" style="margin-top:20px">
       <button class="btn ghost" type="button" id="signOutBtn">Sign out</button>
+      <button class="btn ghost danger" type="button" id="delBtn">Delete account</button>
     </div>
   </div>
 </section>
 
 <!-- Friends ----------------------------------------------------------------- -->
 <section class="sheet" id="friendsSheet" role="dialog" aria-modal="true" aria-labelledby="friendsTitle" hidden>
-  <div class="sh-head"><h2 id="friendsTitle">Friends</h2><span class="sh-sub">Across every game</span></div>
+  <div class="sh-head"><h2 id="friendsTitle">Friends</h2><button class="donebtn" type="button" data-sheet-close>Close</button></div>
+  <p class="sh-status">Across every game</p>
   <div id="frOut" hidden>
     <p class="empty">Friends need an account, so there is something for a friend to
       be friends <em>with</em>.<br><br>
@@ -2519,7 +2569,8 @@ footer a:hover{opacity:1}
 
 <!-- Settings ---------------------------------------------------------------- -->
 <section class="sheet" id="settingsSheet" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
-  <div class="sh-head"><h2 id="settingsTitle">Settings</h2><span class="sh-sub">Platform</span></div>
+  <div class="sh-head"><h2 id="settingsTitle">Settings</h2><button class="donebtn" type="button" data-sheet-close>Close</button></div>
+  <p class="sh-status">Platform</p>
   <div class="setrow">
     <div class="col">
       <span class="setlabel">Theme</span>
@@ -2709,7 +2760,7 @@ const GAME_NAMES = { sojourner: 'Sojourner', wordchain: 'Word Chain' };
    -------------------------------------------------------------------------- */
 PSUI.init({
   sheets: ['aboutSheet', 'profileSheet', 'friendsSheet', 'settingsSheet',
-           'payWall', 'downSheet'],
+           'payWall', 'downSheet', 'delSheet'],
   scrim: 'scrim',
   toast: 'toast'
 });
@@ -2879,6 +2930,43 @@ $('planSet').addEventListener('click', e => {
 $('planActions').addEventListener('click', e => {
   if (e.target.closest('#planUpBtn')) { openSheet('payWall'); return; }
   if (e.target.closest('#planDownBtn')) { openSheet('downSheet'); return; }
+});
+
+/* ---------- deleting the account ------------------------------------------
+   DELETE /api/player/me has been in the API all along; the SDK has no wrapper
+   for it, so this calls it directly. It is the only place in the shell that
+   does, which is the right trade for one irreversible call rather than growing
+   the shared client for it. */
+$('delBtn').addEventListener('click', () => {
+  $('delIn').value = '';
+  $('delGo').disabled = true;
+  note('delNote', '', false);
+  openSheet('delSheet');
+});
+$('delIn').addEventListener('input', e => {
+  $('delGo').disabled = e.target.value.trim().toUpperCase() !== 'DELETE';
+});
+$('delGo').addEventListener('click', async () => {
+  $('delGo').disabled = true;
+  let r;
+  try {
+    r = await fetch('/api/player/me', {
+      method: 'DELETE', credentials: 'include', headers: { Accept: 'application/json' },
+    });
+  } catch (e) { r = null; }
+  if (!r || !r.ok) {
+    note('delNote', 'That did not go through. Nothing has been deleted \u2014 try again.', true);
+    $('delGo').disabled = false;
+    return;
+  }
+  /* The server has cleared the cookie; the page still believes it is signed in
+     until told otherwise, and a stale profile on screen after a deletion is
+     alarming in exactly the wrong way. */
+  closeSheets();
+  ME = null;
+  paintSession(null);
+  PSUI.toast('Your account has been deleted.');
+  refresh();
 });
 
 /* Downgrade is confirmed on its own sheet rather than with confirm(), which a

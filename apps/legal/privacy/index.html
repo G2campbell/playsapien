@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Privacy &middot; PlaySapien</title>
-<meta name="description" content="What PlaySapien stores, why, for how long, and how to get rid of it.">
+<meta name="description" content="What PlaySapien collects, what it does not, and how long anything is kept.">
 <meta name="robots" content="index,follow">
 <script src="/theme.js"></script>
 <script>PSTheme.init('ps-shell');</script>
@@ -20,11 +20,9 @@
   <div class="wrap">
     <div class="brandline">PlaySapien</div>
     <h1>Privacy</h1>
-    <p class="sub">PlaySapien is a small set of daily puzzle games. There is no advertising, no
-      analytics, no tracking across the web, and no third party buying anything about you. This
-      page says exactly what there <em>is</em> &mdash; endpoint by endpoint, table by table.</p>
-    <p class="eff">In effect from <span class="fill">[date you publish this]</span> &middot;
-      applies to playsapien.com and everything under it</p>
+    <p class="sub">What is collected, what is not, and how long anything is kept.</p>
+    <p class="eff">In effect from 19 September 2026 &middot; applies to playsapien.com and
+      everything under it</p>
     <nav class="pagenav" aria-label="Site">
       <a href="/">Home</a>
       <a href="/about/">About</a>
@@ -38,174 +36,167 @@
 
   <section>
     <h2>The short version</h2>
-    <p class="lede">You can play every game here without an account, and if you do, nothing about
-      you reaches us at all. Making an account adds exactly one piece of personal information:
-      an email address, so that a streak can survive a new phone.</p>
-    <p>Everything below is detail on those two sentences. It is long because being specific is
-      the only way to be honest, not because there is a lot going on.</p>
+    <p>You can play every game here without an account. Doing so means that no personally
+      identifiable information about you is shared with our system.</p>
+    <p>Making an account allows us to collect your email address, which allows your gameplay
+      to be saved.</p>
+    <p>Everything below is detail on these two statements. It is long because being specific
+      is the best way we know to share all that you should know.</p>
   </section>
 
   <section>
     <h2>Playing without an account</h2>
-    <p>This is the default, and it is what most people will do forever. In this mode the game
-      runs entirely in your browser and makes <strong>no request to our servers beyond fetching
-      the page itself</strong>. Your scores, your streak and your settings are written to your
-      own browser's local storage, on your own device.</p>
+    <p>This is the default. In this mode, games run in your browser, without saving any
+      personally identifiable information. Your scores, your streak and your settings are
+      written to your own browser&rsquo;s local storage, on your own device.</p>
     <p>What is kept there:</p>
     <ul>
-      <li>Your settings for each game &mdash; theme, difficulty, units, globe style, and so on.</li>
-      <li>Today's result for each game, so reopening the page shows your score rather than
-        restarting the day.</li>
-      <li>A short history of past days, so the game can show a streak. Entries older than 90 days
-        are deleted automatically the next time you open the site.</li>
-      <li>Which stories you have already read, so practice rounds tend to show you new ones.</li>
+      <li>Your settings for each game &mdash; theme, difficulty level, and so on.</li>
+      <li>The current day&rsquo;s result for each game, so reopening the page shows your score
+        rather than restarting the day.</li>
+      <li>A short history of past days, so the game can show a streak. Entries older than
+        90 days are deleted automatically the next time you open the site.</li>
+      <li>Select game-specific data.</li>
     </ul>
-    <p>This is not a cookie, it is not transmitted anywhere, and clearing this site's data in your
-      browser settings erases it permanently. We cannot read it, recover it, or see that it
-      exists.</p>
+    <p>This is not a cookie, it is not transmitted anywhere, and clearing this site&rsquo;s data
+      in your browser settings erases it permanently. We cannot read it, recover it, or see
+      that it exists.</p>
   </section>
 
   <section>
     <h2>The device identifier</h2>
-    <p>The first time you play, your browser generates a random identifier &mdash; a UUID, a
-      string of 36 characters with no meaning &mdash; and stores it locally under the key
+    <p>The first time you play, your browser generates a random identifier &mdash; a string of
+      36 characters with no meaning &mdash; and stores it locally under the key
       <code>ps:device</code>. It is not derived from your hardware, your network, or anything
-      about you; it is a coin flip repeated 122 times.</p>
-    <p>While you have no account, that identifier is <strong>not sent anywhere</strong>. It exists
-      so that if you later make an account, the scores this browser already holds can be attached
-      to it instead of being thrown away. Clearing your browser data generates a new one, and the
-      old one becomes permanently unclaimable.</p>
+      about you.</p>
+    <p>This random ID exists so that if you later make an account, the scores this browser
+      already holds can be attached to it instead of being thrown away. Clearing your browser
+      data generates a new one, and the old one becomes permanently unclaimable.</p>
   </section>
 
   <section>
-    <h2>What an account stores</h2>
-    <p>An account is optional. It exists to do the three things a single browser cannot: survive
-      a wiped device, sync between your phone and your laptop, and let you compare a score with a
-      friend. Creating one stores the following, and nothing else:</p>
+    <h2>Account information</h2>
+    <p>An account is optional. Having an account allows your information to survive, even if
+      erased on a particular device; allows you to sync activity between devices; permits
+      comparisons of scores with friends; and gives you access to select game features.</p>
+    <p>Creating an account means that the following will be stored:</p>
     <ul>
-      <li><strong>Your email address</strong>, lowercased. This is the only piece of personal
-        information we ask for. It is the recovery address and the sign-in method; it is never
+      <li>Your email address. It is the recovery address and the sign-in method; it is never
         shown to other players, never sold, never rented, and never used for marketing.</li>
-      <li><strong>A display name, a handle and an avatar token</strong>, if you choose them. These
-        are visible to people you have accepted as friends. The avatar is a short token like
-        <code>nyansapo-3</code> naming one of our own drawings &mdash; there is no image upload.</li>
-      <li><strong>A time zone</strong>, if your browser offers one. It is advisory and used only
-        for display, such as telling you how long is left in the day. Puzzle days are decided in
-        UTC for everybody, everywhere.</li>
-      <li><strong>Timestamps</strong>: when the account was created, and when it was last used.</li>
-      <li><strong>Which sign-in methods are attached</strong> &mdash; email, Google, or both.</li>
+      <li>A display name, a handle and an avatar, if you choose them. These are visible to
+        select other users.</li>
+      <li>A time zone, if your browser offers one, and used only for display, such as telling
+        you how long is left in the day. Puzzle days are decided in UTC for everybody,
+        everywhere.</li>
+      <li>Timestamps: when the account was created, and when it was last used.</li>
+      <li>Which sign-in methods are attached &mdash; email, Google, or both.</li>
     </ul>
   </section>
 
   <section>
     <h2>Signing in</h2>
-    <p>There are no passwords on PlaySapien, and we would rather never store one.</p>
-    <p><strong>By email.</strong> We send a six-digit code to the address you give us. What we
-      store is a cryptographic hash of that code, not the code; it expires after ten minutes, can
-      be used once, and is destroyed after five wrong attempts. The same mail also carries a link
-      that does the same thing, for convenience on a desktop. Asking for a code always answers
-      the same way whether or not that address has an account, so no one can use this page to
-      discover whether you have one.</p>
-    <p><strong>With Google.</strong> If you choose Google sign-in, Google tells us your email
-      address and a stable identifier for your Google account, and we store those two things.
-      Google learns that you signed in to PlaySapien. We receive nothing else &mdash; no contacts,
-      no profile, no Google activity &mdash; and we ask for nothing else.</p>
-    <p><strong>Your session.</strong> Once you are signed in, your browser holds one cookie. It is
-      <code>HttpOnly</code>, <code>Secure</code> and <code>SameSite=Lax</code>, which means it
-      cannot be read by scripts and is not sent to other sites. On our side we store only a hash
-      of its value, never the value itself, alongside when the session was created and last used,
-      a truncated description of your browser, and the two-letter country our host reports &mdash;
-      which is there so the "your devices" list can say <em>Firefox, Ghana</em> and let you spot a
-      session that is not yours. No city, no street, no precise location, no IP address retained
-      by us. Sessions last a year and renew on use, so signing in is roughly a once-per-device
+    <p>There are no passwords on this gaming site.</p>
+    <p><strong>Email sign-in.</strong> We send a six-digit code to the address you give us.
+      What we store is a cryptographic hash of that code, not the code; it expires after ten
+      minutes, can be used once, and is destroyed after five wrong attempts. The same mail also
+      carries a link that does the same thing, for convenience on a desktop. Asking for a code
+      always answers the same way whether or not that address has an account, so no one can use
+      this page to discover whether you have one.</p>
+    <p><strong>Google sign-in.</strong> If you choose Google sign-in, Google tells us your
+      email address and a stable identifier for your Google account, and we store those two
+      things. Google learns that you signed in to PlaySapien. We do not collect any Google
+      contacts, Google profile data, or Google activity data.</p>
+    <p><strong>Your session.</strong> Once you are signed in, your browser holds one cookie.
+      It is HttpOnly, Secure and SameSite=Lax, which means it cannot be read by scripts and is
+      not sent to other sites. On our side we store only a hash of its value, never the value
+      itself, alongside when the session was created and last used, a truncated description of
+      your browser, and the two-letter country our host reports &mdash; which is there so the
+      &ldquo;your devices&rdquo; list can say <em>Firefox, Ghana</em> and let you spot a session
+      that is not yours. No city, no street, no precise location, no IP address retained by us.
+      Sessions last a year and renew on use, so signing in is roughly a once-per-device
       event.</p>
+    <p>When you finish a game while signed in, your browser posts the result to our server.
+      This includes information such as: which game, which day, which mode, your score, the
+      maximum available, how long you took, and other select details &mdash; mostly the same
+      information the game shows you on its results screen.</p>
   </section>
 
   <section>
-    <h2>What a signed-in game sends</h2>
-    <p>When you finish a game while signed in, your browser posts the result: which game, which
-      day (in UTC), which mode, your score, the maximum available, how long you took, and a small
-      block of detail &mdash; the per-round scores and the shareable grid of squares. That is the
-      same information the game already shows you on its own results screen.</p>
-    <p>Only the first result for a given game and day is kept. A second submission is rejected
-      rather than overwriting the first, so the number on the board is the one you actually got.</p>
-    <p>Streaks are never stored as a number we increment. They are recalculated from your results
-      every time one arrives, which means a bug can never permanently corrupt them and merging two
-      devices is correct by construction.</p>
-    <p>Your local copy keeps being written either way. The server is the durable copy; your device
-      stays the fast one, and the game keeps working on a plane.</p>
+    <h2>Scores</h2>
+    <p>Your scores are included in the aggregate reporting of scores.</p>
+    <p>Your individual scores are shown only to people you have added as friends. There is no
+      public or global leaderboard on PlaySapien today, and no score of yours is visible to a
+      player you have not accepted. Removing a friend ends their access immediately.</p>
+    <p class="fill">[PENDING: the per-player choice between friends-only and a public board,
+      and the option to leave individual score reporting entirely, is not built yet. This
+      paragraph is written to describe what the site does now and must be rewritten on the day
+      that control ships — before it ships, not after.]</p>
   </section>
 
   <section>
-    <h2>Friends, and who can see your scores</h2>
-    <p><strong>There is no global leaderboard, and that is deliberate.</strong> Scores are reported
-      by your browser, and a web game cannot stop a determined person from reporting a perfect one.
-      Keeping boards friends-only means the only audience for a fake score is people who know you.
-      It also means your results are visible to nobody except the people you have personally
-      accepted.</p>
-    <p>To add a friend you share an invite code &mdash; eight characters, rotatable, revocable at
-      any time. We store the friendship (who, with whom, its state, and when), and your current
-      invite code. There is no directory, no search by email, and no way for a stranger to find
-      you. Removing a friend removes their access to your results immediately.</p>
-    <p>We also store short in-app notices &mdash; "your chain was accepted", "X wants to be
-      friends" &mdash; until you have read them.</p>
+    <h2>Friends</h2>
+    <p>To add a friend you share an invite code &mdash; eight characters, rotatable, revocable
+      at any time. We store the friendship (who, with whom, its state, and when), and your
+      current invite code. There is no directory and no search: a player cannot be looked up by
+      email address, by display name, or by anything else — the only way anyone reaches you
+      is a code you chose to give them. Removing a friend removes their access to your results
+      immediately.</p>
+    <p>We also store short in-app notices to and from friends (for example, friend requests and
+      acceptance notices) until you have read them.</p>
   </section>
 
   <section>
-    <h2>If you submit a word chain</h2>
-    <p>Word Chain lets you submit a puzzle of your own. If you do, we store the words, an optional
-      credit line, and the result of an automated review: a quality rating, the reviewer's written
-      reasoning, and a safety category if one was flagged. Approved chains may be published to
-      every player, with your credit if you gave one.</p>
-    <p><strong>One thing here does not go away when you delete your account.</strong> If a
-      submission is rejected for a safety reason, a record of it &mdash; the words and the reason
-      &mdash; is kept in a moderation log. When you delete your account, your name is removed from
-      that record and it is retained without an author. The log exists to make a pattern of abuse
-      visible across submissions, and it would fail at that if anyone could erase it by deleting
-      and re-registering. This is the only exception to the deletion rule below, and it is written
-      here rather than done quietly.</p>
+    <h2>Puzzle submissions</h2>
+    <p>Select games let you submit a puzzle of your own. If you do, we store the puzzle, an
+      optional credit line, and the result of an automated review. Approved puzzles may be
+      published to every player, with your credit if you gave one.</p>
+    <p><strong>Something that does not go away when you delete your account.</strong> If a
+      submission is rejected for a safety reason, a record of it is kept in a moderation log.
+      The log exists to make a pattern of abuse visible across submissions, and is retained
+      upon deletion of the account that created it, so that it survives account deletion and
+      re-registering. This is an exception to the deletion rule below.</p>
   </section>
 
   <section>
     <h2>Who else is involved</h2>
     <p><strong>Cloudflare</strong> hosts the site, the API and the database. Like any web host,
       their servers receive the technical details every request carries &mdash; your IP address,
-      the page requested, your browser and operating system, and the time &mdash; and use them to
-      deliver the page and protect the site from attack. They retain those logs for a limited
+      the page requested, your browser and operating system, and the time &mdash; and use them
+      to deliver the page and protect the site from attack. They retain those logs for a limited
       period as our processor. We do not build profiles from them and do not link them to your
-      account. See <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare's
+      account. See <a href="https://www.cloudflare.com/privacypolicy/" rel="noopener">Cloudflare&rsquo;s
       privacy policy</a>.</p>
-    <p><strong><span class="fill">[email provider]</span></strong> delivers the sign-in codes and
-      the occasional notification. They process your email address for that purpose only.</p>
-    <p><strong>Google Fonts</strong> serves the three typefaces the site uses. That request tells
-      Google your IP address and roughly what browser you are using, as any request to any server
-      would. Google states that it does not use Google Fonts requests to build advertising
+    <p><strong>Resend</strong> delivers the sign-in codes and the occasional notification. They
+      process your email address for that purpose only.</p>
+    <p><strong>Google Fonts</strong> serves the three typefaces the site uses. That request
+      tells Google your IP address and roughly what browser you are using, as any request to any
+      server would. Google states that it does not use Google Fonts requests to build advertising
       profiles. A content blocker will stop the request and the site falls back to fonts already
       on your device.</p>
     <p><strong>Google</strong>, additionally, if and only if you choose Google sign-in, as
       described above.</p>
-    <p>That is the complete list. There is no analytics provider, no advertising network, no tag
-      manager, no session recorder, no A/B testing service, and no third-party embed.</p>
+    <p>There is no analytics provider, no advertising network, no tag manager, no session
+      recorder, no A/B testing service, and no third-party embed.</p>
   </section>
 
   <section>
     <h2>Cookies</h2>
     <p>One cookie, set only after you sign in, holding only a session identifier. No cookies are
-      set for anonymous play, and none are used for advertising, analytics or tracking. Because
-      the cookie is strictly necessary for a function you asked for, there is no consent banner
-      &mdash; there is nothing to consent to.</p>
+      set for anonymous play, and none are currently used for advertising, analytics or tracking.
+      Because the cookie is strictly necessary for a function you asked for, there is no consent
+      banner.</p>
   </section>
 
   <section>
     <h2>How long things are kept</h2>
     <ul>
       <li><strong>Sign-in codes</strong> &mdash; ten minutes, then they expire and are cleaned up.</li>
-      <li><strong>Sessions</strong> &mdash; one year from last use, or until you sign out or revoke
-        the device.</li>
-      <li><strong>Results and streaks</strong> &mdash; for as long as your account exists. They are
-        the point of the account.</li>
-      <li><strong>Local browser history</strong> &mdash; 90 days, pruned automatically on your own
-        device.</li>
+      <li><strong>Sessions</strong> &mdash; one year from last use, or until you sign out or
+        revoke the device.</li>
+      <li><strong>Results and streaks</strong> &mdash; for as long as your account exists. They
+        are the point of the account.</li>
+      <li><strong>Local browser history</strong> &mdash; 90 days, pruned automatically on your
+        own device.</li>
       <li><strong>Moderation records</strong> &mdash; indefinitely, with the author removed on
         account deletion, as described above.</li>
     </ul>
@@ -213,30 +204,24 @@
 
   <section>
     <h2>Deleting your account</h2>
-    <p>There is a delete button on your profile. It removes your account, your email address, your
-      sign-in methods, your sessions, your results, your streaks, your friendships, your invite
-      codes and your notices. This is a real deletion from the database, not a flag, and it cannot
-      be undone. The single exception is the moderation log described above, which keeps the words
-      and the reason with your name removed.</p>
-    <p>You can also just stop using the account &mdash; but if you want it gone, the button is
-      there and it works.</p>
+    <p>There is a delete button on your profile. It removes your account, your email address,
+      your sign-in methods, your sessions, your results, your streaks, your friendships, your
+      invite codes and your notices. This is a real deletion from the database, not a flag, and
+      it cannot be undone. The single exception is the moderation log described above.</p>
   </section>
 
   <section>
     <h2>Your rights</h2>
-    <p>Depending on where you live you may have a legal right to access, correct, export or delete
-      the personal information a service holds about you, and to object to its processing. On
-      PlaySapien that amounts to one email address and a list of puzzle scores, all of which you
-      can see on your profile and remove with the delete button. If you want any of it in a file,
-      or want something corrected, write to us at the address below and we will do it.</p>
-    <p>We do not sell or share personal information, and we have never had any to sell.</p>
+    <p>Depending on where you live you may have a legal right to access, correct, export or
+      delete the personal information a service holds about you, and to object to its processing.
+      On PlaySapien that amounts to one email address and a list of puzzle scores, all of which
+      you can see on your profile and remove with the delete button.</p>
   </section>
 
   <section>
     <h2>Children</h2>
     <p>The games are suitable for all ages and can be played entirely without an account, which
-      collects nothing. We do not knowingly create accounts for children under 13. If you believe
-      a child has made one, write to us and we will delete it.</p>
+      collects nothing. We do not knowingly create accounts for children under 13.</p>
   </section>
 
   <section>
@@ -249,17 +234,16 @@
 
   <section>
     <h2>Changes</h2>
-    <p>If what PlaySapien collects changes, this page is rewritten before the change ships and the
-      date at the top changes with it. Information collected under this version will not be
+    <p>If what PlaySapien collects changes, this page is rewritten before the change ships and
+      the date at the top changes with it. Information collected under this version will not be
       repurposed under a later one.</p>
   </section>
 
   <section>
     <h2>Contact</h2>
-    <p>Questions about this page, a request about your data, or anything else:
-      <span class="fill">[your contact email]</span>.</p>
-    <p>PlaySapien is run by <span class="fill">[your name or business name]</span>,
-      <span class="fill">[postal address, if you publish one]</span>.</p>
+    <p>Questions about this page, any requests regarding your data, or anything else may be
+      submitted to <a href="mailto:info@playsapien.com">info@playsapien.com</a>.</p>
+    <p>This site is owned and operated by PlaySapien.</p>
   </section>
 
 </main>
