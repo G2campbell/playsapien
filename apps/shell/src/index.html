@@ -440,6 +440,13 @@ document.addEventListener('DOMContentLoaded', function () {
       return UI;
     },
     attnStop: attnStop,
+    /* Who is signed in, for a surface that wants to ask. Resolves to the user
+       record or null. */
+    whenUser: whenUser,
+    /* The friend groups this player belongs to, for the Analytics picker.
+       [{id, name}]. Nothing calls this yet: groups do not exist in the API. */
+    setFriendGroups: function (list) { GROUPS = Array.isArray(list) ? list : []; paintGroups(); },
+    paintAnalytics: paintAnalytics,
     avatar: avatar,
     avatarTokens: avatarTokens,
     setAvatar: setAvatar,
@@ -584,6 +591,7 @@ document.addEventListener('DOMContentLoaded', function () {
      -- a bar still showing yesterday's face after signing out is a bug people
      read as "it did not sign me out". */
   function setAvatar(user) {
+    learnUser(user);                                   // the shell's word is final
     var b = document.getElementById('profileBtn');
     if (!b) return;
     if (b.__icon == null) b.__icon = b.innerHTML;      // keep the original once
@@ -610,28 +618,265 @@ document.addEventListener('DOMContentLoaded', function () {
      decided here rather than by each surface shipping a different href:
      on the shell it is the About page (the same place the About icon goes),
      and inside a game it is the way back out to the front door. */
+  /* ------------------------------------------------------------ who ----
+     Who is signed in, and on which plan, known to every surface -- the front
+     door, which loads the account SDK, and both games, which do not. Filled by
+     whichever answers first: the bar's own /auth/session call, or the shell
+     telling us through setAvatar(). Until one of them does, `known` is false
+     and anything that depends on it waits rather than guessing, because
+     guessing "signed out" would flash the sign-in card at someone who is not. */
+  var ME = { known: false, user: null, waiters: [] };
+  function learnUser(u) {
+    ME.user = u || null;
+    ME.known = true;
+    var w = ME.waiters; ME.waiters = [];
+    for (var i = 0; i < w.length; i++) { try { w[i](ME.user); } catch (e) { /* one bad waiter must not stop the rest */ } }
+  }
+  /* Resolves once we know. Four seconds is the ceiling: an API that has not
+     answered by then is not coming, and the page should behave as signed out
+     rather than hold a tapped button hostage indefinitely. */
+  function whenUser() {
+    return new Promise(function (res) {
+      if (ME.known) { res(ME.user); return; }
+      ME.waiters.push(res);
+      setTimeout(function () { if (!ME.known) learnUser(null); }, 4000);
+    });
+  }
+  function isShell() { return document.documentElement.classList.contains('ps-shell'); }
+  function planOf(u) { return u && u.plan === 'sapien' ? 'sapien' : 'free'; }
+
+  /* ------------------------------------------------------------ the gate ----
+     Three kinds of player, and what each may reach:
+
+       signed out  About, Settings, Profile, and every game's daily puzzle.
+                   Analytics, Add, Friends and Friends' Games open the sign-in
+                   card instead of themselves.
+       free        all of the above, plus Analytics (Daily only), Friends, and
+                   Friends' Games. Making a puzzle opens the upgrade instead.
+       sapien      everything.
+
+     Enforced HERE, by one capture-phase listener on the document, rather than
+     by each surface checking in its own click handler. A capture listener on
+     the document runs before any listener on the button itself, so a surface
+     that forgets to ask -- or a game written next year -- is still covered.
+     Anything can opt in by carrying data-gate="account" or data-gate="sapien".
+
+     This is presentation, not security. The API refuses the underlying calls
+     to anyone without a session regardless of what the page shows; this only
+     makes sure the page never offers a door that will not open. */
+  var GATE_LABEL = { statsBtn: 'Analytics', friendsBtn: 'Friends', friendsGamesBtn: 'Friends’ games' };
+
+  function needFor(t) {
+    var g = t.getAttribute('data-gate');
+    if (g) return g;
+    if (t.id === 'addBtn') return isShell() ? 'account' : 'sapien';   // in a game, Add = make a puzzle
+    return 'account';
+  }
+  function labelFor(t) {
+    if (t.getAttribute('data-go') === 'friends') return 'Friends’ games';
+    if (t.id === 'addBtn') return isShell() ? 'Suggest a game' : 'making puzzles';
+    return GATE_LABEL[t.id] || (t.textContent || '').replace(/^\s*Play\s+/i, '').trim();
+  }
+  function allowed(need, u) {
+    if (!u) return false;
+    return need === 'sapien' ? planOf(u) === 'sapien' : true;
+  }
+  function deny(need, t) {
+    if (!ME.user) {
+      var m = document.getElementById('gateMsg');
+      if (m) {
+        m.innerHTML = 'Sign up or sign in to use <b>' + escapeAttr(labelFor(t)) + '</b>. ' +
+          'It is free, and it keeps your streak when you change device.';
+      }
+      gateReset();
+      UI.open('gateSheet');
+    } else {
+      UI.open('payWall');          // signed in, but this needs Sapien
+    }
+  }
+  function guard(e) {
+    var t = e.target && e.target.closest
+      ? e.target.closest('#statsBtn, #friendsBtn, #addBtn, [data-gate]') : null;
+    if (!t || t.__pass) return;
+    var need = needFor(t);
+    if (ME.known) {
+      if (allowed(need, ME.user)) return;              // through, untouched
+      e.preventDefault(); e.stopPropagation();
+      deny(need, t);
+      return;
+    }
+    /* Not known yet: hold the tap, decide when the answer lands, then either
+       replay it for real or show the gate. */
+    e.preventDefault(); e.stopPropagation();
+    whenUser().then(function (u) {
+      if (allowed(need, u)) { t.__pass = true; try { t.click(); } finally { t.__pass = false; } }
+      else deny(need, t);
+    });
+  }
+
+  /* ---------------------------------------------------- gate: sign in ----
+     The card signs in on its own with three plain requests, so it works inside
+     a game that has never heard of the SDK. On success the page reloads: every
+     surface already knows how to draw itself for a signed-in player on load,
+     and a reload is the one way to be sure all of it agrees. */
+  var gtEmail = '';
+  function gtNote(msg, bad) {
+    var n = document.getElementById('gtNote');
+    if (!n) return;
+    n.hidden = !msg; n.textContent = msg || '';
+    n.classList.toggle('bad', !!bad);
+  }
+  function gateReset() {
+    var ef = document.getElementById('gtEmailForm'), cf = document.getElementById('gtCodeForm');
+    if (ef) ef.hidden = false;
+    if (cf) cf.hidden = true;
+    gtNote('', false);
+  }
+  function deviceId() {
+    try { return localStorage.getItem('ps:device') || ''; } catch (e) { return ''; }
+  }
+  function api(method, path, body) {
+    var h = { Accept: 'application/json' };
+    if (body !== undefined) h['Content-Type'] = 'application/json';
+    var dev = deviceId(); if (dev) h['X-PS-Device'] = dev;
+    return fetch('/api' + path, {
+      method: method, credentials: 'include', headers: h,
+      body: body === undefined ? undefined : JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (j) {
+        return { ok: r.ok && !(j && j.ok === false), data: j && j.data, status: r.status };
+      });
+    }).catch(function () { return { ok: false, data: null, status: 0 }; });
+  }
+  function wireGate() {
+    var ef = document.getElementById('gtEmailForm');
+    if (!ef || ef.__wired) return;
+    ef.__wired = true;
+    var cf = document.getElementById('gtCodeForm');
+
+    ef.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var v = (document.getElementById('gtEmail').value || '').trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) { gtNote('That does not look like an email address.', true); return; }
+      gtEmail = v;
+      gtNote('Sending…', false);
+      api('POST', '/auth/email/start', { email: v }).then(function (r) {
+        if (!r.ok) { gtNote(r.status === 429 ? 'Too many tries. Wait a minute and try again.' : 'That did not send. Try again.', true); return; }
+        gtNote('', false);
+        document.getElementById('gtAddr').textContent = v;
+        ef.hidden = true; cf.hidden = false;
+        var c = document.getElementById('gtCode'); if (c) { c.value = ''; c.focus(); }
+      });
+    });
+
+    cf.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var code = (document.getElementById('gtCode').value || '').replace(/\D/g, '');
+      if (code.length !== 6) { gtNote('The code is six digits.', true); return; }
+      gtNote('Checking…', false);
+      api('POST', '/auth/email/verify', { email: gtEmail, code: code }).then(function (r) {
+        if (!r.ok) { gtNote('That code did not work. Check it, or ask for a new one.', true); return; }
+        /* Carry this browser's history into the account before reloading --
+           what the SDK does after its own sign-in. Best effort: a failure here
+           loses nothing, it is simply retried the next time the SDK runs. */
+        var dev = deviceId();
+        var after = dev ? api('POST', '/player/claim', { device_ids: [dev] }) : Promise.resolve();
+        after.then(function () { location.reload(); });
+      });
+    });
+
+    var back = document.getElementById('gtBack');
+    if (back) back.addEventListener('click', gateReset);
+
+    var g = document.getElementById('gtGoogle');
+    if (g) g.addEventListener('click', function () {
+      location.href = '/api/auth/google/start?next=' + encodeURIComponent(location.pathname);
+    });
+  }
+
+  /* ------------------------------------------------------- analytics ---- */
+  var GROUPS = [];                         // filled by setFriendGroups() once groups exist
+  function paintAnalytics() {
+    var u = ME.user, sapien = planOf(u) === 'sapien';
+    var what = document.getElementById('anWhat');
+    if (what) {
+      what.textContent = isShell()
+        ? 'Intellisense score · every game'
+        : (document.title || 'This game').split(/[·|—-]/)[0].trim() + ' · this game';
+    }
+    /* Free: Daily only. The other two horizons stay visible as headings, so a
+       free player can see what exists, with one upgrade note under both. */
+    ['dozen', 'lifetime'].forEach(function (k) {
+      var b = document.querySelector('#statsSheet .an-block[data-tier="' + k + '"]');
+      if (b) b.classList.toggle('locked', !sapien);
+    });
+    var lock = document.getElementById('anLock');
+    if (lock) lock.hidden = sapien;
+    paintGroups();
+  }
+  function paintGroups() {
+    var sel = document.getElementById('anGroup'), none = document.getElementById('anNoGroups');
+    if (!sel || !none) return;
+    if (!GROUPS.length) { sel.hidden = true; none.hidden = false; return; }
+    sel.innerHTML = GROUPS.map(function (g) {
+      return '<option value="' + escapeAttr(g.id) + '">' + escapeAttr(g.name) + '</option>';
+    }).join('');
+    sel.hidden = false; none.hidden = true;
+  }
+  function wireAnalytics() {
+    var seg = document.getElementById('anScope');
+    if (!seg || seg.__wired) return;
+    seg.__wired = true;
+    seg.addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-scope]'); if (!b) return;
+      [].forEach.call(seg.querySelectorAll('button'), function (x) {
+        x.setAttribute('aria-pressed', String(x === b));
+      });
+      document.getElementById('anGroupWrap').hidden = b.getAttribute('data-scope') !== 'groups';
+      paintGroups();
+    });
+  }
+
+  /* Links that act like buttons elsewhere on the bar. The Friends link goes
+     THROUGH the real Friends button rather than opening the sheet directly, so
+     each surface's own Friends handler runs and the gate still applies. */
+  function wireLinks() {
+    if (wireLinks.__done) return;
+    wireLinks.__done = true;
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest) return;
+      if (e.target.closest('[data-open-friends]')) {
+        e.preventDefault();
+        var f = document.getElementById('friendsBtn'); if (f) f.click();
+      } else if (e.target.closest('[data-open-paywall]')) {
+        e.preventDefault();
+        UI.open('payWall');
+      }
+    });
+  }
+
   function bar() {
     var a = document.getElementById('psbarBrand');
     if (!a) return;
-    var shell = document.documentElement.classList.contains('ps-shell');
+    var shell = isShell();
     a.setAttribute('href', shell ? '/about/' : '/');
     a.setAttribute('aria-label', shell ? 'About PlaySapien' : 'PlaySapien home');
 
+    if (!bar.__guarded) { bar.__guarded = true; document.addEventListener('click', guard, true); }
+    wireGate();
+    wireAnalytics();
+    wireLinks();
+
     /* Analytics: one sheet, wired once here, so no surface has to remember to do
-       it and none of them can forget. What it will eventually show differs, so
-       the copy does too. */
-    var sb = document.getElementById('statsBtn'), body = document.getElementById('statsBody');
-    if (body) {
-      body.textContent = shell
-        ? 'This will show how you are doing across every game, and the leaderboards for all of them. It is not built yet.'
-        : 'This will show this game\u2019s leaderboards and how your past rounds have gone. It is not built yet.';
-    }
+       it and none of them can forget. Painted on every open, because the plan
+       can change between opens. */
+    var sb = document.getElementById('statsBtn');
     if (sb && !sb.__wired) {
       sb.__wired = true;
-      sb.addEventListener('click', function () { UI.open('statsSheet'); });
+      sb.addEventListener('click', function () { paintAnalytics(); UI.open('statsSheet'); });
     }
 
-    /* Add. Only the shell is wired here — in a game this button is that game's
+    /* Add. Only the shell is wired here -- in a game this button is that game's
        own "make a puzzle" control and the game binds it itself. */
     var ab = document.getElementById('addBtn');
     if (shell && ab && !ab.__wired) {
@@ -639,30 +884,27 @@ document.addEventListener('DOMContentLoaded', function () {
       ab.addEventListener('click', function () { UI.open('addSheet'); });
     }
 
-    /* The face in the bar. The shell already loads the account layer and calls
-       setAvatar itself with a fuller record, so it is left alone; a GAME has no
-       account layer at all — both games are entirely local — and would
-       otherwise show the generic icon to a signed-in player, which reads as
-       having been signed out by walking into a game.
-
-       So the bar asks for itself: one cookie'd GET, once per load, and silence
-       if anything at all goes wrong. Nothing here is allowed to affect a game
-       that is working perfectly well without it. */
     /* Last, so a surface that is about to paint a real avatar has had its
        chance: attnStart bails out on a button already wearing one. */
     attnStart();
 
-    if (!shell && typeof fetch === 'function' && !bar.__asked) {
+    /* Who is signed in. Asked on EVERY surface now, not just the games: the
+       gate needs the answer on the front door too, and if the shell's own
+       account layer fails to load this is what keeps the gate honest. One
+       cookie'd GET per load, and silence on any failure -- which is treated as
+       signed out, the safe direction to be wrong in. */
+    if (typeof fetch === 'function' && !bar.__asked) {
       bar.__asked = true;
       try {
         fetch('/api/auth/session', { credentials: 'include', headers: { Accept: 'application/json' } })
           .then(function (r) { return r.ok ? r.json() : null; })
           .then(function (j) {
             var u = j && j.data && j.data.user;
+            if (!ME.known) learnUser(u || null);        // the shell may have answered first
             if (u) setAvatar(u);
           })
-          .catch(function () { /* offline, or no backend: keep the icon */ });
-      } catch (e) { /* no fetch, ancient browser: keep the icon */ }
+          .catch(function () { if (!ME.known) learnUser(null); });
+      } catch (e) { if (!ME.known) learnUser(null); }
     }
   }
 
@@ -1511,6 +1753,99 @@ document.addEventListener('DOMContentLoaded', function () {
   color: var(--fg); font-family: var(--f-disp); font-weight: 900; font-size: 15px;
 }
 
+/* -------------------------------------------------------- sign-in card ----
+   Used by the front door's Profile sheet and by the sign-in gate on every
+   surface. Lifted here from the shell once the gate needed it inside the games:
+   one card, one set of rules, however someone arrived at it. */
+/* The eyebrow that used to sit in a sheet's top-right corner, before the
+   corner became Close. Same mono voice it had there, now a line of its own
+   directly under the heading. */
+.sh-status{
+  font-family:var(--f-mono); font-size:10.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--fg-3); margin:-12px 0 16px;
+}
+
+/* ---------- profile: the signed-out card ----------------------------------
+   Modelled on the reference: one instruction, the address and its button on
+   one line, a labelled rule, the provider row at the same size as the field,
+   a second rule, and the legal line. Nothing else -- every extra control here
+   is a reason not to sign in. */
+.pf-lead{font-size:14.5px; line-height:1.6; color:var(--fg-2); margin:0 0 16px; max-width:46ch}
+.pf-mailrow{display:flex; gap:8px; align-items:center}
+.pf-mailrow .fld{margin:0; flex:1 1 auto; min-width:0}
+.pf-mailrow .btn{flex:none; white-space:nowrap; --btn-radius:10px; --btn-pad:12px 16px}
+/* Below this the field and the button together are narrower than the words in
+   the button, so the row stacks rather than squeezing the address to nothing. */
+@media (max-width:429px){
+  .pf-mailrow{flex-wrap:wrap}
+  .pf-mailrow .btn{width:100%}
+}
+
+/* ---- OR ---- : the rule is two flex children of the row, so it cannot
+   overlap the word no matter how wide the sheet gets. */
+.pf-rule{
+  display:flex; align-items:center; gap:14px; margin:22px 0;
+  font-family:var(--f-mono); font-size:10.5px; letter-spacing:.2em;
+  text-transform:uppercase; color:var(--fg-3);
+}
+.pf-rule::before,.pf-rule::after{content:""; flex:1; height:1px; background:var(--line-2)}
+.pf-rule.bare{gap:0}
+
+/* The whole line is the button, per the brief: the words, the logo and the
+   provider name are one target, sized like the field above it. */
+.oauth{
+  display:flex; align-items:center; justify-content:center; gap:10px;
+  width:100%; box-sizing:border-box; cursor:pointer;
+  font:inherit; font-size:15px; font-weight:600;
+  padding:11px 13px; border-radius:10px;
+  border:1px solid var(--line-2); background:var(--bg-raise); color:var(--fg);
+  transition:background .16s, border-color .16s;
+}
+.oauth:hover{background:var(--bg-sink); border-color:var(--fg-3)}
+.oauth:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.oauth svg{width:18px; height:18px; flex:none}
+.oauth .lead{
+  font-family:var(--f-mono); font-size:10.5px; font-weight:400; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--fg-2);
+}
+.pf-legal{font-size:12.5px; line-height:1.65; color:var(--fg-3); text-align:center; margin:0}
+.pf-legal a{color:var(--fg-2); text-decoration-color:var(--accent); text-underline-offset:2px}
+
+
+/* ------------------------------------------------------------ the gate ----- */
+.gate-msg{
+  margin:0 0 18px; padding:12px 14px; border-radius:11px;
+  background:color-mix(in srgb, var(--accent) 9%, transparent);
+  color:var(--fg); font-size:14.5px; line-height:1.55;
+}
+
+/* ----------------------------------------------------------- analytics ----- */
+.an-scope{margin:0 0 20px}
+.an-scope .seg{margin:0 0 10px}
+.an-scope select.fld{margin:0 0 6px}
+.an-none{margin:2px 0 8px; font-size:13.5px; color:var(--fg-3); font-style:italic}
+.an-how{margin:0; font-size:13px; line-height:1.6; color:var(--fg-2)}
+.an-how .inlink{
+  font:inherit; color:var(--fg); background:none; border:0; padding:0; cursor:pointer;
+  display:inline-flex; align-items:center; gap:4px; vertical-align:baseline;
+  text-decoration:underline; text-decoration-color:var(--accent); text-underline-offset:2px;
+}
+.an-how .inlink svg{flex:none; position:relative; top:1px}
+.an-block{padding:14px 0 0; border-top:1px solid var(--line)}
+.an-block h3{
+  margin:0 0 8px; font-family:var(--f-mono); font-size:10.5px; font-weight:500;
+  letter-spacing:.18em; text-transform:uppercase; color:var(--fg-2);
+}
+/* The empty area, drawn as a place-holder rather than left as nothing, so the
+   three horizons read as three things even before they hold numbers. */
+.an-body{min-height:64px; margin:0 0 16px; border-radius:11px;
+  border:1px dashed var(--line-2); background:color-mix(in srgb, var(--fg) 3%, transparent)}
+.an-block.locked h3{opacity:.5}
+.an-block.locked .an-body{display:none}
+.an-lock{margin:2px 0 4px; padding:16px; border-radius:12px; text-align:center;
+  border:1px solid var(--line-2); background:var(--bg-sink)}
+.an-lock p{margin:0 0 12px; font-size:14px; color:var(--fg)}
+
 /* -------------------------------------------------------------- utility ---- */
 /* Present to a screen reader, absent to everything else. Used where a control
    is obvious by position but has no visible label -- clip-path rather than
@@ -1977,59 +2312,9 @@ footer a:hover{opacity:1}
   padding:0 4px; border-radius:4px; font-style:italic;
 }
 
-/* The eyebrow that used to sit in a sheet's top-right corner, before the
-   corner became Close. Same mono voice it had there, now a line of its own
-   directly under the heading. */
-.sh-status{
-  font-family:var(--f-mono); font-size:10.5px; letter-spacing:.16em;
-  text-transform:uppercase; color:var(--fg-3); margin:-12px 0 16px;
-}
-
-/* ---------- profile: the signed-out card ----------------------------------
-   Modelled on the reference: one instruction, the address and its button on
-   one line, a labelled rule, the provider row at the same size as the field,
-   a second rule, and the legal line. Nothing else -- every extra control here
-   is a reason not to sign in. */
-.pf-lead{font-size:14.5px; line-height:1.6; color:var(--fg-2); margin:0 0 16px; max-width:46ch}
-.pf-mailrow{display:flex; gap:8px; align-items:center}
-.pf-mailrow .fld{margin:0; flex:1 1 auto; min-width:0}
-.pf-mailrow .btn{flex:none; white-space:nowrap; --btn-radius:10px; --btn-pad:12px 16px}
-/* Below this the field and the button together are narrower than the words in
-   the button, so the row stacks rather than squeezing the address to nothing. */
-@media (max-width:429px){
-  .pf-mailrow{flex-wrap:wrap}
-  .pf-mailrow .btn{width:100%}
-}
-
-/* ---- OR ---- : the rule is two flex children of the row, so it cannot
-   overlap the word no matter how wide the sheet gets. */
-.pf-rule{
-  display:flex; align-items:center; gap:14px; margin:22px 0;
-  font-family:var(--f-mono); font-size:10.5px; letter-spacing:.2em;
-  text-transform:uppercase; color:var(--fg-3);
-}
-.pf-rule::before,.pf-rule::after{content:""; flex:1; height:1px; background:var(--line-2)}
-.pf-rule.bare{gap:0}
-
-/* The whole line is the button, per the brief: the words, the logo and the
-   provider name are one target, sized like the field above it. */
-.oauth{
-  display:flex; align-items:center; justify-content:center; gap:10px;
-  width:100%; box-sizing:border-box; cursor:pointer;
-  font:inherit; font-size:15px; font-weight:600;
-  padding:11px 13px; border-radius:10px;
-  border:1px solid var(--line-2); background:var(--bg-raise); color:var(--fg);
-  transition:background .16s, border-color .16s;
-}
-.oauth:hover{background:var(--bg-sink); border-color:var(--fg-3)}
-.oauth:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
-.oauth svg{width:18px; height:18px; flex:none}
-.oauth .lead{
-  font-family:var(--f-mono); font-size:10.5px; font-weight:400; letter-spacing:.18em;
-  text-transform:uppercase; color:var(--fg-2);
-}
-.pf-legal{font-size:12.5px; line-height:1.65; color:var(--fg-3); text-align:center; margin:0}
-.pf-legal a{color:var(--fg-2); text-decoration-color:var(--accent); text-underline-offset:2px}
+/* The eyebrow under a sheet heading and the sign-in card's styles now live in
+   packages/ui/ui.css: the sign-in gate uses them on every surface, not only
+   here. Left as a pointer so nobody re-adds them locally and gets two copies. */
 
 /* ---------- profile: the signed-in sections ------------------------------- */
 .pfsec{padding:0 0 20px; margin:0 0 20px; border-bottom:1px solid var(--line)}
@@ -2226,16 +2511,57 @@ footer a:hover{opacity:1}
 <!-- Analytics has an icon on every surface but nothing behind it yet. It says so
      rather than doing nothing: a nav item that swallows a tap reads as broken.
      The copy differs by surface, filled in by PSUI.bar(). -->
+<!-- Analytics. Three horizons for every score, the same three everywhere: a
+     game's own card reports that game, the front door's card reports the
+     Intellisense aggregate. Built empty on purpose -- the areas exist now so
+     that what fills them later has a place to go, and so the tiering around
+     them can be seen working before there is anything to tier.
+
+       Daily      the score for today
+       Last dozen the mean of the last 12 games; shown from the 12th game on
+       Lifetime   the mean of every game;       shown from the 13th game on
+
+     ui.js decides which of these a player may see (paintAnalytics). Nobody
+     signed out reaches this sheet at all: the bar's gate stops them first. -->
 <section class="sheet" id="statsSheet" role="dialog" aria-modal="true" aria-labelledby="statsTitle" hidden>
   <div class="sheet-in">
     <div class="sh-head"><h2 id="statsTitle">Analytics</h2>
       <button class="donebtn" type="button" data-sheet-close>Close</button></div>
-    <!-- A div, not a p: a surface that HAS numbers replaces this with real
-         blocks, and a <p> cannot legally contain them -- the browser would
-         silently break the paragraph apart around them. ui.js writes the
-         placeholder sentence in as text; a surface that knows better
-         overwrites it. -->
-    <div class="sethint" id="statsBody">Not built yet.</div>
+    <p class="sh-status" id="anWhat">&nbsp;</p>
+
+    <!-- Who you are being compared with. -->
+    <div class="an-scope">
+      <div class="seg" id="anScope" role="group" aria-label="Compare with">
+        <button type="button" data-scope="all" aria-pressed="true">All</button>
+        <button type="button" data-scope="groups" aria-pressed="false">Friend groups</button>
+      </div>
+      <div id="anGroupWrap" hidden>
+        <label class="ui-sr" for="anGroup">Friend group</label>
+        <select class="fld" id="anGroup"></select>
+        <p class="an-none" id="anNoGroups">No friend groups yet</p>
+      </div>
+      <p class="an-how">To create/manage friend groups go to:
+        <button class="inlink" type="button" data-open-friends><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.4"/><path d="M2.8 19.5a6.2 6.2 0 0 1 12.4 0"/><path d="M15.6 5a3.2 3.2 0 0 1 0 6.1"/><path d="M18 13.6a6 6 0 0 1 3.2 5.4"/></svg><span>Friends</span></button></p>
+    </div>
+
+    <div class="an-block" data-tier="daily">
+      <h3>Daily</h3>
+      <div class="an-body" id="anDaily"></div>
+    </div>
+    <div class="an-block" data-tier="dozen">
+      <h3>Last dozen</h3>
+      <div class="an-body" id="anDozen"></div>
+    </div>
+    <div class="an-block" data-tier="lifetime">
+      <h3>Lifetime</h3>
+      <div class="an-body" id="anLifetime"></div>
+    </div>
+    <!-- Shown instead of the two bodies above to a free account. One note and
+         one button for both, not two of each: "these" is the pair. -->
+    <div class="an-lock" id="anLock" hidden>
+      <p>Upgrade to Sapien to access these.</p>
+      <button class="btn" type="button" data-open-paywall>Upgrade to Sapien</button>
+    </div>
   </div>
 </section>
 
@@ -2250,7 +2576,93 @@ footer a:hover{opacity:1}
       puzzle of your own.</p>
   </div>
 </section>
-<!-- ===== END packages/ui/bar.html ===== -->
+
+
+<!-- The gate. Anyone signed out who reaches for something that needs an
+     account lands here instead: what they asked for, why they cannot have it
+     yet, and the sign-in card underneath so the fix is on the same screen as
+     the problem. One card on every surface -- the front door and both games --
+     so it is the same experience whichever door someone came in by.
+
+     It signs in by itself (ui.js), without the platform SDK, because neither
+     game loads the SDK and should not have to for this. -->
+<section class="sheet" id="gateSheet" role="dialog" aria-modal="true" aria-labelledby="gateTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="gateTitle">Sign in to continue</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p class="gate-msg" id="gateMsg">You need an account for that.</p>
+
+    <p class="pf-lead">We send a six-digit code to your email &mdash; enter the code;
+       no passwords to manage.</p>
+
+    <form id="gtEmailForm" class="pf-mailrow" autocomplete="on">
+      <label class="ui-sr" for="gtEmail">Your email address</label>
+      <input class="fld" type="email" id="gtEmail" name="email" inputmode="email"
+             autocomplete="email" placeholder="you@example.com" required>
+      <button class="btn" type="submit" id="gtEmailBtn">Send me a code</button>
+    </form>
+
+    <form id="gtCodeForm" hidden autocomplete="off">
+      <p class="sethint" style="margin:0 0 9px">Six digits, sent to <b id="gtAddr"></b>.
+        It expires in ten minutes.</p>
+      <div class="pf-mailrow">
+        <label class="ui-sr" for="gtCode">Six-digit code</label>
+        <input class="fld code" type="text" id="gtCode" name="one-time-code" inputmode="numeric"
+               autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required>
+        <button class="btn" type="submit" id="gtCodeBtn">Sign in</button>
+      </div>
+      <p class="an-how" style="margin-top:8px">
+        <button class="inlink" type="button" id="gtBack">Use a different address</button></p>
+    </form>
+    <div class="ui-note" id="gtNote" hidden></div>
+
+    <div class="pf-rule"><span>or</span></div>
+
+    <button class="oauth" type="button" id="gtGoogle">
+      <span class="lead">Login with:</span>
+      <svg viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.83.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+      <span>Google</span>
+    </button>
+
+    <div class="pf-rule bare"></div>
+
+    <p class="pf-legal">By signing in, you confirm that you have read and accepted the
+      <a href="/terms/">Terms</a> and <a href="/privacy/">Privacy Policy</a>.</p>
+  </div>
+</section>
+
+<!-- Friends' games: puzzles friends have made and sent. The sending does not
+     exist yet, so the only honest state is the empty one. -->
+<section class="sheet" id="friendsGamesSheet" role="dialog" aria-modal="true" aria-labelledby="fgTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="fgTitle">Friends&rsquo; games</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p class="sethint">No puzzles from friends yet. When a friend makes one and sends it
+      to you, it will be waiting here.</p>
+  </div>
+</section>
+
+<!-- Upgrade. Shared, because a free player meets the upgrade from inside a game
+     as often as from the front door. There is no checkout yet, and a button that
+     goes nowhere is worse than one that says where it is going, so this is
+     deliberately a holding screen rather than a dead link.
+     TODO(billing): replace the body with the checkout hand-off. When that
+     exists, routes/player.js must STOP accepting `plan` from the browser --
+     an upgrade comes from the payment provider's webhook, not a PATCH. -->
+<section class="sheet" id="payWall" role="dialog" aria-modal="true" aria-labelledby="payTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="payTitle">Sapien</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p>Sapien is <b>$2 a month, billed annually</b>. It opens up tracking all your
+       results, comparing your results against friends and others, making up and
+       sharing games with friends, and more.</p>
+    <p class="hint">Payment is not switched on yet, so there is nothing to buy today.
+       This is where the checkout will be.</p>
+    <div class="btnrow">
+      <button class="btn ghost" type="button" data-sheet-close>Back</button>
+    </div>
+  </div>
+</section><!-- ===== END packages/ui/bar.html ===== -->
 
   <main>
     <!-- The crest used to live here. It now sits in the fixed bar at the top of
@@ -2365,24 +2777,7 @@ footer a:hover{opacity:1}
   <div class="ui-note" id="delNote" hidden></div>
 </section>
 
-<!-- Upgrade. There is no checkout yet, and a button that goes nowhere is worse
-     than one that says where it is going, so this is deliberately a holding
-     screen rather than a dead link or a 404.
-     TODO(billing): replace the body with the checkout hand-off. When that
-     exists, routes/player.js must STOP accepting `plan` from the browser --
-     an upgrade comes from the payment provider's webhook, not a PATCH. -->
-<section class="sheet" id="payWall" role="dialog" aria-modal="true" aria-labelledby="payTitle" hidden>
-  <div class="sh-head"><h2 id="payTitle">Sapien</h2>
-    <button class="donebtn" type="button" data-sheet-close>Close</button></div>
-  <p>Sapien is <b>$2 a month, billed annually</b>. It opens up tracking all your
-     results, comparing your results against friends and others, making up and
-     sharing games with friends, and more.</p>
-  <p class="hint">Payment is not switched on yet, so there is nothing to buy today.
-     This is where the checkout will be.</p>
-  <div class="btnrow">
-    <button class="btn ghost" type="button" data-sheet-close>Back</button>
-  </div>
-</section>
+<!-- payWall moved to packages/ui/bar.html: games need it too. -->
 
 <!-- Downgrade, confirmed. Its own sheet rather than confirm(), which a browser
      may style, suppress or queue behind another dialog -- not what you want in
@@ -2957,34 +3352,10 @@ $('downYes').addEventListener('click', async () => {
   PSUI.toast('You are on the Free plan.');
 });
 
-/* The streak numbers, which used to sit on the profile screen. They are facts
-   about how you are doing rather than settings you change, so they belong
-   behind the Analytics icon -- which until now was a sheet apologising for
-   being empty while the real numbers hid under Profile. ui.js writes the
-   placeholder copy into #statsBody when the bar is built; this overwrites it
-   for a signed-in player, and leaves it alone otherwise. */
-function paintStats(streaks) {
-  const rows = streaks || [];
-  const body = $('statsBody');
-  if (!body) return;
-  const all = rows.find(s => s.game === '*') || {};
-  const played = rows.reduce((n, s) => s.game === '*' ? n : n + (s.played || 0), 0);
-  body.innerHTML = `
-    <div class="stats">
-      <div class="stat"><b>${all.current || 0}</b><span>Day streak</span></div>
-      <div class="stat"><b>${played}</b><span>Puzzles</span></div>
-      <div class="stat"><b>${all.longest || 0}</b><span>Best run</span></div>
-    </div>
-    <p class="hint" style="margin:14px 0 2px">Per game</p>
-    ${Object.keys(GAME_NAMES).map(g => {
-      const s = rows.find(r => r.game === g) || {};
-      return `<div class="gstat">
-        <span class="gn">${GAME_NAMES[g]}</span>
-        <span class="gv">${s.played ? `${s.current || 0}-day streak &middot; ${s.played} played` : 'Not played yet'}</span>
-      </div>`;
-    }).join('')}
-    <p class="hint" style="margin:16px 0 0">Leaderboards and per-category scoring are not built yet.</p>`;
-}
+/* paintStats is gone. The Analytics card is now three empty horizons -- Daily,
+   Last dozen, Lifetime -- built and tiered by packages/ui for every surface
+   alike; the streak numbers this used to write into it come back when those
+   horizons are filled from real data, not before. */
 
 /* ---------- email sign-in -------------------------------------------------- */
 let pending = '';
@@ -3190,7 +3561,7 @@ async function refresh() {
   const [me, today] = await Promise.all([PS.me(), PS.today(day)]);
   const user = me && me.user;
   paintSession(user || null);
-  if (user) { paintStats(me.streaks); paintDatum(me.streaks); }
+  if (user) paintDatum(me.streaks);
   const byGame = {};
   for (const r of (today && today.results) || []) byGame[r.game] = r;
   paintStatus(byGame);

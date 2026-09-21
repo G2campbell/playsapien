@@ -128,16 +128,57 @@
 <!-- Analytics has an icon on every surface but nothing behind it yet. It says so
      rather than doing nothing: a nav item that swallows a tap reads as broken.
      The copy differs by surface, filled in by PSUI.bar(). -->
+<!-- Analytics. Three horizons for every score, the same three everywhere: a
+     game's own card reports that game, the front door's card reports the
+     Intellisense aggregate. Built empty on purpose -- the areas exist now so
+     that what fills them later has a place to go, and so the tiering around
+     them can be seen working before there is anything to tier.
+
+       Daily      the score for today
+       Last dozen the mean of the last 12 games; shown from the 12th game on
+       Lifetime   the mean of every game;       shown from the 13th game on
+
+     ui.js decides which of these a player may see (paintAnalytics). Nobody
+     signed out reaches this sheet at all: the bar's gate stops them first. -->
 <section class="sheet" id="statsSheet" role="dialog" aria-modal="true" aria-labelledby="statsTitle" hidden>
   <div class="sheet-in">
     <div class="sh-head"><h2 id="statsTitle">Analytics</h2>
       <button class="donebtn" type="button" data-sheet-close>Close</button></div>
-    <!-- A div, not a p: a surface that HAS numbers replaces this with real
-         blocks, and a <p> cannot legally contain them -- the browser would
-         silently break the paragraph apart around them. ui.js writes the
-         placeholder sentence in as text; a surface that knows better
-         overwrites it. -->
-    <div class="sethint" id="statsBody">Not built yet.</div>
+    <p class="sh-status" id="anWhat">&nbsp;</p>
+
+    <!-- Who you are being compared with. -->
+    <div class="an-scope">
+      <div class="seg" id="anScope" role="group" aria-label="Compare with">
+        <button type="button" data-scope="all" aria-pressed="true">All</button>
+        <button type="button" data-scope="groups" aria-pressed="false">Friend groups</button>
+      </div>
+      <div id="anGroupWrap" hidden>
+        <label class="ui-sr" for="anGroup">Friend group</label>
+        <select class="fld" id="anGroup"></select>
+        <p class="an-none" id="anNoGroups">No friend groups yet</p>
+      </div>
+      <p class="an-how">To create/manage friend groups go to:
+        <button class="inlink" type="button" data-open-friends><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.4"/><path d="M2.8 19.5a6.2 6.2 0 0 1 12.4 0"/><path d="M15.6 5a3.2 3.2 0 0 1 0 6.1"/><path d="M18 13.6a6 6 0 0 1 3.2 5.4"/></svg><span>Friends</span></button></p>
+    </div>
+
+    <div class="an-block" data-tier="daily">
+      <h3>Daily</h3>
+      <div class="an-body" id="anDaily"></div>
+    </div>
+    <div class="an-block" data-tier="dozen">
+      <h3>Last dozen</h3>
+      <div class="an-body" id="anDozen"></div>
+    </div>
+    <div class="an-block" data-tier="lifetime">
+      <h3>Lifetime</h3>
+      <div class="an-body" id="anLifetime"></div>
+    </div>
+    <!-- Shown instead of the two bodies above to a free account. One note and
+         one button for both, not two of each: "these" is the pair. -->
+    <div class="an-lock" id="anLock" hidden>
+      <p>Upgrade to Sapien to access these.</p>
+      <button class="btn" type="button" data-open-paywall>Upgrade to Sapien</button>
+    </div>
   </div>
 </section>
 
@@ -152,15 +193,104 @@
       puzzle of your own.</p>
   </div>
 </section>
-<!-- ===== END packages/ui/bar.html ===== -->
+
+
+<!-- The gate. Anyone signed out who reaches for something that needs an
+     account lands here instead: what they asked for, why they cannot have it
+     yet, and the sign-in card underneath so the fix is on the same screen as
+     the problem. One card on every surface -- the front door and both games --
+     so it is the same experience whichever door someone came in by.
+
+     It signs in by itself (ui.js), without the platform SDK, because neither
+     game loads the SDK and should not have to for this. -->
+<section class="sheet" id="gateSheet" role="dialog" aria-modal="true" aria-labelledby="gateTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="gateTitle">Sign in to continue</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p class="gate-msg" id="gateMsg">You need an account for that.</p>
+
+    <p class="pf-lead">We send a six-digit code to your email &mdash; enter the code;
+       no passwords to manage.</p>
+
+    <form id="gtEmailForm" class="pf-mailrow" autocomplete="on">
+      <label class="ui-sr" for="gtEmail">Your email address</label>
+      <input class="fld" type="email" id="gtEmail" name="email" inputmode="email"
+             autocomplete="email" placeholder="you@example.com" required>
+      <button class="btn" type="submit" id="gtEmailBtn">Send me a code</button>
+    </form>
+
+    <form id="gtCodeForm" hidden autocomplete="off">
+      <p class="sethint" style="margin:0 0 9px">Six digits, sent to <b id="gtAddr"></b>.
+        It expires in ten minutes.</p>
+      <div class="pf-mailrow">
+        <label class="ui-sr" for="gtCode">Six-digit code</label>
+        <input class="fld code" type="text" id="gtCode" name="one-time-code" inputmode="numeric"
+               autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required>
+        <button class="btn" type="submit" id="gtCodeBtn">Sign in</button>
+      </div>
+      <p class="an-how" style="margin-top:8px">
+        <button class="inlink" type="button" id="gtBack">Use a different address</button></p>
+    </form>
+    <div class="ui-note" id="gtNote" hidden></div>
+
+    <div class="pf-rule"><span>or</span></div>
+
+    <button class="oauth" type="button" id="gtGoogle">
+      <span class="lead">Login with:</span>
+      <svg viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.83.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+      <span>Google</span>
+    </button>
+
+    <div class="pf-rule bare"></div>
+
+    <p class="pf-legal">By signing in, you confirm that you have read and accepted the
+      <a href="/terms/">Terms</a> and <a href="/privacy/">Privacy Policy</a>.</p>
+  </div>
+</section>
+
+<!-- Friends' games: puzzles friends have made and sent. The sending does not
+     exist yet, so the only honest state is the empty one. -->
+<section class="sheet" id="friendsGamesSheet" role="dialog" aria-modal="true" aria-labelledby="fgTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="fgTitle">Friends&rsquo; games</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p class="sethint">No puzzles from friends yet. When a friend makes one and sends it
+      to you, it will be waiting here.</p>
+  </div>
+</section>
+
+<!-- Upgrade. Shared, because a free player meets the upgrade from inside a game
+     as often as from the front door. There is no checkout yet, and a button that
+     goes nowhere is worse than one that says where it is going, so this is
+     deliberately a holding screen rather than a dead link.
+     TODO(billing): replace the body with the checkout hand-off. When that
+     exists, routes/player.js must STOP accepting `plan` from the browser --
+     an upgrade comes from the payment provider's webhook, not a PATCH. -->
+<section class="sheet" id="payWall" role="dialog" aria-modal="true" aria-labelledby="payTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="payTitle">Sapien</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p>Sapien is <b>$2 a month, billed annually</b>. It opens up tracking all your
+       results, comparing your results against friends and others, making up and
+       sharing games with friends, and more.</p>
+    <p class="hint">Payment is not switched on yet, so there is nothing to buy today.
+       This is where the checkout will be.</p>
+    <div class="btnrow">
+      <button class="btn ghost" type="button" data-sheet-close>Back</button>
+    </div>
+  </div>
+</section><!-- ===== END packages/ui/bar.html ===== -->
   <div class="brand-mark">
     <svg width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.4 13.6a4.6 4.6 0 0 0 6.94.5l2.76-2.76a4.6 4.6 0 0 0-6.5-6.5l-1.58 1.57"/><path d="M13.6 10.4a4.6 4.6 0 0 0-6.94-.5L3.9 12.66a4.6 4.6 0 0 0 6.5 6.5l1.57-1.57"/></svg>
   </div>
   <h1>Word Chain</h1>
   <p class="tagline">Link every word to the next.</p>
   <div class="homebtns">
-    <button class="btn" id="dailyBtn">Play daily challenge</button>
+    <button class="btn" id="dailyBtn">Play Daily Game</button>
     <button class="btn ghost" id="practiceBtn">Practice</button>
+    <!-- data-gate: the shared bar layer shows the sign-in card to anyone signed
+         out before this game ever sees the click. -->
+    <button class="btn ghost" id="friendsGamesBtn" data-gate="account">Play Friends&rsquo; Games</button>
   </div>
   <div class="home-foot">
     <div class="d1" id="homeDate">&nbsp;</div>

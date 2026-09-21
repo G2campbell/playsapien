@@ -442,7 +442,8 @@ function fmtKm(km){
    The stored values stay 'beginner' and 'expert' so an old save still reads. */
 var SET = { mode:'beginner', units:'mi', timing:1.0, sound:true, style:'default',
             focus:'United States of America' };
-var LEVELS = [['beginner','Wanderer'], ['expert','Globetrotter']];
+var LEVELS = [['beginner','Wanderer',     '(maps drawn with borders)'],
+              ['expert',  'Globetrotter', '(maps drawn without borders)']];
 function levelLabel(){ return SET.mode === 'expert' ? 'Globetrotter' : 'Wanderer'; }
 function loadSettings(){
   try{
@@ -1493,7 +1494,8 @@ function buildFocusOptions(){
 function renderLevelRow(){
   $('levelRow').innerHTML = LEVELS.map(function(L){
     return '<button type="button" data-lv="' + L[0] + '" aria-pressed="' +
-           (SET.mode === L[0] ? 'true' : 'false') + '">' + L[1] + '</button>';
+           (SET.mode === L[0] ? 'true' : 'false') + '">' + L[1] +
+           '<small>' + esc(L[2]) + '</small></button>';
   }).join('');
 }
 function playButton(act, label, sub, primary){
@@ -1505,10 +1507,19 @@ function refreshIntro(){
   renderLevelRow();
   replay = loadDay();
   $('playRow').innerHTML =
-    playButton('daily', replay ? 'See result' : 'Play Daily Game',
-               replay ? 'You have played today' : 'Five rounds + a 1 min sprint', true) +
-    playButton('practice', 'Practice', '', false) +
-    playButton('explore', 'Explore', '', false);
+    playButton('daily', replay ? 'See result' : 'Play Daily Game', '', true) +
+    '<div class="pair">' +
+      playButton('practice', 'Practice', '', false) +
+      playButton('explore', 'Explore', '', false) +
+    '</div>' +
+    /* data-gate: the shared bar layer intercepts this click before the game
+       sees it and shows the sign-in card to anyone signed out. The game never
+       has to know who is signed in -- it only ever receives the click from
+       someone who is allowed to make it. */
+    playButton('friends', 'Play Friends\u2019 Games', '', false)
+      .replace('data-go="friends"', 'data-go="friends" data-gate="account"');
+  var fn = $('focusName');
+  if(fn) fn.textContent = focusLabel();
 }
 
 /* ---------------- persistence ---------------- */
@@ -1670,6 +1681,7 @@ $('levelRow').addEventListener('click', function(ev){
 $('playRow').addEventListener('click', function(ev){
   var b = ev.target.closest('button[data-go]'); if(!b || !ready) return;
   var go = b.getAttribute('data-go');
+  if(go === 'friends'){ PSUI.open('friendsGamesSheet'); return; }
   if(go === 'explore'){ startLearn(); return; }
   if(go === 'practice'){ startGame(true); return; }
   if(go === 'daily'){
@@ -1796,7 +1808,16 @@ applySettings();
   }).join('');
 })();
 
-$('introDate').textContent = prettyDate(S.dayKey);
+/* Word Chain's form -- "September 21, 2026" -- rather than the compact one the
+   emblem caption used. The day is a UTC day, so it is read in UTC: in the
+   evening in the Americas a local reading would show tomorrow's puzzle under
+   today's date. */
+$('introDate').textContent = (function(k){
+  try{
+    return new Date(k + 'T12:00:00Z').toLocaleDateString(undefined,
+      { month:'long', day:'numeric', year:'numeric', timeZone:'UTC' });
+  }catch(e){ return prettyDate(k); }
+})(S.dayKey);
 (function(){
   var h='';
   for(var i=0;i<5;i++) h += '<div class="lad">' + shapeSvg(i,'todo',0) +

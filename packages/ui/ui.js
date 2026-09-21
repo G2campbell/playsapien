@@ -209,6 +209,13 @@
       return UI;
     },
     attnStop: attnStop,
+    /* Who is signed in, for a surface that wants to ask. Resolves to the user
+       record or null. */
+    whenUser: whenUser,
+    /* The friend groups this player belongs to, for the Analytics picker.
+       [{id, name}]. Nothing calls this yet: groups do not exist in the API. */
+    setFriendGroups: function (list) { GROUPS = Array.isArray(list) ? list : []; paintGroups(); },
+    paintAnalytics: paintAnalytics,
     avatar: avatar,
     avatarTokens: avatarTokens,
     setAvatar: setAvatar,
@@ -353,6 +360,7 @@
      -- a bar still showing yesterday's face after signing out is a bug people
      read as "it did not sign me out". */
   function setAvatar(user) {
+    learnUser(user);                                   // the shell's word is final
     var b = document.getElementById('profileBtn');
     if (!b) return;
     if (b.__icon == null) b.__icon = b.innerHTML;      // keep the original once
@@ -379,28 +387,265 @@
      decided here rather than by each surface shipping a different href:
      on the shell it is the About page (the same place the About icon goes),
      and inside a game it is the way back out to the front door. */
+  /* ------------------------------------------------------------ who ----
+     Who is signed in, and on which plan, known to every surface -- the front
+     door, which loads the account SDK, and both games, which do not. Filled by
+     whichever answers first: the bar's own /auth/session call, or the shell
+     telling us through setAvatar(). Until one of them does, `known` is false
+     and anything that depends on it waits rather than guessing, because
+     guessing "signed out" would flash the sign-in card at someone who is not. */
+  var ME = { known: false, user: null, waiters: [] };
+  function learnUser(u) {
+    ME.user = u || null;
+    ME.known = true;
+    var w = ME.waiters; ME.waiters = [];
+    for (var i = 0; i < w.length; i++) { try { w[i](ME.user); } catch (e) { /* one bad waiter must not stop the rest */ } }
+  }
+  /* Resolves once we know. Four seconds is the ceiling: an API that has not
+     answered by then is not coming, and the page should behave as signed out
+     rather than hold a tapped button hostage indefinitely. */
+  function whenUser() {
+    return new Promise(function (res) {
+      if (ME.known) { res(ME.user); return; }
+      ME.waiters.push(res);
+      setTimeout(function () { if (!ME.known) learnUser(null); }, 4000);
+    });
+  }
+  function isShell() { return document.documentElement.classList.contains('ps-shell'); }
+  function planOf(u) { return u && u.plan === 'sapien' ? 'sapien' : 'free'; }
+
+  /* ------------------------------------------------------------ the gate ----
+     Three kinds of player, and what each may reach:
+
+       signed out  About, Settings, Profile, and every game's daily puzzle.
+                   Analytics, Add, Friends and Friends' Games open the sign-in
+                   card instead of themselves.
+       free        all of the above, plus Analytics (Daily only), Friends, and
+                   Friends' Games. Making a puzzle opens the upgrade instead.
+       sapien      everything.
+
+     Enforced HERE, by one capture-phase listener on the document, rather than
+     by each surface checking in its own click handler. A capture listener on
+     the document runs before any listener on the button itself, so a surface
+     that forgets to ask -- or a game written next year -- is still covered.
+     Anything can opt in by carrying data-gate="account" or data-gate="sapien".
+
+     This is presentation, not security. The API refuses the underlying calls
+     to anyone without a session regardless of what the page shows; this only
+     makes sure the page never offers a door that will not open. */
+  var GATE_LABEL = { statsBtn: 'Analytics', friendsBtn: 'Friends', friendsGamesBtn: 'Friends’ games' };
+
+  function needFor(t) {
+    var g = t.getAttribute('data-gate');
+    if (g) return g;
+    if (t.id === 'addBtn') return isShell() ? 'account' : 'sapien';   // in a game, Add = make a puzzle
+    return 'account';
+  }
+  function labelFor(t) {
+    if (t.getAttribute('data-go') === 'friends') return 'Friends’ games';
+    if (t.id === 'addBtn') return isShell() ? 'Suggest a game' : 'making puzzles';
+    return GATE_LABEL[t.id] || (t.textContent || '').replace(/^\s*Play\s+/i, '').trim();
+  }
+  function allowed(need, u) {
+    if (!u) return false;
+    return need === 'sapien' ? planOf(u) === 'sapien' : true;
+  }
+  function deny(need, t) {
+    if (!ME.user) {
+      var m = document.getElementById('gateMsg');
+      if (m) {
+        m.innerHTML = 'Sign up or sign in to use <b>' + escapeAttr(labelFor(t)) + '</b>. ' +
+          'It is free, and it keeps your streak when you change device.';
+      }
+      gateReset();
+      UI.open('gateSheet');
+    } else {
+      UI.open('payWall');          // signed in, but this needs Sapien
+    }
+  }
+  function guard(e) {
+    var t = e.target && e.target.closest
+      ? e.target.closest('#statsBtn, #friendsBtn, #addBtn, [data-gate]') : null;
+    if (!t || t.__pass) return;
+    var need = needFor(t);
+    if (ME.known) {
+      if (allowed(need, ME.user)) return;              // through, untouched
+      e.preventDefault(); e.stopPropagation();
+      deny(need, t);
+      return;
+    }
+    /* Not known yet: hold the tap, decide when the answer lands, then either
+       replay it for real or show the gate. */
+    e.preventDefault(); e.stopPropagation();
+    whenUser().then(function (u) {
+      if (allowed(need, u)) { t.__pass = true; try { t.click(); } finally { t.__pass = false; } }
+      else deny(need, t);
+    });
+  }
+
+  /* ---------------------------------------------------- gate: sign in ----
+     The card signs in on its own with three plain requests, so it works inside
+     a game that has never heard of the SDK. On success the page reloads: every
+     surface already knows how to draw itself for a signed-in player on load,
+     and a reload is the one way to be sure all of it agrees. */
+  var gtEmail = '';
+  function gtNote(msg, bad) {
+    var n = document.getElementById('gtNote');
+    if (!n) return;
+    n.hidden = !msg; n.textContent = msg || '';
+    n.classList.toggle('bad', !!bad);
+  }
+  function gateReset() {
+    var ef = document.getElementById('gtEmailForm'), cf = document.getElementById('gtCodeForm');
+    if (ef) ef.hidden = false;
+    if (cf) cf.hidden = true;
+    gtNote('', false);
+  }
+  function deviceId() {
+    try { return localStorage.getItem('ps:device') || ''; } catch (e) { return ''; }
+  }
+  function api(method, path, body) {
+    var h = { Accept: 'application/json' };
+    if (body !== undefined) h['Content-Type'] = 'application/json';
+    var dev = deviceId(); if (dev) h['X-PS-Device'] = dev;
+    return fetch('/api' + path, {
+      method: method, credentials: 'include', headers: h,
+      body: body === undefined ? undefined : JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (j) {
+        return { ok: r.ok && !(j && j.ok === false), data: j && j.data, status: r.status };
+      });
+    }).catch(function () { return { ok: false, data: null, status: 0 }; });
+  }
+  function wireGate() {
+    var ef = document.getElementById('gtEmailForm');
+    if (!ef || ef.__wired) return;
+    ef.__wired = true;
+    var cf = document.getElementById('gtCodeForm');
+
+    ef.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var v = (document.getElementById('gtEmail').value || '').trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) { gtNote('That does not look like an email address.', true); return; }
+      gtEmail = v;
+      gtNote('Sending…', false);
+      api('POST', '/auth/email/start', { email: v }).then(function (r) {
+        if (!r.ok) { gtNote(r.status === 429 ? 'Too many tries. Wait a minute and try again.' : 'That did not send. Try again.', true); return; }
+        gtNote('', false);
+        document.getElementById('gtAddr').textContent = v;
+        ef.hidden = true; cf.hidden = false;
+        var c = document.getElementById('gtCode'); if (c) { c.value = ''; c.focus(); }
+      });
+    });
+
+    cf.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var code = (document.getElementById('gtCode').value || '').replace(/\D/g, '');
+      if (code.length !== 6) { gtNote('The code is six digits.', true); return; }
+      gtNote('Checking…', false);
+      api('POST', '/auth/email/verify', { email: gtEmail, code: code }).then(function (r) {
+        if (!r.ok) { gtNote('That code did not work. Check it, or ask for a new one.', true); return; }
+        /* Carry this browser's history into the account before reloading --
+           what the SDK does after its own sign-in. Best effort: a failure here
+           loses nothing, it is simply retried the next time the SDK runs. */
+        var dev = deviceId();
+        var after = dev ? api('POST', '/player/claim', { device_ids: [dev] }) : Promise.resolve();
+        after.then(function () { location.reload(); });
+      });
+    });
+
+    var back = document.getElementById('gtBack');
+    if (back) back.addEventListener('click', gateReset);
+
+    var g = document.getElementById('gtGoogle');
+    if (g) g.addEventListener('click', function () {
+      location.href = '/api/auth/google/start?next=' + encodeURIComponent(location.pathname);
+    });
+  }
+
+  /* ------------------------------------------------------- analytics ---- */
+  var GROUPS = [];                         // filled by setFriendGroups() once groups exist
+  function paintAnalytics() {
+    var u = ME.user, sapien = planOf(u) === 'sapien';
+    var what = document.getElementById('anWhat');
+    if (what) {
+      what.textContent = isShell()
+        ? 'Intellisense score · every game'
+        : (document.title || 'This game').split(/[·|—-]/)[0].trim() + ' · this game';
+    }
+    /* Free: Daily only. The other two horizons stay visible as headings, so a
+       free player can see what exists, with one upgrade note under both. */
+    ['dozen', 'lifetime'].forEach(function (k) {
+      var b = document.querySelector('#statsSheet .an-block[data-tier="' + k + '"]');
+      if (b) b.classList.toggle('locked', !sapien);
+    });
+    var lock = document.getElementById('anLock');
+    if (lock) lock.hidden = sapien;
+    paintGroups();
+  }
+  function paintGroups() {
+    var sel = document.getElementById('anGroup'), none = document.getElementById('anNoGroups');
+    if (!sel || !none) return;
+    if (!GROUPS.length) { sel.hidden = true; none.hidden = false; return; }
+    sel.innerHTML = GROUPS.map(function (g) {
+      return '<option value="' + escapeAttr(g.id) + '">' + escapeAttr(g.name) + '</option>';
+    }).join('');
+    sel.hidden = false; none.hidden = true;
+  }
+  function wireAnalytics() {
+    var seg = document.getElementById('anScope');
+    if (!seg || seg.__wired) return;
+    seg.__wired = true;
+    seg.addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-scope]'); if (!b) return;
+      [].forEach.call(seg.querySelectorAll('button'), function (x) {
+        x.setAttribute('aria-pressed', String(x === b));
+      });
+      document.getElementById('anGroupWrap').hidden = b.getAttribute('data-scope') !== 'groups';
+      paintGroups();
+    });
+  }
+
+  /* Links that act like buttons elsewhere on the bar. The Friends link goes
+     THROUGH the real Friends button rather than opening the sheet directly, so
+     each surface's own Friends handler runs and the gate still applies. */
+  function wireLinks() {
+    if (wireLinks.__done) return;
+    wireLinks.__done = true;
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest) return;
+      if (e.target.closest('[data-open-friends]')) {
+        e.preventDefault();
+        var f = document.getElementById('friendsBtn'); if (f) f.click();
+      } else if (e.target.closest('[data-open-paywall]')) {
+        e.preventDefault();
+        UI.open('payWall');
+      }
+    });
+  }
+
   function bar() {
     var a = document.getElementById('psbarBrand');
     if (!a) return;
-    var shell = document.documentElement.classList.contains('ps-shell');
+    var shell = isShell();
     a.setAttribute('href', shell ? '/about/' : '/');
     a.setAttribute('aria-label', shell ? 'About PlaySapien' : 'PlaySapien home');
 
+    if (!bar.__guarded) { bar.__guarded = true; document.addEventListener('click', guard, true); }
+    wireGate();
+    wireAnalytics();
+    wireLinks();
+
     /* Analytics: one sheet, wired once here, so no surface has to remember to do
-       it and none of them can forget. What it will eventually show differs, so
-       the copy does too. */
-    var sb = document.getElementById('statsBtn'), body = document.getElementById('statsBody');
-    if (body) {
-      body.textContent = shell
-        ? 'This will show how you are doing across every game, and the leaderboards for all of them. It is not built yet.'
-        : 'This will show this game\u2019s leaderboards and how your past rounds have gone. It is not built yet.';
-    }
+       it and none of them can forget. Painted on every open, because the plan
+       can change between opens. */
+    var sb = document.getElementById('statsBtn');
     if (sb && !sb.__wired) {
       sb.__wired = true;
-      sb.addEventListener('click', function () { UI.open('statsSheet'); });
+      sb.addEventListener('click', function () { paintAnalytics(); UI.open('statsSheet'); });
     }
 
-    /* Add. Only the shell is wired here — in a game this button is that game's
+    /* Add. Only the shell is wired here -- in a game this button is that game's
        own "make a puzzle" control and the game binds it itself. */
     var ab = document.getElementById('addBtn');
     if (shell && ab && !ab.__wired) {
@@ -408,30 +653,27 @@
       ab.addEventListener('click', function () { UI.open('addSheet'); });
     }
 
-    /* The face in the bar. The shell already loads the account layer and calls
-       setAvatar itself with a fuller record, so it is left alone; a GAME has no
-       account layer at all — both games are entirely local — and would
-       otherwise show the generic icon to a signed-in player, which reads as
-       having been signed out by walking into a game.
-
-       So the bar asks for itself: one cookie'd GET, once per load, and silence
-       if anything at all goes wrong. Nothing here is allowed to affect a game
-       that is working perfectly well without it. */
     /* Last, so a surface that is about to paint a real avatar has had its
        chance: attnStart bails out on a button already wearing one. */
     attnStart();
 
-    if (!shell && typeof fetch === 'function' && !bar.__asked) {
+    /* Who is signed in. Asked on EVERY surface now, not just the games: the
+       gate needs the answer on the front door too, and if the shell's own
+       account layer fails to load this is what keeps the gate honest. One
+       cookie'd GET per load, and silence on any failure -- which is treated as
+       signed out, the safe direction to be wrong in. */
+    if (typeof fetch === 'function' && !bar.__asked) {
       bar.__asked = true;
       try {
         fetch('/api/auth/session', { credentials: 'include', headers: { Accept: 'application/json' } })
           .then(function (r) { return r.ok ? r.json() : null; })
           .then(function (j) {
             var u = j && j.data && j.data.user;
+            if (!ME.known) learnUser(u || null);        // the shell may have answered first
             if (u) setAvatar(u);
           })
-          .catch(function () { /* offline, or no backend: keep the icon */ });
-      } catch (e) { /* no fetch, ancient browser: keep the icon */ }
+          .catch(function () { if (!ME.known) learnUser(null); });
+      } catch (e) { if (!ME.known) learnUser(null); }
     }
   }
 

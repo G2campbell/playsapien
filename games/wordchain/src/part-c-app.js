@@ -632,7 +632,9 @@ function paintHome() {
   } else {
     d.disabled = false;
     d.dataset.act = 'play';
-    d.textContent = HELD.daily ? 'Resume daily challenge' : 'Play daily challenge';
+    /* "Play Daily Game", the same words as Sojourner's button: one platform,
+       one name for the same action. */
+    d.textContent = HELD.daily ? 'Resume Daily Game' : 'Play Daily Game';
   }
   p.textContent = HELD.practice ? 'Resume practice' : 'Practice';
   var dt = new Date();
@@ -659,9 +661,36 @@ function paintSettings() {
   $('gentleTog').setAttribute('aria-pressed', SET.gentle ? 'true' : 'false');
   $('motionTog').setAttribute('aria-pressed', SET.motion ? 'true' : 'false');
 }
+/* Signed in or not, as far as this game is concerned. null until the bar's
+   session check answers; paintProfile treats null as signed out, and is run
+   again the moment the answer lands. */
+var SIGNED_IN = null;
+
 function paintProfile() {
   var h = store('history') || [], box = $('profileBody');
+  /* Signed out, the profile shows TODAY only: no streak, no bests, no past
+     days. The history is still kept on this device, untouched -- it is what
+     gets carried into an account the moment this player signs up, which is
+     the best reason there is to sign up. It is only not SHOWN. */
+  var guest = SIGNED_IN !== true;
+  if (guest) {
+    var tk = todayKey();
+    h = h.filter(function (r) { return r.day === tk; });
+  }
   if (!h.length) return;
+  if (guest) {
+    var g = ['<div class="mine-head" style="margin-top:0">Today</div><div class="hist">'];
+    h.forEach(function (r) {
+      var parts = r.chain.split(' \u00b7 ');
+      g.push('<div class="hrow"><span class="hl">' + r.mode + '</span><span class="hc">' +
+        parts[0] + ' \u2026 ' + parts[parts.length - 1] + '</span><span class="ht">' +
+        fmt(r.total) + (r.hints ? ' \u00b7 ' + r.hints + 'L' : '') + '</span></div>');
+    });
+    g.push('</div><p class="sethint" style="margin-top:14px">Sign in to keep your streak, ' +
+           'your bests and every day you have played.</p>');
+    box.innerHTML = g.join('');
+    return;
+  }
   var bd = null, bp = null, streak = 0;
   h.forEach(function (r) {
     if (r.mode === 'daily') { if (bd === null || r.total < bd) bd = r.total; }
@@ -868,6 +897,7 @@ $('dailyBtn').addEventListener('click', function () {
   else startGame('daily');
 });
 $('practiceBtn').addEventListener('click', function () { startGame('practice'); });
+$('friendsGamesBtn').addEventListener('click', function () { PSUI.open('friendsGamesSheet'); });
 $('aboutBtn').addEventListener('click', function () { PSUI.open('aboutSheet'); });
 $('friendsBtn').addEventListener('click', function () { PSUI.open('friendsSheet'); });
 $('settingsBtn').addEventListener('click', function () { paintSettings(); PSUI.open('settingsSheet'); });
@@ -915,6 +945,11 @@ document.addEventListener('keydown', function (e) {
 HELD.daily = loadHeld('daily');
 HELD.practice = loadHeld('practice');
 paintHome(); paintSettings(); paintProfile();
+/* Repaint once we know who is here. PSUI is the shared bar layer; it asks the
+   API itself, so this game never has to load the account SDK to find out. */
+if (window.PSUI && PSUI.whenUser) PSUI.whenUser().then(function (u) {
+  SIGNED_IN = !!u; paintProfile();
+});
 document.addEventListener('visibilitychange', function () { if (document.hidden) save(); });
 window.addEventListener('pagehide', save);
 

@@ -369,6 +369,99 @@
   color: var(--fg); font-family: var(--f-disp); font-weight: 900; font-size: 15px;
 }
 
+/* -------------------------------------------------------- sign-in card ----
+   Used by the front door's Profile sheet and by the sign-in gate on every
+   surface. Lifted here from the shell once the gate needed it inside the games:
+   one card, one set of rules, however someone arrived at it. */
+/* The eyebrow that used to sit in a sheet's top-right corner, before the
+   corner became Close. Same mono voice it had there, now a line of its own
+   directly under the heading. */
+.sh-status{
+  font-family:var(--f-mono); font-size:10.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--fg-3); margin:-12px 0 16px;
+}
+
+/* ---------- profile: the signed-out card ----------------------------------
+   Modelled on the reference: one instruction, the address and its button on
+   one line, a labelled rule, the provider row at the same size as the field,
+   a second rule, and the legal line. Nothing else -- every extra control here
+   is a reason not to sign in. */
+.pf-lead{font-size:14.5px; line-height:1.6; color:var(--fg-2); margin:0 0 16px; max-width:46ch}
+.pf-mailrow{display:flex; gap:8px; align-items:center}
+.pf-mailrow .fld{margin:0; flex:1 1 auto; min-width:0}
+.pf-mailrow .btn{flex:none; white-space:nowrap; --btn-radius:10px; --btn-pad:12px 16px}
+/* Below this the field and the button together are narrower than the words in
+   the button, so the row stacks rather than squeezing the address to nothing. */
+@media (max-width:429px){
+  .pf-mailrow{flex-wrap:wrap}
+  .pf-mailrow .btn{width:100%}
+}
+
+/* ---- OR ---- : the rule is two flex children of the row, so it cannot
+   overlap the word no matter how wide the sheet gets. */
+.pf-rule{
+  display:flex; align-items:center; gap:14px; margin:22px 0;
+  font-family:var(--f-mono); font-size:10.5px; letter-spacing:.2em;
+  text-transform:uppercase; color:var(--fg-3);
+}
+.pf-rule::before,.pf-rule::after{content:""; flex:1; height:1px; background:var(--line-2)}
+.pf-rule.bare{gap:0}
+
+/* The whole line is the button, per the brief: the words, the logo and the
+   provider name are one target, sized like the field above it. */
+.oauth{
+  display:flex; align-items:center; justify-content:center; gap:10px;
+  width:100%; box-sizing:border-box; cursor:pointer;
+  font:inherit; font-size:15px; font-weight:600;
+  padding:11px 13px; border-radius:10px;
+  border:1px solid var(--line-2); background:var(--bg-raise); color:var(--fg);
+  transition:background .16s, border-color .16s;
+}
+.oauth:hover{background:var(--bg-sink); border-color:var(--fg-3)}
+.oauth:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.oauth svg{width:18px; height:18px; flex:none}
+.oauth .lead{
+  font-family:var(--f-mono); font-size:10.5px; font-weight:400; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--fg-2);
+}
+.pf-legal{font-size:12.5px; line-height:1.65; color:var(--fg-3); text-align:center; margin:0}
+.pf-legal a{color:var(--fg-2); text-decoration-color:var(--accent); text-underline-offset:2px}
+
+
+/* ------------------------------------------------------------ the gate ----- */
+.gate-msg{
+  margin:0 0 18px; padding:12px 14px; border-radius:11px;
+  background:color-mix(in srgb, var(--accent) 9%, transparent);
+  color:var(--fg); font-size:14.5px; line-height:1.55;
+}
+
+/* ----------------------------------------------------------- analytics ----- */
+.an-scope{margin:0 0 20px}
+.an-scope .seg{margin:0 0 10px}
+.an-scope select.fld{margin:0 0 6px}
+.an-none{margin:2px 0 8px; font-size:13.5px; color:var(--fg-3); font-style:italic}
+.an-how{margin:0; font-size:13px; line-height:1.6; color:var(--fg-2)}
+.an-how .inlink{
+  font:inherit; color:var(--fg); background:none; border:0; padding:0; cursor:pointer;
+  display:inline-flex; align-items:center; gap:4px; vertical-align:baseline;
+  text-decoration:underline; text-decoration-color:var(--accent); text-underline-offset:2px;
+}
+.an-how .inlink svg{flex:none; position:relative; top:1px}
+.an-block{padding:14px 0 0; border-top:1px solid var(--line)}
+.an-block h3{
+  margin:0 0 8px; font-family:var(--f-mono); font-size:10.5px; font-weight:500;
+  letter-spacing:.18em; text-transform:uppercase; color:var(--fg-2);
+}
+/* The empty area, drawn as a place-holder rather than left as nothing, so the
+   three horizons read as three things even before they hold numbers. */
+.an-body{min-height:64px; margin:0 0 16px; border-radius:11px;
+  border:1px dashed var(--line-2); background:color-mix(in srgb, var(--fg) 3%, transparent)}
+.an-block.locked h3{opacity:.5}
+.an-block.locked .an-body{display:none}
+.an-lock{margin:2px 0 4px; padding:16px; border-radius:12px; text-align:center;
+  border:1px solid var(--line-2); background:var(--bg-sink)}
+.an-lock p{margin:0 0 12px; font-size:14px; color:var(--fg)}
+
 /* -------------------------------------------------------------- utility ---- */
 /* Present to a screen reader, absent to everything else. Used where a control
    is obvious by position but has no visible label -- clip-path rather than
