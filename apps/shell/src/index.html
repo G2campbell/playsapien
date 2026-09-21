@@ -1961,6 +1961,10 @@ footer a:hover{opacity:1}
   color:var(--fg); margin:22px 0 8px;
 }
 .sheet h3:first-of-type{margin-top:18px}
+/* A heading always starts below the makers' photo rather than beside it: the
+   photo belongs to the section it opens, and a heading squeezed into the gap
+   next to it reads as a caption. */
+.sheet h3{clear:both}
 .sheet ul{
   margin:0 0 12px; padding-left:18px; max-width:56ch;
   font-size:14.5px; line-height:1.62; color:var(--fg-2);
@@ -2293,69 +2297,40 @@ footer a:hover{opacity:1}
   <div class="sh-head"><h2 id="aboutTitle">About</h2>
     <button class="donebtn" type="button" data-sheet-close>Close</button></div>
 
-  <p>A small set of daily puzzle games. One puzzle a day per game, the same one for
-     everybody, rolling over at midnight UTC.</p>
-  <p>The mark is two rings crossed by two rules &mdash; a knot you cannot pull apart
-     by force, which is the idea the name carries. It is set the way it was first
-     proofed: pressed into a sheet of cold-press rag paper.</p>
+  <p>PlaySapien is home to a small set of puzzle games, anchored by its daily puzzles. Each
+      daily puzzle is the same one for everybody, rolled out at midnight UTC.</p>
+    <p>The mark for PlaySapien is the Adinkra symbol <em>Nyansapo</em>, the &ldquo;wisdom
+      knot&rdquo; &mdash; something that can only be untied by one who is wise enough to do so.
+      It is fitting for the kinds of games we share here. There are a few games here now, and we
+      only expect to grow the list.</p>
 
-  <h3>The games</h3>
-  <p><strong>Sojourner</strong> is a game of geography. Five places a day, an unlabelled
-     globe, and a story for every place you find &mdash; each one checked against a
-     museum, a university or a library, and linked so you can read the original.</p>
-  <p><strong>Word Chain</strong> is a word puzzle. Eight words, every neighbouring pair
-     a compound, first letters only, and the clock is the score.</p>
-  <div class="btnrow">
-    <a class="btn ghost" href="/sojourner/">Play Sojourner</a>
-    <a class="btn ghost" href="/wordchain/">Play Word Chain</a>
-  </div>
+  <h3>Who built it &amp; subscriptions</h3>
+    <figure class="makers"><img src="/makers.jpg" width="320" height="584"
+      alt="The father and son who built PlaySapien."></figure>
+    <p>The site is the product of a father and son team (pictured here), and we&rsquo;re excited
+      to offer the site ad-free &mdash; at least for now! Ideally, enough folks will be interested
+      in subscribing to the paid version to make that possible.</p>
+    <p>There are essentially three ways to enjoy our games: with no account, with a free
+      account, or with a paid <strong>Sapien</strong> subscription.</p>
+    <p>Even at the free level, you can enjoy the games, though with some restrictions on your
+      ability to access all the features. Having an account ensures that your streaks sync
+      across devices and allows you to begin engaging friends.</p>
+    <p>The Sapien (paid) subscription unlocks all features &mdash; allowing you to create and
+      share puzzles, compare intellisense scores amongst friends, and more.</p>
 
-  <h3>How it works</h3>
-  <p>Everything is one page in your browser. There is no app to install, nothing to
-     download, and no account needed to play &mdash; open a game and it starts. Your
-     scores and settings live in your own browser until you decide otherwise.</p>
-  <p>An account is optional and does three things a single browser cannot: it keeps
-     your streak when you change phone, it syncs your laptop and your phone, and it
-     lets you compare a day with a friend. Signing in is a six-digit code by email,
-     or Google if you prefer. There are no passwords on this site, which is the most
-     reliable way of never leaking one.</p>
-  <p>The day rolls over at <strong>midnight UTC</strong>, the same instant for every
-     player everywhere, so nobody&rsquo;s &ldquo;today&rdquo; is anybody else&rsquo;s
-     yesterday.</p>
+  <h3>The games &amp; intellisense scores</h3>
+    <p>Each game is just a page you visit with your browser &mdash; there is no app to install
+      (though an iPhone app version is in the works). Each game also has its own
+      &ldquo;About&rdquo; page, where you can learn the rules of play and other details about
+      the game.</p>
+    <p>Each game falls in a category of &ldquo;intellisense&rdquo;, and each score you earn in a
+      game contributes to an intellisense score (or is the full intellisense score) in that
+      category. Your aggregate intellisense scores are reported in a radial chart that you can
+      then compare to others, including friend groups if you are a paid subscriber.</p>
 
-  <h3>What this site does not do</h3>
-  <ul>
-    <li>No advertising, and no advertising network.</li>
-    <li>No analytics, no tag manager, no session recording, no tracking pixels.</li>
-    <li>No leaderboard you did not choose. Boards are opt-out, they never show your email
-      address, and you can keep yours to friends only or stay off them entirely &mdash;
-      <a href="/privacy/">the privacy page</a> has the detail.</li>
-    <li>No selling or sharing of personal information. There is one email address per
-      account and it never goes anywhere.</li>
-    <li>No consent banner, because there is nothing to consent to.</li>
-  </ul>
-
-  <h3>Word Chain takes submissions</h3>
-  <p>If you make a chain you are pleased with, you can submit it. Accepted chains are
-     published as daily or practice puzzles, credited to you if you want the credit.
-     What happens to a submission is set out in <a href="/terms/">the terms</a>.</p>
-
-  <h3>Who makes it</h3>
-  <figure class="makers"><img src="/makers.jpg" width="320" height="584"
-    alt="The two people who make PlaySapien."></figure>
-  <p>PlaySapien is made by <span class="fill">[your name or business name]</span>. It is
-     a small project, run by <span class="fill">[a person / a few people &mdash; say
-     which]</span>, and it is paid for out of pocket rather than by advertising.</p>
-  <p>Corrections, bug reports, a place that deserves to be in Sojourner, or a chain that
-     deserves to be in Word Chain: <span class="fill">[your contact email]</span>.
-     Mistakes get fixed.</p>
-
-  <h3>Credits</h3>
-  <p>Sojourner&rsquo;s map is built from <strong>Natural Earth</strong>, public domain.
-     Flags come from public-domain sources. Facts are summarised from institutional
-     sources and linked back to them. Typefaces are <strong>Fraunces</strong>,
-     <strong>Public Sans</strong> and <strong>IBM Plex Mono</strong>, all open licensed.
-     The site is hosted on <strong>Cloudflare</strong>.</p>
+  <h3>Feedback</h3>
+    <p>Corrections, bug reports, ideas, and any kind of feedback you want to send &mdash;
+      please share them with <a href="mailto:info@playsapien.com">info@playsapien.com</a>.</p>
 
   <div class="btnrow">
     <a class="btn ghost" href="/privacy/">Privacy</a>
