@@ -4,6 +4,8 @@
 
 import { ok, err, ERRORS, readJson } from '../lib/http.js';
 import { first, all, run, stmt, isUniqueViolation } from '../lib/db.js';
+import { effectivePlan, normalisePromo } from '../lib/plan.js';
+import { consume } from '../middleware/ratelimit.js';
 import { newId } from '../lib/id.js';
 import {
   asObject, cleanDisplayName, isHandle, isDeviceId, stringList, utcDay, GAMES,
@@ -104,11 +106,20 @@ export async function updateMe(ctx) {
        endpoint must STOP accepting plan from the client: an upgrade will come
        from the payment provider's webhook, and a downgrade at the end of a
        paid period, neither of which is a PATCH from a browser. */
+    /* ...and now it has. A browser may step DOWN to free; it may not step up.
+       Sapien is granted only by /player/redeem (a promotion code) and, later,
+       by the payment provider's webhook. Accepting 'sapien' here would have
+       made every code pointless -- anyone could PATCH their way past it. */
     const p = String(patch.plan == null ? '' : patch.plan).trim().toLowerCase();
-    if (p !== 'free' && p !== 'sapien') {
+    if (p === 'sapien') {
+      return err('plan_not_settable', 'Sapien comes from a subscription or a promotion code.', 403);
+    }
+    if (p !== 'free') {
       return err('invalid_plan', 'That is not an account type.', 400);
     }
-    sets.push('plan = ?', 'plan_since = ?'); params.push(p, ctx.now);
+    /* Downgrading ends the grant outright: plan_until goes too, so a later
+       code cannot "resume" a trial the player chose to leave. */
+    sets.push('plan = ?', 'plan_since = ?', 'plan_until = ?'); params.push('free', ctx.now, null);
   }
 
   if ('tz' in patch) {
@@ -133,9 +144,85 @@ export async function updateMe(ctx) {
 
   const row = await first(ctx.db,
     `SELECT id, handle, display_name, email, email_verified, avatar,
-            avatar_img, plan, plan_since, created_at,
+            avatar_img, plan, plan_since, plan_until, created_at,
             tz, strikes, blocked_at FROM users WHERE id = ?`, ctx.user.id);
-  return ok({ user: shapeUser(row) });
+  return ok({ user: shapeUser(row, ctx.now) });
+}
+
+/* POST /api/player/redeem  { code } -> { user, granted_until }
+
+   A promotion code turns an account Sapien up to a fixed date. Four rules:
+
+     - The code must exist, be active, be inside its redemption window, and
+       have uses left.
+     - One redemption per player per code. The (code, user_id) primary key is
+       what enforces it, so two tabs racing each other lose at the database.
+     - A code never SHORTENS access. Someone already Sapien until December who
+       types a trial code ending in November keeps December; someone whose
+       access has no end date keeps that.
+     - Every failure is reported as the same failure. "No such code", "expired"
+       and "used up" all read "That code is not valid", so the endpoint cannot
+       be used to learn which guesses are real codes. The one exception is
+       "you have already used this one", which only confirms something the
+       player already knows. */
+export async function redeemCode(ctx) {
+  if (!ctx.user) return ERRORS.unauthorised();
+  const body = await readJson(ctx.req);
+  if (body.bad || body.tooLarge) return ERRORS.invalid('Send { code: "..." }.');
+
+  const gate = await consume(ctx.db, 'redeem', ctx.user.id, ctx.now);
+  if (!gate.allowed) {
+    return ERRORS.rateLimited(gate.retryAfter, 'Too many tries. Wait a while and try again.');
+  }
+
+  const code = normalisePromo(asObject(body.value).code);
+  const INVALID = () => err('invalid_code', 'That code is not valid.', 400);
+  if (!code) return INVALID();
+
+  const promo = await first(ctx.db,
+    `SELECT code, plan, grants_until, redeem_until, max_uses, uses, active
+       FROM promo_codes WHERE code = ?`, code);
+  if (!promo || !promo.active) return INVALID();
+  if (promo.grants_until <= ctx.now) return INVALID();
+  if (promo.redeem_until != null && promo.redeem_until <= ctx.now) return INVALID();
+  if (promo.max_uses != null && promo.uses >= promo.max_uses) return INVALID();
+
+  const already = await first(ctx.db,
+    'SELECT 1 AS x FROM promo_redemptions WHERE code = ? AND user_id = ?', code, ctx.user.id);
+  if (already) return err('already_redeemed', 'You have already used this code.', 409);
+
+  const cur = await first(ctx.db,
+    'SELECT plan, plan_since, plan_until FROM users WHERE id = ?', ctx.user.id);
+  const nowPlan = effectivePlan(cur.plan, cur.plan_until, ctx.now);
+  /* Never shorten. Open-ended Sapien stays open-ended; a later end date wins. */
+  let until = promo.grants_until;
+  if (nowPlan === 'sapien') {
+    if (cur.plan_until == null) until = null;
+    else if (cur.plan_until > until) until = cur.plan_until;
+  }
+  const since = nowPlan === 'sapien' ? (cur.plan_since || ctx.now) : ctx.now;
+
+  try {
+    await ctx.db.batch([
+      ctx.db.prepare(
+        'INSERT INTO promo_redemptions (code, user_id, redeemed_at) VALUES (?, ?, ?)')
+        .bind(code, ctx.user.id, ctx.now),
+      ctx.db.prepare('UPDATE promo_codes SET uses = uses + 1 WHERE code = ?').bind(code),
+      ctx.db.prepare(
+        "UPDATE users SET plan = 'sapien', plan_since = ?, plan_until = ? WHERE id = ?")
+        .bind(since, until, ctx.user.id),
+    ]);
+  } catch (e) {
+    /* Lost the race to a second tab: the redemption row already exists. */
+    if (isUniqueViolation(e)) return err('already_redeemed', 'You have already used this code.', 409);
+    throw e;
+  }
+
+  const row = await first(ctx.db,
+    `SELECT id, handle, display_name, email, email_verified, avatar,
+            avatar_img, plan, plan_since, plan_until, created_at,
+            tz, strikes, blocked_at FROM users WHERE id = ?`, ctx.user.id);
+  return ok({ user: shapeUser(row, ctx.now), granted_until: until });
 }
 
 /* POST /api/player/claim  { device_ids: [] } -> merge, recompute

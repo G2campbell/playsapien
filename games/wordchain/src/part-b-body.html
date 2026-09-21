@@ -275,7 +275,20 @@
        sharing games with friends, and more.</p>
     <p class="hint">Payment is not switched on yet, so there is nothing to buy today.
        This is where the checkout will be.</p>
-    <div class="btnrow">
+
+    <!-- A promotion code. Checked by the server, never here: the page only
+         sends what was typed and reports what came back. -->
+    <form id="promoForm" class="promo" autocomplete="off">
+      <label class="setlabel" for="promoIn">Have a code?</label>
+      <div class="pf-mailrow">
+        <input class="fld" type="text" id="promoIn" name="promo" autocapitalize="characters"
+               spellcheck="false" placeholder="Enter code" required>
+        <button class="btn" type="submit" id="promoBtn">Apply</button>
+      </div>
+      <div class="ui-note" id="promoNote" hidden></div>
+    </form>
+
+    <div class="btnrow" style="margin-top:14px">
       <button class="btn ghost" type="button" data-sheet-close>Back</button>
     </div>
   </div>

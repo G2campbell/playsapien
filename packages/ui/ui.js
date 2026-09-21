@@ -216,6 +216,8 @@
        [{id, name}]. Nothing calls this yet: groups do not exist in the API. */
     setFriendGroups: function (list) { GROUPS = Array.isArray(list) ? list : []; paintGroups(); },
     paintAnalytics: paintAnalytics,
+    /* "1 November 2026" from a plan_until, for any surface that shows it. */
+    untilText: untilText,
     avatar: avatar,
     avatarTokens: avatarTokens,
     setAvatar: setAvatar,
@@ -563,6 +565,51 @@
     });
   }
 
+  /* ----------------------------------------------------- promotion code ----
+     Sends what was typed; the server decides. On success the page reloads,
+     for the same reason the gate does: every surface already knows how to draw
+     itself for a Sapien player on load, and a reload is the one way to be sure
+     all of it -- the bar, the gate, the Analytics tiers -- agrees at once. */
+  function untilText(sec) {
+    /* plan_until is the first instant the grant NO LONGER applies, so the last
+       day of access is the day before it -- read in UTC, where it was set. */
+    try {
+      return new Date((sec - 1) * 1000).toLocaleDateString(undefined,
+        { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+    } catch (e) { return ''; }
+  }
+  function wirePromo() {
+    var f = document.getElementById('promoForm');
+    if (!f || f.__wired) return;
+    f.__wired = true;
+    var note = function (msg, bad) {
+      var n = document.getElementById('promoNote');
+      n.hidden = !msg; n.textContent = msg || ''; n.classList.toggle('bad', !!bad);
+    };
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var code = (document.getElementById('promoIn').value || '').trim();
+      if (!code) return;
+      var btn = document.getElementById('promoBtn');
+      btn.disabled = true;
+      note('Checking\u2026', false);
+      api('POST', '/player/redeem', { code: code }).then(function (r) {
+        btn.disabled = false;
+        if (r.ok) {
+          var until = r.data && r.data.granted_until;
+          note(until ? 'Done \u2014 you are Sapien through ' + untilText(until) + '.'
+                     : 'Done \u2014 you are Sapien.', false);
+          setTimeout(function () { location.reload(); }, 1400);
+          return;
+        }
+        note(r.status === 401 ? 'Sign in first, then enter the code.'
+           : r.status === 409 ? 'You have already used this code.'
+           : r.status === 429 ? 'Too many tries. Wait a while and try again.'
+           : 'That code is not valid.', true);
+      });
+    });
+  }
+
   /* ------------------------------------------------------- analytics ---- */
   var GROUPS = [];                         // filled by setFriendGroups() once groups exist
   function paintAnalytics() {
@@ -633,6 +680,7 @@
 
     if (!bar.__guarded) { bar.__guarded = true; document.addEventListener('click', guard, true); }
     wireGate();
+    wirePromo();
     wireAnalytics();
     wireLinks();
 

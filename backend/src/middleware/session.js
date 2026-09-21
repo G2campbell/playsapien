@@ -18,6 +18,7 @@
    is more than a day stale, which keeps "your devices" accurate to the day --
    which is the granularity that screen displays anyway. */
 
+import { effectivePlan } from '../lib/plan.js';
 import { sha256Hex, randomBytes, base64url } from '../lib/crypto.js';
 import { first, run, DAY, YEAR } from '../lib/db.js';
 
@@ -95,7 +96,7 @@ export async function loadSession(db, request, now) {
     `SELECT s.id AS sid, s.user_id, s.created_at AS s_created, s.expires_at,
             s.last_used_at, s.ua, s.ip_cc,
             u.handle, u.display_name, u.email, u.email_verified, u.avatar,
-            u.plan, u.plan_since,
+            u.plan, u.plan_since, u.plan_until,
             u.created_at AS u_created, u.tz, u.strikes, u.blocked_at
        FROM sessions s
        JOIN users u ON u.id = s.user_id
@@ -138,8 +139,12 @@ export async function loadSession(db, request, now) {
          does NOT -- this row is read on EVERY request, and 8 KB of picture on
          each one to serve the handful that draw it is the wrong trade. It
          comes down on /player/me instead. */
-      plan: row.plan || 'free',
+      /* EFFECTIVE, not stored: an expired Sapien grant is free from the second
+         it lapses, not from whenever the nightly job next runs. */
+      plan: effectivePlan(row.plan, row.plan_until, now),
       plan_since: row.plan_since || null,
+      plan_until: effectivePlan(row.plan, row.plan_until, now) === 'sapien'
+        ? (row.plan_until || null) : null,
       created_at: row.u_created,
       tz: row.tz,
       strikes: row.strikes,

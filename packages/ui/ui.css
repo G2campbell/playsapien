@@ -428,6 +428,13 @@
 .pf-legal a{color:var(--fg-2); text-decoration-color:var(--accent); text-underline-offset:2px}
 
 
+/* A code, on the upgrade card. Set apart by a rule, because it is a second way
+   in rather than a detail of the first. */
+.promo{margin:18px 0 0; padding-top:16px; border-top:1px solid var(--line)}
+.promo .setlabel{display:block; margin:0 0 8px}
+.promo .fld{text-transform:uppercase; letter-spacing:.06em}
+.promo .fld::placeholder{text-transform:none; letter-spacing:0}
+
 /* ------------------------------------------------------------ the gate ----- */
 .gate-msg{
   margin:0 0 18px; padding:12px 14px; border-radius:11px;

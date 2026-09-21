@@ -58,6 +58,7 @@ const ROUTES = [
   ['PATCH',  '/api/player/me',                   player.updateMe],
   ['DELETE', '/api/player/me',                   player.deleteMe],
   ['POST',   '/api/player/claim',                player.claimDevices],
+  ['POST',   '/api/player/redeem',               player.redeemCode],
   ['GET',    '/api/player/notices',              player.listNotices],
   ['POST',   '/api/player/notices/read',         player.readNotices],
 
@@ -280,6 +281,13 @@ export default {
              is how someone confirms that signing out everywhere worked. */
           env.DB.prepare('DELETE FROM sessions WHERE expires_at < ? OR revoked_at < ?')
             .bind(now - 30 * DAY, now - 30 * DAY),
+          /* Sapien grants that have run out. Access already ended at the
+             instant plan_until passed -- effectivePlan decides that at read
+             time -- so this only makes the stored row say what is already
+             true, for anyone reading the table directly. */
+          env.DB.prepare(
+            "UPDATE users SET plan = 'free', plan_since = plan_until, plan_until = NULL " +
+            "WHERE plan = 'sapien' AND plan_until IS NOT NULL AND plan_until <= ?").bind(now),
         ]);
         await sweepRateLimits(env.DB, now);
       } catch (e) {

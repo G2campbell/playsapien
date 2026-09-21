@@ -16,6 +16,7 @@
    opinion on until someone proves they can read the mail. */
 
 import { ok, err, ERRORS, readJson } from '../lib/http.js';
+import { effectivePlan } from '../lib/plan.js';
 import { first, run, all, isUniqueViolation, MINUTE } from '../lib/db.js';
 import { newId } from '../lib/id.js';
 import {
@@ -380,7 +381,7 @@ function base64urlToBytesLocal(s) {
 export async function upsertUserForIdentity(ctx, { provider, subject, email, emailVerified, displayName }) {
   const existing = await first(ctx.db,
     `SELECT u.id, u.handle, u.display_name, u.email, u.email_verified, u.avatar,
-            u.avatar_img, u.plan, u.plan_since,
+            u.avatar_img, u.plan, u.plan_since, u.plan_until,
             u.created_at, u.tz, u.strikes, u.blocked_at
        FROM identities i JOIN users u ON u.id = i.user_id
       WHERE i.provider = ? AND i.subject = ? AND u.deleted_at IS NULL`, provider, subject);
@@ -404,13 +405,13 @@ export async function upsertUserForIdentity(ctx, { provider, subject, email, ema
          nothing has been merged behind their back. */
       if (!isUniqueViolation(e)) throw e;
     }
-    return shapeUser(existing);
+    return shapeUser(existing, ctx.now);
   }
 
   if (email && emailVerified) {
     const byEmail = await first(ctx.db,
       `SELECT id, handle, display_name, email, email_verified, avatar,
-              avatar_img, plan, plan_since, created_at,
+              avatar_img, plan, plan_since, plan_until, created_at,
               tz, strikes, blocked_at
          FROM users WHERE email = ? AND deleted_at IS NULL`, email);
     if (byEmail) {
@@ -422,7 +423,7 @@ export async function upsertUserForIdentity(ctx, { provider, subject, email, ema
         ctx.db.prepare('UPDATE users SET email_verified = 1, last_seen_at = ? WHERE id = ?')
           .bind(ctx.now, byEmail.id),
       ]);
-      return shapeUser(byEmail);
+      return shapeUser(byEmail, ctx.now);
     }
   }
 
@@ -440,6 +441,7 @@ export async function upsertUserForIdentity(ctx, { provider, subject, email, ema
     avatar_img: null,
     plan: 'free',
     plan_since: null,
+    plan_until: null,
     created_at: ctx.now,
     tz: null,
     strikes: 0,
@@ -456,14 +458,18 @@ export async function upsertUserForIdentity(ctx, { provider, subject, email, ema
        VALUES (?, ?, ?, ?, ?)`)
       .bind(newId('id'), id, provider, subject, ctx.now),
   ]);
-  return shapeUser(row);
+  return shapeUser(row, ctx.now);
 }
 
 /* The SELF shape. Everything here is sent to the player about themselves, on
    /auth/session and /player/me and nowhere else. avatar_img is the reason that
    distinction matters: it is kilobytes, so it must never leak into a list of
    other people -- friends and leaderboards build their own, smaller shapes. */
-export function shapeUser(row) {
+export function shapeUser(row, now = Math.floor(Date.now() / 1000)) {
+  /* `now` is passed by every caller that has a request context, so that the
+     plan it reports agrees with the clock the rest of that request used --
+     which matters in tests, and on the second a grant expires. */
+  const plan = effectivePlan(row.plan, row.plan_until, now);
   return {
     id: row.id,
     handle: row.handle,
@@ -472,8 +478,9 @@ export function shapeUser(row) {
     email_verified: !!row.email_verified,
     avatar: row.avatar,
     avatar_img: row.avatar_img || null,
-    plan: row.plan || 'free',
+    plan,
     plan_since: row.plan_since || null,
+    plan_until: plan === 'sapien' ? (row.plan_until || null) : null,
     created_at: row.created_at,
     tz: row.tz,
     strikes: row.strikes || 0,
