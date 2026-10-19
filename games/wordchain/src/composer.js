@@ -29,13 +29,15 @@ function composeClose() {
   C = null; PSUI.close(); mountKeyboard($('app')); paintHome();
 }
 
-function cValid() { return C.words.every(function (w) { return w.length >= 3; }); }
+/* Two letters is a word: GO, UP, IN and AT all make perfectly good links. */
+var C_MIN = 2;
+function cValid() { return C.words.every(function (w) { return w.length >= C_MIN; }); }
 function cCanSave() { return cValid() && (C.dirty || (!C.savedId && !C.sourceId)); }
 
 function cHint(text, warn) {
   var h = $('cHint');
   h.className = warn ? 'warn' : '';
-  h.textContent = text || 'Tap a row to edit it. Every row needs a word of at least three letters.';
+  h.textContent = text || 'Tap a row to edit it. Every row needs a word of at least two letters.';
   if (text) {
     clearTimeout(cHint._t);
     cHint._t = setTimeout(function () { cHint(''); }, 2800);
@@ -46,7 +48,7 @@ function cRender() {
   var box = $('cRows'); box.innerHTML = '';
   C.words.forEach(function (w, k) {
     var row = document.createElement('div');
-    row.className = 'crow' + (k === C.row ? ' on' : '') + (w.length && w.length < 3 ? ' short' : '');
+    row.className = 'crow' + (k === C.row ? ' on' : '') + (w.length && w.length < C_MIN ? ' short' : '');
     row.dataset.row = k;
     var n = document.createElement('span'); n.className = 'num'; n.textContent = (k + 1);
     var wd = document.createElement('span'); wd.className = 'cword';
@@ -80,7 +82,7 @@ function cMutated() {
 }
 
 function cSave() {
-  if (!cValid()) { cHint('Each row must contain a word of at least three letters.', true); return; }
+  if (!cValid()) { cHint('Each row must contain a word of at least two letters.', true); return; }
   if (!cCanSave()) { cHint('This puzzle has already been saved.', true); return; }
   var p = { id: newId(), words: C.words.slice(), created: Date.now(), shared: [] };
   var all = puzzles(); all.unshift(p); store('puzzles', all);
