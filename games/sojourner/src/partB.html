@@ -317,6 +317,16 @@
     <p>Sapien is <b>$2 a month, billed annually</b>. It opens up tracking all your
        results, comparing your results against friends and others, making up and
        sharing games with friends, and more.</p>
+    <!-- The one free trial: two days of Sapien, no payment details, once per
+         email address for ever (POST /api/player/trial). Shown only to a
+         signed-in Free player whose address has not had one. -->
+    <div class="trialbox" id="trialBox" hidden>
+      <p><b>Try it free for two days.</b> No payment details &mdash; start now, and
+         decide when the two days are up.</p>
+      <button class="btn" type="button" id="trialBtn">Start my free 2-day trial</button>
+      <div class="ui-note" id="trialNote" hidden></div>
+    </div>
+
     <p class="hint">Payment is not switched on yet, so there is nothing to buy today.
        This is where the checkout will be.</p>
 
@@ -390,9 +400,9 @@
            #planWhy; pressing it opens the upgrade or the downgrade card ON TOP
            of this one, so closing either comes back here. -->
       <section class="pfsec">
+        <h3 class="pf-sub">Account Type</h3>
         <div class="pf-planrow">
-          <span class="pf-sub pf-state">Signed In<svg class="chev" viewBox="0 0 24 24"
-            aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><b id="pfPlanName">FREE</b></span>
+          <span class="pf-since" id="pfSince"></span>
           <span class="pf-planbtn" id="pfPlanBtn"></span>
         </div>
         <p class="planwhy" id="planWhy"></p>
@@ -409,6 +419,7 @@
 
         <label class="setlabel" for="nameIn">Display Name</label>
         <input class="fld" type="text" id="nameIn" maxlength="32" placeholder="Your name">
+        <p class="pf-err" id="nameNote" role="alert" hidden></p>
         <div class="btnrow">
           <button class="btn" type="button" id="pfSave" disabled>Save</button>
           <button class="btn ghost" type="button" id="pfCancel" disabled>Cancel</button>

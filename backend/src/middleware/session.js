@@ -18,7 +18,7 @@
    is more than a day stale, which keeps "your devices" accurate to the day --
    which is the granularity that screen displays anyway. */
 
-import { effectivePlan } from '../lib/plan.js';
+import { effectivePlan, planStarted } from '../lib/plan.js';
 import { sha256Hex, randomBytes, base64url } from '../lib/crypto.js';
 import { first, run, DAY, YEAR } from '../lib/db.js';
 
@@ -145,6 +145,7 @@ export async function loadSession(db, request, now) {
       plan_since: row.plan_since || null,
       plan_until: effectivePlan(row.plan, row.plan_until, now) === 'sapien'
         ? (row.plan_until || null) : null,
+      plan_started: planStarted(row.plan, row.plan_since, row.plan_until, row.u_created, now),
       created_at: row.u_created,
       tz: row.tz,
       strikes: row.strikes,

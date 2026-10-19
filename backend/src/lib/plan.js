@@ -12,6 +12,18 @@ export function effectivePlan(plan, planUntil, now) {
   return 'sapien';
 }
 
+/* When the CURRENT plan began, for "Sapien since" / "Free since" on the
+   Profile card. Sapien: when it was granted. Free: when the last grant ran
+   out, if one did (read-time, before the nightly job has tidied the row);
+   otherwise when they stepped down (plan_since); otherwise when the account
+   was made. `createdAt` is passed separately because the two callers name
+   that column differently. */
+export function planStarted(plan, planSince, planUntil, createdAt, now) {
+  if (effectivePlan(plan, planUntil, now) === 'sapien') return planSince || createdAt;
+  if (plan === 'sapien' && planUntil != null && planUntil <= now) return planUntil;
+  return planSince || createdAt;
+}
+
 /* Promotion codes are compared the way people type them: case-insensitive,
    spaces ignored. "freetrial #11.1" and "FREETRIAL#11.1" are the same code. */
 export function normalisePromo(raw) {

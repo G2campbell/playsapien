@@ -311,6 +311,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var target = $(id);
     if (!target) return;
     opts = opts || {};
+    if (id === 'payWall') paintPayWall();     // the trial offer depends on who is asking
     if (isOpen(id)) return;
 
     /* Without {stack:true} this replaces whatever is open, which is what a
@@ -624,6 +625,11 @@ document.addEventListener('DOMContentLoaded', function () {
      a surface with its own signed-in parts (the front door's Friends) can
      follow without being called by name. */
   function setUser(user) {
+    /* A profile save returns the account without the trial flag (it is worked
+       out by /auth/session and /player/me); carry it over rather than lose it. */
+    if (user && ME.user && user.id === ME.user.id && user.trial_available === undefined) {
+      user.trial_available = ME.user.trial_available;
+    }
     learnUser(user);                                   // the newest word is final
     paintBarAvatar(user);
     try { document.dispatchEvent(new CustomEvent('ps:user', { detail: user || null })); }
@@ -974,7 +980,12 @@ document.addEventListener('DOMContentLoaded', function () {
   function pfReset() {
     PF.draft = pfSaved();
     var n = $('nameIn'); if (n) n.value = PF.draft.name;
+    nameNote('');
     pfNote('', false);
+  }
+  function nameNote(msg) {
+    var n = $('nameNote'); if (!n) return;
+    n.hidden = !msg; n.textContent = msg || '';
   }
   function pfNote(msg, bad) {
     var n = $('avNote'); if (!n) return;
@@ -1016,9 +1027,29 @@ document.addEventListener('DOMContentLoaded', function () {
     el.innerHTML = txt;
     el.classList.toggle('peek', which !== plan);
   }
+  /* Whole calendar months from `sec` to now. */
+  function monthsSince(sec) {
+    var a = new Date(sec * 1000), b = new Date();
+    var m = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+    if (b.getDate() < a.getDate()) m--;
+    return Math.max(0, m);
+  }
+  function sinceText(u) {
+    var plan = planOf(u);
+    var sec = u.plan_started || (plan === 'sapien' ? u.plan_since : u.plan_since) || u.created_at;
+    var date = '';
+    try {
+      date = sec ? new Date(sec * 1000).toLocaleDateString(undefined,
+        { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    } catch (e) { date = ''; }
+    if (plan !== 'sapien') return 'Free since: ' + (date || '\u2014');
+    var m = sec ? monthsSince(sec) : 0;
+    return 'Sapien since: ' + (date || '\u2014') +
+      ' (' + (m === 0 ? 'less than a month' : m === 1 ? '1 month' : m + ' months') + ')';
+  }
   function paintPlan() {
     var plan = planOf(ME.user);
-    var nm = $('pfPlanName'); if (nm) nm.textContent = plan.toUpperCase();
+    var since = $('pfSince'); if (since && ME.user) since.textContent = sinceText(ME.user);
     var w = $('pfPlanBtn');
     if (w) {
       w.innerHTML = plan === 'sapien'
@@ -1317,6 +1348,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     /* name, save, cancel */
     $('nameIn').addEventListener('input', function (e) {
+      nameNote('');
       if (PF.draft) { PF.draft.name = e.target.value; pfButtons(); }
     });
     $('pfCancel').addEventListener('click', function () { pfReset(); paintCats(); pfButtons(); });
@@ -1328,6 +1360,13 @@ document.addEventListener('DOMContentLoaded', function () {
       btn.disabled = true;
       pfNote('Saving…', false);
       api('PATCH', '/player/me', patch).then(function (r) {
+        if (r.status === 409) {
+          pfNote('', false);
+          nameNote('That display name is already taken. Please choose another.');
+          $('nameIn').focus();
+          pfButtons();
+          return;
+        }
         if (!r.ok || !(r.data && r.data.user)) {
           pfNote(r.status === 413 ? 'That picture is too big. Try a smaller one.'
                : r.status === 0 ? 'You’re offline. Try again when you’re connected.'
@@ -1399,6 +1438,39 @@ document.addEventListener('DOMContentLoaded', function () {
         { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
     } catch (e) { return ''; }
   }
+  /* The free trial on the upgrade card: offered only to a signed-in Free
+     player whose email address has never had one (the server decides; this
+     only reflects what /auth/session said). */
+  function paintPayWall() {
+    var box = $('trialBox'), u = ME.user;
+    if (!box) return;
+    box.hidden = !(u && planOf(u) !== 'sapien' && u.trial_available);
+    var n = $('trialNote'); if (n) { n.hidden = true; n.textContent = ''; }
+  }
+  function wireTrial() {
+    var b = $('trialBtn');
+    if (!b || b.__wired) return;
+    b.__wired = true;
+    b.addEventListener('click', function () {
+      b.disabled = true;
+      api('POST', '/player/trial').then(function (r) {
+        b.disabled = false;
+        if (r.ok && r.data && r.data.user) {
+          close();                                 // back to wherever the upgrade was opened from
+          setUser(r.data.user);
+          toast('Sapien is yours for two days. Enjoy!');
+          return;
+        }
+        var n = $('trialNote');
+        n.hidden = false; n.classList.add('bad');
+        n.textContent = r.status === 409 ? 'The free trial has already been used for this email address.'
+                      : r.status === 0 ? 'You\u2019re offline. Try again when you\u2019re connected.'
+                      : 'That did not work. Try again.';
+        if (r.status === 409 && ME.user) { ME.user.trial_available = false; }
+      });
+    });
+  }
+
   function wirePromo() {
     var f = document.getElementById('promoForm');
     if (!f || f.__wired) return;
@@ -1580,6 +1652,7 @@ document.addEventListener('DOMContentLoaded', function () {
     wireProfile();
     paintWho();
     wirePromo();
+    wireTrial();
     wireAnalytics();
     wireLinks();
 
@@ -2733,16 +2806,13 @@ document.addEventListener('DOMContentLoaded', function () {
   letter-spacing:-.006em; color:var(--fg); margin:0 0 12px}
 #pfIn .setlabel{margin:0 0 8px}
 
-/* Signed In > FREE on the left, the one button that changes it on the right.
+/* "Sapien since ..." on the left, the one button that changes it on the right.
    On a phone too narrow for both, the button drops to its own line and keeps
    to the right; the status never drifts toward the middle. */
 .pf-planrow{display:flex; align-items:center; justify-content:flex-start; flex-wrap:wrap;
   gap:10px 16px; margin:0 0 12px}
 .pf-planbtn{margin-left:auto}
-.pf-state{display:inline-flex; align-items:center; gap:3px; margin:0}
-.pf-state .chev{width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:2;
-  stroke-linecap:round; stroke-linejoin:round; opacity:.55}
-.pf-state b{font-weight:inherit; letter-spacing:.05em}
+.pf-since{font-size:14.5px; color:var(--fg)}
 .pf-planbtn .btn{--btn-width:auto; width:auto; white-space:nowrap; --btn-pad:10px 18px; --btn-size:14px}
 /* Reserved height: the two plans' words differ in length, and the hover swap
    must not make the card jump under the pointer. */
@@ -2757,7 +2827,8 @@ document.addEventListener('DOMContentLoaded', function () {
   background:none; cursor:pointer; color:inherit; display:block}
 .avcat-pic:focus-visible{outline:2px solid var(--accent); outline-offset:3px}
 .avcat-pic .psav{width:100%; height:100%; font-size:92px; transition:opacity .15s}
-.avcat.on .avcat-pic .psav{box-shadow:0 0 0 3px var(--sheet-bg, var(--bg-raise)), 0 0 0 5px var(--accent)}
+.avcat.on .avcat-pic .psav{box-shadow:0 0 0 3px var(--sheet-bg, var(--bg-raise)), 0 0 0 7px var(--accent),
+  0 0 22px 9px color-mix(in srgb, var(--accent) 50%, transparent)}
 .avcat-name{font-size:12.5px; color:var(--fg-2); text-align:center}
 .avcat.on .avcat-name{color:var(--fg); font-weight:600}
 .avcat-pic.add .psav{background:transparent; border:2px dashed var(--line-2); box-sizing:border-box;
@@ -2787,7 +2858,8 @@ document.addEventListener('DOMContentLoaded', function () {
 .avgrid button{padding:0; background:none; cursor:pointer; aspect-ratio:1;
   border:2px solid transparent; border-radius:50%}
 .avgrid .psav{width:100%; height:100%; font-size:46px}
-.avgrid button[aria-pressed="true"]{border-color:var(--accent)}
+.avgrid button[aria-pressed="true"]{border:3px solid var(--accent);
+  box-shadow:0 0 16px 5px color-mix(in srgb, var(--accent) 50%, transparent)}
 .avgrid button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
 
 /* Signed-in devices: the same row shape as a friends list. */
@@ -2811,6 +2883,18 @@ document.addEventListener('DOMContentLoaded', function () {
 /* The one button that destroys something: a ghost in the warning colour. */
 .btn.ghost.danger{color:var(--warn); border-color:color-mix(in srgb, var(--warn) 40%, transparent)}
 .btn.ghost.danger:hover{background:color-mix(in srgb, var(--warn) 10%, transparent)}
+
+/* A name someone else already has: said in red, directly under the field. */
+:root{--err:#C62828}
+:root[data-theme="dark"]{--err:#FF8A80}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){--err:#FF8A80} }
+.pf-err{color:var(--err); font-size:13.5px; font-weight:600; margin:-4px 0 12px}
+
+/* The free trial, on the upgrade card. */
+.trialbox{padding:14px 16px; margin:4px 0 16px; border-radius:12px;
+  border:1px solid var(--line-2); background:var(--bg-sink)}
+.trialbox p{margin:0 0 12px}
+.trialbox .btn{--btn-width:auto; width:auto}
 /* ===== END packages/ui/ui.css ===== */
 /* ===========================================================================
    PlaySapien -- the platform landing page.
@@ -3547,6 +3631,16 @@ footer a:hover{opacity:1}
     <p>Sapien is <b>$2 a month, billed annually</b>. It opens up tracking all your
        results, comparing your results against friends and others, making up and
        sharing games with friends, and more.</p>
+    <!-- The one free trial: two days of Sapien, no payment details, once per
+         email address for ever (POST /api/player/trial). Shown only to a
+         signed-in Free player whose address has not had one. -->
+    <div class="trialbox" id="trialBox" hidden>
+      <p><b>Try it free for two days.</b> No payment details &mdash; start now, and
+         decide when the two days are up.</p>
+      <button class="btn" type="button" id="trialBtn">Start my free 2-day trial</button>
+      <div class="ui-note" id="trialNote" hidden></div>
+    </div>
+
     <p class="hint">Payment is not switched on yet, so there is nothing to buy today.
        This is where the checkout will be.</p>
 
@@ -3620,9 +3714,9 @@ footer a:hover{opacity:1}
            #planWhy; pressing it opens the upgrade or the downgrade card ON TOP
            of this one, so closing either comes back here. -->
       <section class="pfsec">
+        <h3 class="pf-sub">Account Type</h3>
         <div class="pf-planrow">
-          <span class="pf-sub pf-state">Signed In<svg class="chev" viewBox="0 0 24 24"
-            aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><b id="pfPlanName">FREE</b></span>
+          <span class="pf-since" id="pfSince"></span>
           <span class="pf-planbtn" id="pfPlanBtn"></span>
         </div>
         <p class="planwhy" id="planWhy"></p>
@@ -3639,6 +3733,7 @@ footer a:hover{opacity:1}
 
         <label class="setlabel" for="nameIn">Display Name</label>
         <input class="fld" type="text" id="nameIn" maxlength="32" placeholder="Your name">
+        <p class="pf-err" id="nameNote" role="alert" hidden></p>
         <div class="btnrow">
           <button class="btn" type="button" id="pfSave" disabled>Save</button>
           <button class="btn ghost" type="button" id="pfCancel" disabled>Cancel</button>

@@ -101,6 +101,9 @@
       <li>Your account type &mdash; Free or Sapien &mdash; and, for Sapien, the date it runs
         until. If you redeem a promotion code, which code and when, so that each code can be
         used only once per account.</li>
+      <li>Whether your email address has had the free two-day Sapien trial. This is kept as a
+        one-way scrambled code made from the address (a keyed hash), not the address itself, so
+        it can only answer &ldquo;has this address had a trial?&rdquo;.</li>
     </ul>
   </section>
 
@@ -226,6 +229,9 @@
         own device.</li>
       <li><strong>Moderation records</strong> &mdash; indefinitely, with the author removed on
         account deletion, as described above.</li>
+      <li><strong>The free-trial record</strong> &mdash; indefinitely, including after account
+        deletion, so that each email address gets one free trial. It is the scrambled code
+        described above, never the address itself.</li>
     </ul>
   </section>
 
@@ -234,7 +240,8 @@
     <p>There is a delete button on your profile. It removes your account, your email address,
       your sign-in methods, your sessions, your results, your streaks, your friendships, your
       invite codes and your notices. This is a real deletion from the database, not a flag, and
-      it cannot be undone. The single exception is the moderation log described above.</p>
+      it cannot be undone. The exceptions are the moderation log and the free-trial record
+      described above; neither contains your email address.</p>
   </section>
 
   <section>

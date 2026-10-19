@@ -59,6 +59,7 @@ const ROUTES = [
   ['DELETE', '/api/player/me',                   player.deleteMe],
   ['POST',   '/api/player/claim',                player.claimDevices],
   ['POST',   '/api/player/redeem',               player.redeemCode],
+  ['POST',   '/api/player/trial',                player.startTrial],
   ['GET',    '/api/player/notices',              player.listNotices],
   ['POST',   '/api/player/notices/read',         player.readNotices],
 

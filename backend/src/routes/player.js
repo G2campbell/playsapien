@@ -13,6 +13,7 @@ import {
 import { streakStatements, emptyStreak, PLATFORM } from '../lib/streaks.js';
 import { clearedCookie } from '../middleware/session.js';
 import { shapeUser } from './auth.js';
+import { TRIAL_SECONDS, trialKey, trialAvailable } from '../lib/trial.js';
 
 /* GET /api/player/me -> profile + all streaks */
 export async function me(ctx) {
@@ -23,7 +24,11 @@ export async function me(ctx) {
      draws -- so it is fetched here, once, rather than carried everywhere. */
   const img = await first(ctx.db, 'SELECT avatar_img FROM users WHERE id = ?', ctx.user.id);
   return ok({
-    user: { ...ctx.user, avatar_img: (img && img.avatar_img) || null },
+    user: {
+      ...ctx.user,
+      avatar_img: (img && img.avatar_img) || null,
+      trial_available: await trialAvailable(ctx.db, ctx.env, ctx.user.email),
+    },
     streaks: await readStreaks(ctx.db, ctx.user.id),
     today: utcDay(ctx.now),
   });
@@ -64,7 +69,18 @@ export async function updateMe(ctx) {
   }
 
   if ('display_name' in patch) {
-    sets.push('display_name = ?'); params.push(cleanDisplayName(patch.display_name));
+    const name = cleanDisplayName(patch.display_name);
+    /* One player per name: it is what friends and leaderboards show, and two
+       "Kai"s on one board is two people who cannot tell which is which.
+       Case-insensitive -- "Kai" and "kai" are the same name to a reader. An
+       empty name is not a name, so it is never "taken". */
+    if (name) {
+      const taken = await first(ctx.db,
+        'SELECT 1 AS x FROM users WHERE display_name = ? COLLATE NOCASE AND id <> ? AND deleted_at IS NULL',
+        name, ctx.user.id);
+      if (taken) return err('name_taken', 'That name is already taken. Choose another.', 409);
+    }
+    sets.push('display_name = ?'); params.push(name);
   }
 
   if ('avatar' in patch) {
@@ -149,6 +165,49 @@ export async function updateMe(ctx) {
   return ok({ user: shapeUser(row, ctx.now) });
 }
 
+/* POST /api/player/trial -> { user, trial_until }
+
+   The first time an inbox asks for Sapien it gets two days of it, straight
+   away, with no payment details. After that the plan simply runs out
+   (plan_until), and staying Sapien means subscribing.
+
+   Once per inbox for ever: the claim is a row keyed by a hash of the address,
+   inserted in the SAME batch as the plan change, so two tabs racing each other
+   cannot both win, and deleting the account does not reset it. */
+export async function startTrial(ctx) {
+  if (!ctx.user) return ERRORS.unauthorised();
+  if (!ctx.user.email) return err('no_email', 'A trial needs an account with an email address.', 400);
+
+  const cur = await first(ctx.db,
+    'SELECT plan, plan_until FROM users WHERE id = ?', ctx.user.id);
+  if (effectivePlan(cur.plan, cur.plan_until, ctx.now) === 'sapien') {
+    return err('already_sapien', 'You already have Sapien.', 409);
+  }
+
+  const key = await trialKey(ctx.env, ctx.user.email);
+  const until = ctx.now + TRIAL_SECONDS;
+  try {
+    await ctx.db.batch([
+      ctx.db.prepare('INSERT INTO trial_claims (email_key, claimed_at) VALUES (?, ?)')
+        .bind(key, ctx.now),
+      ctx.db.prepare(
+        "UPDATE users SET plan = 'sapien', plan_since = ?, plan_until = ? WHERE id = ?")
+        .bind(ctx.now, until, ctx.user.id),
+    ]);
+  } catch (e) {
+    if (isUniqueViolation(e)) {
+      return err('trial_used', 'The free trial has already been used for this email address.', 409);
+    }
+    throw e;
+  }
+
+  const row = await first(ctx.db,
+    `SELECT id, handle, display_name, email, email_verified, avatar,
+            avatar_img, plan, plan_since, plan_until, created_at,
+            tz, strikes, blocked_at FROM users WHERE id = ?`, ctx.user.id);
+  return ok({ user: { ...shapeUser(row, ctx.now), trial_available: false }, trial_until: until });
+}
+
 /* POST /api/player/redeem  { code } -> { user, granted_until }
 
    A promotion code turns an account Sapien up to a fixed date. Four rules:
@@ -208,6 +267,10 @@ export async function redeemCode(ctx) {
         'INSERT INTO promo_redemptions (code, user_id, redeemed_at) VALUES (?, ?, ?)')
         .bind(code, ctx.user.id, ctx.now),
       ctx.db.prepare('UPDATE promo_codes SET uses = uses + 1 WHERE code = ?').bind(code),
+      /* Sapien through a code counts as this inbox's taste of Sapien: no
+         two-day trial afterwards. OR IGNORE: it may already be marked. */
+      ctx.db.prepare('INSERT OR IGNORE INTO trial_claims (email_key, claimed_at) VALUES (?, ?)')
+        .bind(await trialKey(ctx.env, ctx.user.email), ctx.now),
       ctx.db.prepare(
         "UPDATE users SET plan = 'sapien', plan_since = ?, plan_until = ? WHERE id = ?")
         .bind(since, until, ctx.user.id),

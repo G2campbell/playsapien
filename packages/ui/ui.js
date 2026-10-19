@@ -80,6 +80,7 @@
     var target = $(id);
     if (!target) return;
     opts = opts || {};
+    if (id === 'payWall') paintPayWall();     // the trial offer depends on who is asking
     if (isOpen(id)) return;
 
     /* Without {stack:true} this replaces whatever is open, which is what a
@@ -393,6 +394,11 @@
      a surface with its own signed-in parts (the front door's Friends) can
      follow without being called by name. */
   function setUser(user) {
+    /* A profile save returns the account without the trial flag (it is worked
+       out by /auth/session and /player/me); carry it over rather than lose it. */
+    if (user && ME.user && user.id === ME.user.id && user.trial_available === undefined) {
+      user.trial_available = ME.user.trial_available;
+    }
     learnUser(user);                                   // the newest word is final
     paintBarAvatar(user);
     try { document.dispatchEvent(new CustomEvent('ps:user', { detail: user || null })); }
@@ -743,7 +749,12 @@
   function pfReset() {
     PF.draft = pfSaved();
     var n = $('nameIn'); if (n) n.value = PF.draft.name;
+    nameNote('');
     pfNote('', false);
+  }
+  function nameNote(msg) {
+    var n = $('nameNote'); if (!n) return;
+    n.hidden = !msg; n.textContent = msg || '';
   }
   function pfNote(msg, bad) {
     var n = $('avNote'); if (!n) return;
@@ -785,9 +796,29 @@
     el.innerHTML = txt;
     el.classList.toggle('peek', which !== plan);
   }
+  /* Whole calendar months from `sec` to now. */
+  function monthsSince(sec) {
+    var a = new Date(sec * 1000), b = new Date();
+    var m = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+    if (b.getDate() < a.getDate()) m--;
+    return Math.max(0, m);
+  }
+  function sinceText(u) {
+    var plan = planOf(u);
+    var sec = u.plan_started || (plan === 'sapien' ? u.plan_since : u.plan_since) || u.created_at;
+    var date = '';
+    try {
+      date = sec ? new Date(sec * 1000).toLocaleDateString(undefined,
+        { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    } catch (e) { date = ''; }
+    if (plan !== 'sapien') return 'Free since: ' + (date || '\u2014');
+    var m = sec ? monthsSince(sec) : 0;
+    return 'Sapien since: ' + (date || '\u2014') +
+      ' (' + (m === 0 ? 'less than a month' : m === 1 ? '1 month' : m + ' months') + ')';
+  }
   function paintPlan() {
     var plan = planOf(ME.user);
-    var nm = $('pfPlanName'); if (nm) nm.textContent = plan.toUpperCase();
+    var since = $('pfSince'); if (since && ME.user) since.textContent = sinceText(ME.user);
     var w = $('pfPlanBtn');
     if (w) {
       w.innerHTML = plan === 'sapien'
@@ -1086,6 +1117,7 @@
 
     /* name, save, cancel */
     $('nameIn').addEventListener('input', function (e) {
+      nameNote('');
       if (PF.draft) { PF.draft.name = e.target.value; pfButtons(); }
     });
     $('pfCancel').addEventListener('click', function () { pfReset(); paintCats(); pfButtons(); });
@@ -1097,6 +1129,13 @@
       btn.disabled = true;
       pfNote('Saving…', false);
       api('PATCH', '/player/me', patch).then(function (r) {
+        if (r.status === 409) {
+          pfNote('', false);
+          nameNote('That display name is already taken. Please choose another.');
+          $('nameIn').focus();
+          pfButtons();
+          return;
+        }
         if (!r.ok || !(r.data && r.data.user)) {
           pfNote(r.status === 413 ? 'That picture is too big. Try a smaller one.'
                : r.status === 0 ? 'You’re offline. Try again when you’re connected.'
@@ -1168,6 +1207,39 @@
         { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
     } catch (e) { return ''; }
   }
+  /* The free trial on the upgrade card: offered only to a signed-in Free
+     player whose email address has never had one (the server decides; this
+     only reflects what /auth/session said). */
+  function paintPayWall() {
+    var box = $('trialBox'), u = ME.user;
+    if (!box) return;
+    box.hidden = !(u && planOf(u) !== 'sapien' && u.trial_available);
+    var n = $('trialNote'); if (n) { n.hidden = true; n.textContent = ''; }
+  }
+  function wireTrial() {
+    var b = $('trialBtn');
+    if (!b || b.__wired) return;
+    b.__wired = true;
+    b.addEventListener('click', function () {
+      b.disabled = true;
+      api('POST', '/player/trial').then(function (r) {
+        b.disabled = false;
+        if (r.ok && r.data && r.data.user) {
+          close();                                 // back to wherever the upgrade was opened from
+          setUser(r.data.user);
+          toast('Sapien is yours for two days. Enjoy!');
+          return;
+        }
+        var n = $('trialNote');
+        n.hidden = false; n.classList.add('bad');
+        n.textContent = r.status === 409 ? 'The free trial has already been used for this email address.'
+                      : r.status === 0 ? 'You\u2019re offline. Try again when you\u2019re connected.'
+                      : 'That did not work. Try again.';
+        if (r.status === 409 && ME.user) { ME.user.trial_available = false; }
+      });
+    });
+  }
+
   function wirePromo() {
     var f = document.getElementById('promoForm');
     if (!f || f.__wired) return;
@@ -1349,6 +1421,7 @@
     wireProfile();
     paintWho();
     wirePromo();
+    wireTrial();
     wireAnalytics();
     wireLinks();
 

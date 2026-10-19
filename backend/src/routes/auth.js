@@ -16,7 +16,8 @@
    opinion on until someone proves they can read the mail. */
 
 import { ok, err, ERRORS, readJson } from '../lib/http.js';
-import { effectivePlan } from '../lib/plan.js';
+import { effectivePlan, planStarted } from '../lib/plan.js';
+import { trialAvailable } from '../lib/trial.js';
 import { first, run, all, isUniqueViolation, MINUTE } from '../lib/db.js';
 import { newId } from '../lib/id.js';
 import {
@@ -481,6 +482,10 @@ export function shapeUser(row, now = Math.floor(Date.now() / 1000)) {
     plan,
     plan_since: row.plan_since || null,
     plan_until: plan === 'sapien' ? (row.plan_until || null) : null,
+    /* When the CURRENT plan began, for "Sapien since" / "Free since". Sapien:
+       when it was granted. Free: when the last grant ran out, if one did;
+       otherwise when they stepped down; otherwise when the account was made. */
+    plan_started: planStarted(row.plan, row.plan_since, row.plan_until, row.created_at, now),
     created_at: row.created_at,
     tz: row.tz,
     strikes: row.strikes || 0,
@@ -511,7 +516,12 @@ export async function sessionInfo(ctx) {
   let user = ctx.user;
   if (user) {
     const img = await first(ctx.db, 'SELECT avatar_img FROM users WHERE id = ?', user.id);
-    user = { ...user, avatar_img: (img && img.avatar_img) || null };
+    user = {
+      ...user,
+      avatar_img: (img && img.avatar_img) || null,
+      /* Whether this inbox can still start the one free Sapien trial. */
+      trial_available: await trialAvailable(ctx.db, ctx.env, user.email),
+    };
   }
   return ok({ user, today: utcDay(ctx.now) });
 }
