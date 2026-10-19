@@ -232,3 +232,23 @@ test('google sign-in is unavailable rather than broken when unconfigured', async
   assert.equal(res.status, 503);
   assert.equal(res.error.code, 'google_unconfigured');
 });
+
+test('a Google name someone already has gets a random tag, not a running number', async () => {
+  const key = await makeKeyPair('kid-1');
+  const h = makeEnv({ jwks: key.jwks });
+
+  await roundTrip(h, await signToken(key, claims()));
+  /* A second person, also called Kai on Google, and a third. */
+  await roundTrip(h, await signToken(key, claims({ sub: '2', email: 'kai.two@example.com' })));
+  await roundTrip(h, await signToken(key, claims({ sub: '3', email: 'kai.three@example.com' })));
+
+  const names = h.db.all
+    ? h.db.all('SELECT display_name FROM users ORDER BY created_at, id').map((r) => r.display_name)
+    : [h.db.one("SELECT display_name FROM users WHERE email = 'kai@gmail.com'").display_name,
+       h.db.one("SELECT display_name FROM users WHERE email = 'kai.two@example.com'").display_name,
+       h.db.one("SELECT display_name FROM users WHERE email = 'kai.three@example.com'").display_name];
+  assert.equal(names[0], 'Kai');
+  assert.match(names[1], /^Kai \d{2}[A-HJ-NP-Z]$/);
+  assert.match(names[2], /^Kai \d{2}[A-HJ-NP-Z]$/);
+  assert.equal(new Set(names.map((n) => n.toLowerCase())).size, 3);
+});

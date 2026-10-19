@@ -14,6 +14,7 @@ import { streakStatements, emptyStreak, PLATFORM } from '../lib/streaks.js';
 import { clearedCookie } from '../middleware/session.js';
 import { shapeUser } from './auth.js';
 import { TRIAL_SECONDS, trialKey, trialAvailable } from '../lib/trial.js';
+import { nameTaken } from '../lib/names.js';
 
 /* GET /api/player/me -> profile + all streaks */
 export async function me(ctx) {
@@ -75,10 +76,9 @@ export async function updateMe(ctx) {
        Case-insensitive -- "Kai" and "kai" are the same name to a reader. An
        empty name is not a name, so it is never "taken". */
     if (name) {
-      const taken = await first(ctx.db,
-        'SELECT 1 AS x FROM users WHERE display_name = ? COLLATE NOCASE AND id <> ? AND deleted_at IS NULL',
-        name, ctx.user.id);
-      if (taken) return err('name_taken', 'That name is already taken. Choose another.', 409);
+      if (await nameTaken(ctx.db, name, ctx.user.id)) {
+        return err('name_taken', 'That name is already taken. Choose another.', 409);
+      }
     }
     sets.push('display_name = ?'); params.push(name);
   }

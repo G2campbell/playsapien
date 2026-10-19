@@ -18,6 +18,7 @@
 import { ok, err, ERRORS, readJson } from '../lib/http.js';
 import { effectivePlan, planStarted } from '../lib/plan.js';
 import { trialAvailable } from '../lib/trial.js';
+import { uniqueDisplayName } from '../lib/names.js';
 import { first, run, all, isUniqueViolation, MINUTE } from '../lib/db.js';
 import { newId } from '../lib/id.js';
 import {
@@ -395,7 +396,11 @@ export async function upsertUserForIdentity(ctx, { provider, subject, email, ema
     const params = [];
     if (email && !existing.email) { patch.push('email = ?', 'email_verified = ?'); params.push(email, emailVerified ? 1 : 0); }
     else if (emailVerified && existing.email === email && !existing.email_verified) { patch.push('email_verified = 1'); }
-    if (displayName && !existing.display_name) { patch.push('display_name = ?'); params.push(displayName); }
+    if (displayName && !existing.display_name) {
+      const name = await uniqueDisplayName(ctx.db, displayName, existing.id);
+      patch.push('display_name = ?'); params.push(name);
+      existing.display_name = name;
+    }
     patch.push('last_seen_at = ?'); params.push(ctx.now);
     try {
       await run(ctx.db, 'UPDATE users SET ' + patch.join(', ') + ' WHERE id = ?', ...params, existing.id);
@@ -435,7 +440,9 @@ export async function upsertUserForIdentity(ctx, { provider, subject, email, ema
   const row = {
     id,
     handle: null,
-    display_name: displayName || '',
+    /* The Google name, or -- if someone already has it -- that name with a
+       short random tag ("John Smith 39K"). See lib/names.js. */
+    display_name: await uniqueDisplayName(ctx.db, displayName || '', id),
     email: email || null,
     email_verified: emailVerified ? 1 : 0,
     avatar: null,
