@@ -286,7 +286,11 @@
                   '21','22','23','24','25',
                   '31','32','33','34','35','36','37','38','39',
                   '41','42','43','44','45','46','47','48','49'];
-  var PICTURE_SETS = { monster: MONSTERS, robot: range(1, 18), animal: range(1, 63) };
+  /* Each robot twice, side by side: the whole robot (NN), then a close-up of
+     its head (NNb) -- a full-length figure is small inside a round frame. */
+  var ROBOTS = [];
+  range(1, 18).forEach(function (n) { ROBOTS.push(n, n + 'b'); });
+  var PICTURE_SETS = { monster: MONSTERS, robot: ROBOTS, animal: range(1, 63) };
 
   function avatarTokens() {
     var out = [], i;
@@ -317,7 +321,7 @@
              escapeAttr(label) + '">';
     }
 
-    var mm = /^(monster|robot|animal)-(\d{2})$/.exec(token);
+    var mm = /^(monster|robot|animal)-(\d{2}b?)$/.exec(token);
     if (mm && PICTURE_SETS[mm[1]].indexOf(mm[2]) >= 0) {
       return '<img class="psav-img" src="/avatars/' + token + '.webp" alt="' +
              escapeAttr(label) + '" decoding="async">';
@@ -739,7 +743,7 @@
     token = String(token || '');
     if (/^ps-\d{2}$/.test(token)) return 'icons';
     if (/^monster-\d{2}$/.test(token)) return 'monsters';
-    if (/^robot-\d{2}$/.test(token)) return 'robots';
+    if (/^robot-\d{2}b?$/.test(token)) return 'robots';
     if (/^animal-\d{2}$/.test(token)) return 'animals';
     if (token === 'custom') return 'custom';
     return '';
