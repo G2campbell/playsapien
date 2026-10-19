@@ -17,6 +17,7 @@ import { newId } from '../lib/id.js';
 import { sha256Hex } from '../lib/crypto.js';
 import { asObject, isDay, utcDay } from '../lib/validate.js';
 import { consume } from '../middleware/ratelimit.js';
+import { isWord } from '../lib/dictionary.js';
 
 /* Eight words, per spec-v3 §2. The bounds are loose on purpose -- the composer
    is the thing that enforces the game's shape, and a backend that hard-coded
@@ -50,6 +51,16 @@ export async function submitChain(ctx) {
   if (!words) {
     return err('bad_chain',
       'A chain is ' + MIN_WORDS + ' to ' + MAX_WORDS + ' single words, letters only.', 400);
+  }
+
+  /* Every word must be in the dictionary. A chain with a misspelling -- or a
+     name, or an in-joke -- can still be made and sent to friends from the
+     composer, but it is never considered for the general pool. */
+  const unknown = words.filter((w) => !isWord(w));
+  if (unknown.length) {
+    return err('not_a_word',
+      'Not in our dictionary: ' + unknown.join(', ') +
+      '. Only chains of dictionary words can be submitted for everyone.', 400);
   }
 
   /* The dedupe key is the normalised chain, so the same eight words submitted

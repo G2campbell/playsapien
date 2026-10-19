@@ -535,13 +535,14 @@ document.addEventListener('DOMContentLoaded', function () {
      always gets the same 8 -- on every device, every visit -- until DEAL
      below is changed, which deals everyone a fresh selection.
 
-       Monsters  any 8.
-       Robots    8 different robots: 4 as head close-ups (NNb), 4 whole.
-       Animals   one from each group (a-f), then 2 more from the rest.
+       Monsters  any 12.
+       Robots    12 different robots: 6 as head close-ups (NNb), 6 whole.
+       Animals   one from each group (a-f), then 6 more from the rest.
 
      Whatever a player is already wearing is always offered too, even after a
      new deal, so nobody loses their face by having it dealt away. */
   var DEAL = 'deal-1';                 // change this to re-deal every player
+  var DEAL_SIZE = 12;                  // faces offered per picture set (even: robots split in half)
   function seeded(str) {
     var h = 2166136261;                // FNV-1a, then mulberry32
     for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
@@ -564,8 +565,9 @@ document.addEventListener('DOMContentLoaded', function () {
     var rnd = seeded(DEAL + '|' + ((user && user.id) || 'guest') + '|' + kind);
     var pick;
     if (kind === 'robot') {
-      var nums = shuffled(range(1, 18), rnd).slice(0, 8);
-      pick = nums.slice(0, 4).map(function (n) { return n + 'b'; }).concat(nums.slice(4));
+      var nums = shuffled(range(1, 18), rnd).slice(0, DEAL_SIZE);
+      var half = DEAL_SIZE / 2;
+      pick = nums.slice(0, half).map(function (n) { return n + 'b'; }).concat(nums.slice(half));
     } else if (kind === 'animal') {
       pick = [];
       'abcdef'.split('').forEach(function (g) {
@@ -573,9 +575,9 @@ document.addEventListener('DOMContentLoaded', function () {
         pick.push(inGroup[Math.floor(rnd() * inGroup.length)]);
       });
       var rest = shuffled(ANIMALS.filter(function (n) { return pick.indexOf(n) < 0; }), rnd);
-      pick = pick.concat(rest.slice(0, 2));
+      pick = pick.concat(rest.slice(0, DEAL_SIZE - pick.length));
     } else {
-      pick = shuffled(PICTURE_SETS[kind], rnd).slice(0, 8);
+      pick = shuffled(PICTURE_SETS[kind], rnd).slice(0, DEAL_SIZE);
     }
     pick.sort();
     var out = pick.map(function (n) { return kind + '-' + n; });
@@ -584,11 +586,11 @@ document.addEventListener('DOMContentLoaded', function () {
     return out;
   }
 
-  function avatarTokens() {
-    var out = [], i;
-    for (i = 1; i <= AV_COUNT; i++) out.push('ps-' + (i < 10 ? '0' : '') + i);
-    return out;
-  }
+  /* The Icons OFFERED: six of the eight colourings. The two dropped (03, 04)
+     sat too close to 01 and 02 to be worth a choice of their own; avatar()
+     still draws all eight, so anyone already wearing one keeps it. */
+  var ICONS_OFFERED = ['ps-01', 'ps-02', 'ps-05', 'ps-06', 'ps-07', 'ps-08'];
+  function avatarTokens() { return ICONS_OFFERED.slice(); }
 
   function escapeAttr(s) {
     return String(s == null ? '' : s)
@@ -1042,8 +1044,10 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   function setOf(k) {
     var kind = CAT_KIND[k];
-    if (kind) return dealFor(ME.user, kind);         // this player's 8
-    return avatarTokens();
+    if (kind) return dealFor(ME.user, kind);         // this player's selection
+    var icons = avatarTokens(), worn = ME.user && ME.user.avatar;
+    if (worn && /^ps-\d{2}$/.test(worn) && icons.indexOf(worn) < 0) icons.push(worn);
+    return icons;
   }
   function pfSaved() {
     var u = ME.user || {};
@@ -3321,6 +3325,8 @@ footer a:hover{opacity:1}
 
 /* friends */
 .frow{display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--line)}
+.frow .psav.av{font-size:34px}
+.frow .btn{flex:none; --btn-width:auto; width:auto; --btn-pad:7px 12px; --btn-size:13px; --btn-radius:9px}
 .frow:last-child{border-bottom:0}
 .frow .av{width:34px; height:34px; border-radius:50%; flex:none; display:grid; place-items:center;
   background:var(--bg-sink); color:var(--fg); font-family:var(--f-disp); font-weight:600; font-size:14px}
@@ -4266,41 +4272,97 @@ document.addEventListener('ps:user', e => {
   if (!ME) paintStatus({});
 });
 
-/* ---------- friends -------------------------------------------------------- */
-async function loadFriends() {
-  if (!ME) return;
-  const [code, list] = await Promise.all([PS.friendCode(), PS.friends()]);
-  if (code && code.code) $('myCode').textContent = code.code;
-  const friends = (list && list.friends) || [];
-  $('frList').innerHTML = friends.length
-    ? `<p class="hint" style="margin:18px 0 2px">${friends.length} friend${friends.length > 1 ? 's' : ''}</p>` +
-      friends.map(f => `<div class="frow">
-        <div class="av">${initials(f.display_name || f.handle)}</div>
-        <div class="fn">${f.display_name || f.handle || 'Player'}
-          <em>${f.state === 'pending' ? 'Invite sent' : (f.today_summary || 'Nothing today yet')}</em></div>
-        <div class="fs">${f.state === 'pending' ? '·' : (f.today_total ?? '')}</div>
-      </div>`).join('')
-    : '<p class="empty">No friends yet. Send someone your code.</p>';
+/* ---------- friends --------------------------------------------------------
+   Talks to the API directly. It used to go through the SDK's friends() and
+   friendCode(), which expected a shape the API never sent (a `code` and a
+   `friends` list inside GET /player/friends): the code box stayed "------",
+   Copy link copied "/?f=------", and the list was always empty. The code has
+   its own endpoint, and the list comes back as accepted / incoming / outgoing.
+   -------------------------------------------------------------------------- */
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
+  c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+async function frApi(method, path, body) {
+  try {
+    const r = await fetch('/api' + path, {
+      method, credentials: 'include',
+      headers: body ? { Accept: 'application/json', 'Content-Type': 'application/json' } : { Accept: 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const j = await r.json().catch(() => null);
+    return { ok: !!(j && j.ok), status: r.status, data: j && j.data, error: j && j.error };
+  } catch (e) { return { ok: false, status: 0 }; }
 }
 
+function frRow(f, kind) {
+  const name = esc(f.display_name || f.handle || 'Player');
+  const av = `<span class="psav av">${PSUI.avatar(f)}</span>`;
+  if (kind === 'incoming') {
+    return `<div class="frow">${av}<div class="fn">${name}<em>Wants to be friends</em></div>
+      <button class="btn" type="button" data-fr-accept="${esc(f.id)}">Accept</button>
+      <button class="btn ghost" type="button" data-fr-remove="${esc(f.id)}">Decline</button></div>`;
+  }
+  if (kind === 'outgoing') {
+    return `<div class="frow">${av}<div class="fn">${name}<em>Request sent</em></div>
+      <button class="btn ghost" type="button" data-fr-remove="${esc(f.id)}">Cancel</button></div>`;
+  }
+  return `<div class="frow">${av}<div class="fn">${name}<em>Friend</em></div></div>`;
+}
+
+async function loadFriends() {
+  if (!ME) return;
+  const [code, list] = await Promise.all([frApi('GET', '/player/friends/code'), frApi('GET', '/player/friends')]);
+  if (code.ok && code.data && code.data.code) $('myCode').textContent = code.data.code;
+  else if (code.status === 0) $('myCode').textContent = 'offline';
+  const d = (list.ok && list.data) || {};
+  const inc = d.incoming || [], out = d.outgoing || [], acc = d.accepted || [];
+  let html = '';
+  if (inc.length) html += `<p class="hint" style="margin:18px 0 2px">Requests for you</p>` + inc.map(f => frRow(f, 'incoming')).join('');
+  if (acc.length) html += `<p class="hint" style="margin:18px 0 2px">${acc.length} friend${acc.length > 1 ? 's' : ''}</p>` + acc.map(f => frRow(f, 'accepted')).join('');
+  if (out.length) html += `<p class="hint" style="margin:18px 0 2px">Waiting for them</p>` + out.map(f => frRow(f, 'outgoing')).join('');
+  $('frList').innerHTML = html || '<p class="empty">No friends yet. Send someone your code.</p>';
+}
+
+$('frList').addEventListener('click', async e => {
+  const a = e.target.closest('[data-fr-accept]'), r = e.target.closest('[data-fr-remove]');
+  if (!a && !r) return;
+  (a || r).disabled = true;
+  const res = a ? await frApi('POST', '/player/friends/' + encodeURIComponent(a.dataset.frAccept) + '/accept', {})
+                : await frApi('DELETE', '/player/friends/' + encodeURIComponent(r.dataset.frRemove));
+  if (!res.ok) PSUI.toast('That did not go through. Try again.');
+  loadFriends();
+});
+
 $('copyCode').addEventListener('click', async () => {
-  const link = location.origin + '/?f=' + $('myCode').textContent;
+  const code = $('myCode').textContent.trim();
+  if (!/^[A-Z0-9]{8}$/i.test(code)) { PSUI.toast('Your code has not loaded yet'); return; }
+  const link = location.origin + '/?f=' + code;
   try { await navigator.clipboard.writeText(link); PSUI.toast('Invite link copied'); }
-  catch (e) { PSUI.toast('Could not copy \u2014 select the code instead'); }
+  catch (e) { PSUI.toast('Could not copy — select the code instead'); }
 });
 
 $('addForm').addEventListener('submit', async e => {
   e.preventDefault();
-  const r = await PS.addFriend($('addIn').value.trim());
-  note('frNote', r.ok ? 'Sent.' : 'That code did not work.', !r.ok);
+  const c = $('addIn').value.trim().toUpperCase();
+  if (!c) return;
+  const r = await frApi('POST', '/player/friends/add', { code: c });
+  const code = r.error && r.error.code;
+  note('frNote', r.ok
+      ? (r.data && r.data.state === 'accepted' ? 'You are now friends.' : 'Request sent. They will see it on their Friends card.')
+      : code === 'already_friends' ? 'You are already friends.'
+      : code === 'already_requested' ? 'You have already asked. Give them a moment.'
+      : code === 'self' ? 'That is your own code.'
+      : r.status === 429 ? 'That is a lot of requests for one day. Try tomorrow.'
+      : 'That code did not work.', !r.ok);
   if (r.ok) { $('addIn').value = ''; loadFriends(); }
 });
 
-/* an invite link -- ?f=CODE -- prefills the box and opens the sheet */
+/* an invite link -- ?f=CODE -- prefills the box and opens the right sheet once
+   we know whether this visitor is signed in */
 const inviteCode = new URLSearchParams(location.search).get('f');
 if (inviteCode) {
   $('addIn').value = inviteCode.toUpperCase();
-  openSheet(ME ? 'friendsSheet' : 'profileSheet');
+  PSUI.whenUser().then(u => { if (u) loadFriends(); openSheet(u ? 'friendsSheet' : 'profileSheet'); });
 }
 
 /* ---------- arriving from a sign-in link, or back from Google --------------

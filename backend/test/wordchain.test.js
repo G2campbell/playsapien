@@ -96,8 +96,9 @@ test('the same chain twice is one row', async () => {
 test('five chains a day, then the sixth is refused', async () => {
   const h = makeEnv();
   const me = await signIn(h, 'kai@example.com');
-  const suffix = 'ABCDEFGHIJ';
-  const chainN = (n) => CHAIN.slice(0, 7).concat(['TAIL' + suffix[n]]);
+  /* Real words: a chain with a word the dictionary does not know is refused. */
+  const tails = ['STEP', 'SHOW', 'LINE', 'KICK', 'CAR', 'BAR', 'TABLE', 'STREET', 'ROAD', 'SWIPE'];
+  const chainN = (n) => CHAIN.slice(0, 7).concat([tails[n]]);
 
   for (let i = 0; i < 5; i++) {
     const res = await call(h.env, 'POST', '/api/wordchain/chains',
@@ -107,6 +108,17 @@ test('five chains a day, then the sixth is refused', async () => {
   const sixth = await call(h.env, 'POST', '/api/wordchain/chains',
     { cookie: me.cookie, body: { words: chainN(9) } });
   assert.equal(sixth.status, 429);
+});
+
+test('a chain with a word not in the dictionary is never queued for the pool', async () => {
+  const h = makeEnv();
+  const me = await signIn(h, 'kai@example.com');
+  const res = await call(h.env, 'POST', '/api/wordchain/chains',
+    { cookie: me.cookie, body: { words: ['FIRE', 'PLACE', 'MATT', 'BLACK', 'BORAD', 'WALK', 'WAY', 'SIDE'] } });
+  assert.equal(res.status, 400);
+  assert.equal(res.error.code, 'not_a_word');
+  assert.match(res.error.message, /BORAD/);
+  assert.equal(h.db.one('SELECT COUNT(*) AS n FROM chains').n, 0);
 });
 
 test('a malformed chain is refused', async () => {

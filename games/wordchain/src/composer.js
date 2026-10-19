@@ -34,6 +34,16 @@ var C_MIN = 2;
 function cValid() { return C.words.every(function (w) { return w.length >= C_MIN; }); }
 function cCanSave() { return cValid() && (C.dirty || (!C.savedId && !C.sourceId)); }
 
+/* Spelling. The same 66,000-word list the game uses to say NOT A WORD. A chain
+   for friends may use a word it does not know -- a name, an in-joke, a
+   deliberate misspelling -- but the maker is told before saving, in case it is
+   a typo; and a chain with an unknown word can never be submitted for the
+   general pool (the server refuses it: routes/wordchain.js). */
+function cUnknown() {
+  if (!DICT) return [];
+  return C.words.filter(function (w) { return w.length >= C_MIN && !DICT.has(w); });
+}
+
 function cHint(text, warn) {
   var h = $('cHint');
   h.className = warn ? 'warn' : '';
@@ -48,7 +58,11 @@ function cRender() {
   var box = $('cRows'); box.innerHTML = '';
   C.words.forEach(function (w, k) {
     var row = document.createElement('div');
-    row.className = 'crow' + (k === C.row ? ' on' : '') + (w.length && w.length < C_MIN ? ' short' : '');
+    /* Flagged only once the maker has moved off the row: a word is not
+       misspelt while it is still being typed. */
+    var unknown = k !== C.row && w.length >= C_MIN && DICT && !DICT.has(w);
+    row.className = 'crow' + (k === C.row ? ' on' : '') + (w.length && w.length < C_MIN ? ' short' : '') +
+      (unknown ? ' unknown' : '');
     row.dataset.row = k;
     var n = document.createElement('span'); n.className = 'num'; n.textContent = (k + 1);
     var wd = document.createElement('span'); wd.className = 'cword';
@@ -57,6 +71,10 @@ function cRender() {
     }
     row.appendChild(n); row.appendChild(wd);
     if (k === C.row) { var c = document.createElement('span'); c.className = 'ccaret'; row.appendChild(c); }
+    if (unknown) {
+      var u = document.createElement('span'); u.className = 'cunk'; u.textContent = 'not in dictionary';
+      row.appendChild(u);
+    }
     box.appendChild(row);
   });
   var save = $('cSaveBtn'), share = $('cShareBtn');
@@ -81,10 +99,19 @@ function cMutated() {
   cRender();
 }
 
-function cSave() {
+function cSave(confirmed) {
   if (!cValid()) { cHint('Each row must contain a word of at least two letters.', true); return; }
   if (!cCanSave()) { cHint('This puzzle has already been saved.', true); return; }
-  var p = { id: newId(), words: C.words.slice(), created: Date.now(), shared: [] };
+  var unk = cUnknown();
+  if (unk.length && confirmed !== true) {
+    ask((unk.length === 1 ? unk[0] + ' is' : unk.join(', ') + ' are') +
+        ' not in our dictionary. Save anyway? You can still send it to friends, ' +
+        'but it can\u2019t be submitted for everyone to play.',
+        'Yes, save it', function () { cSave(true); });
+    return;
+  }
+  var p = { id: newId(), words: C.words.slice(), created: Date.now(), shared: [],
+            unknown: unk };     /* kept, so nothing later offers it for the general pool */
   var all = puzzles(); all.unshift(p); store('puzzles', all);
   C.savedId = p.id; C.shareId = p.id; C.dirty = false; C.sourceId = null;
   $('cTitle').textContent = 'Saved';
@@ -191,7 +218,7 @@ $('cHomeBtn').addEventListener('click', function () {
   ask('Leave without saving this chain?', 'Yes, discard it', composeClose);
 });
 $('cListBtn').addEventListener('click', function () { paintMine(); PSUI.open('mineSheet'); });
-$('cSaveBtn').addEventListener('click', cSave);
+$('cSaveBtn').addEventListener('click', function () { cSave(); });
 $('cShareBtn').addEventListener('click', function () {
   if (!C.shareId) { cHint('Save the chain before sending it.', true); return; }
   openSend(C.shareId);

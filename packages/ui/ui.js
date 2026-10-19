@@ -304,13 +304,14 @@
      always gets the same 8 -- on every device, every visit -- until DEAL
      below is changed, which deals everyone a fresh selection.
 
-       Monsters  any 8.
-       Robots    8 different robots: 4 as head close-ups (NNb), 4 whole.
-       Animals   one from each group (a-f), then 2 more from the rest.
+       Monsters  any 12.
+       Robots    12 different robots: 6 as head close-ups (NNb), 6 whole.
+       Animals   one from each group (a-f), then 6 more from the rest.
 
      Whatever a player is already wearing is always offered too, even after a
      new deal, so nobody loses their face by having it dealt away. */
   var DEAL = 'deal-1';                 // change this to re-deal every player
+  var DEAL_SIZE = 12;                  // faces offered per picture set (even: robots split in half)
   function seeded(str) {
     var h = 2166136261;                // FNV-1a, then mulberry32
     for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
@@ -333,8 +334,9 @@
     var rnd = seeded(DEAL + '|' + ((user && user.id) || 'guest') + '|' + kind);
     var pick;
     if (kind === 'robot') {
-      var nums = shuffled(range(1, 18), rnd).slice(0, 8);
-      pick = nums.slice(0, 4).map(function (n) { return n + 'b'; }).concat(nums.slice(4));
+      var nums = shuffled(range(1, 18), rnd).slice(0, DEAL_SIZE);
+      var half = DEAL_SIZE / 2;
+      pick = nums.slice(0, half).map(function (n) { return n + 'b'; }).concat(nums.slice(half));
     } else if (kind === 'animal') {
       pick = [];
       'abcdef'.split('').forEach(function (g) {
@@ -342,9 +344,9 @@
         pick.push(inGroup[Math.floor(rnd() * inGroup.length)]);
       });
       var rest = shuffled(ANIMALS.filter(function (n) { return pick.indexOf(n) < 0; }), rnd);
-      pick = pick.concat(rest.slice(0, 2));
+      pick = pick.concat(rest.slice(0, DEAL_SIZE - pick.length));
     } else {
-      pick = shuffled(PICTURE_SETS[kind], rnd).slice(0, 8);
+      pick = shuffled(PICTURE_SETS[kind], rnd).slice(0, DEAL_SIZE);
     }
     pick.sort();
     var out = pick.map(function (n) { return kind + '-' + n; });
@@ -353,11 +355,11 @@
     return out;
   }
 
-  function avatarTokens() {
-    var out = [], i;
-    for (i = 1; i <= AV_COUNT; i++) out.push('ps-' + (i < 10 ? '0' : '') + i);
-    return out;
-  }
+  /* The Icons OFFERED: six of the eight colourings. The two dropped (03, 04)
+     sat too close to 01 and 02 to be worth a choice of their own; avatar()
+     still draws all eight, so anyone already wearing one keeps it. */
+  var ICONS_OFFERED = ['ps-01', 'ps-02', 'ps-05', 'ps-06', 'ps-07', 'ps-08'];
+  function avatarTokens() { return ICONS_OFFERED.slice(); }
 
   function escapeAttr(s) {
     return String(s == null ? '' : s)
@@ -811,8 +813,10 @@
   }
   function setOf(k) {
     var kind = CAT_KIND[k];
-    if (kind) return dealFor(ME.user, kind);         // this player's 8
-    return avatarTokens();
+    if (kind) return dealFor(ME.user, kind);         // this player's selection
+    var icons = avatarTokens(), worn = ME.user && ME.user.avatar;
+    if (worn && /^ps-\d{2}$/.test(worn) && icons.indexOf(worn) < 0) icons.push(worn);
+    return icons;
   }
   function pfSaved() {
     var u = ME.user || {};
