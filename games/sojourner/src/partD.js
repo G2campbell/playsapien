@@ -171,6 +171,18 @@ function synthCountry(a, r, cc){
 }
 function indexData(){
   GD = M.GD; POOL = GD.pool;
+  /* What a round needs that the landing page never fetches: the reveal stories,
+     the select sound, and the flags the sprint shows (one per country in the
+     pool, 121 of them). Without these a first-time player who goes offline gets
+     a blank reveal and broken flag images. Kept by this game's offline worker,
+     in the background, at the URLs play will ask for -- assetUrl, so the
+     version query matches exactly. Skipped in the single-file build, where all
+     of it is inline already. */
+  if(window.PSUI && PSUI.cacheForOffline && !M.INLINE){
+    var seenFl = {}, ess = [M.assetUrl('facts.json'), M.assetUrl('select.mp3')];
+    POOL.forEach(function(p){ if(p && p.fl && !seenFl[p.fl]){ seenFl[p.fl] = 1; ess.push(flagUrl(p.fl)); } });
+    PSUI.cacheForOffline(ess);
+  }
   for(var i=1;i<GD.gA.length;i++){
     var a = GD.gA[i];
     (byAdmin[a] || (byAdmin[a] = [])).push(i);

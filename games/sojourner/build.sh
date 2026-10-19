@@ -13,6 +13,9 @@ python3 "$HERE/src/build.py" --allow-missing
 
 rm -rf "$OUT"; mkdir -p "$OUT/sojourner"
 cp -R "$HERE/dist/." "$OUT/sojourner/"
+# This game's own offline worker, scoped to /sojourner/. packages/** is in this
+# Worker's include paths, so a change to the shared file rebuilds the game.
+cp "$ROOT/packages/offline/sw.js" "$OUT/sojourner/sw.js"
 
 # The committed artwork. Overlaid after the build so a real bake, when the raw
 # data IS present, wins over it rather than being overwritten by it.
@@ -28,6 +31,7 @@ fi
 
 # Fail loudly rather than deploying a globe-less page over a working one.
 [ -f "$OUT/sojourner/index.html" ]   || { echo "FATAL: sojourner/index.html missing"; exit 1; }
+[ -f "$OUT/sojourner/sw.js" ]        || { echo "FATAL: sojourner/sw.js missing - no offline play"; exit 1; }
 [ -f "$OUT/sojourner/three.min.js" ] || { echo "FATAL: three.min.js missing - Sojourner would load with no globe"; exit 1; }
 [ -f "$OUT/sojourner/assets/gamedata.json" ] || [ -f "$OUT/sojourner/assets/facts.json" ] || {
   echo "FATAL: baked globe assets missing - see games/sojourner/README.md"; exit 1; }

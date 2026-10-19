@@ -22,6 +22,9 @@ cp "$ROOT/packages/tokens/theme.js"   "$OUT/theme.js"
 # names it absolutely at https://playsapien.com/og.png -- move the file and the
 # card silently loses its picture in every chat app, with nothing on the site
 # itself looking any different.
+# The offline worker. One canonical file, copied into every surface; see
+# packages/offline/sw.js. Served from the root so its scope is the whole site.
+cp "$ROOT/packages/offline/sw.js" "$OUT/sw.js"
 cp "$HERE/src/og.png"            "$OUT/og.png"
 cp "$HERE/src/makers.jpg"        "$OUT/makers.jpg"
 cp "$HERE/src/mark-light.png"    "$OUT/mark-light.png"
@@ -36,7 +39,7 @@ done
 cp "$ROOT/deploy/_headers"   "$OUT/_headers"
 cp "$ROOT/deploy/_redirects" "$OUT/_redirects"
 
-for f in index.html sdk.js tokens.css theme.js legal.css og.png makers.jpg mark-light.png mark-dark.png about/index.html; do
+for f in index.html sw.js sdk.js tokens.css theme.js legal.css og.png makers.jpg mark-light.png mark-dark.png about/index.html; do
   [ -f "$OUT/$f" ] || { echo "FATAL: $f missing"; exit 1; }
 done
 echo "shell built -> $OUT"

@@ -440,6 +440,9 @@ document.addEventListener('DOMContentLoaded', function () {
       return UI;
     },
     attnStop: attnStop,
+    /* Ask for files to be kept for offline play: a game's data that is only
+       fetched once play begins. */
+    cacheForOffline: cacheForOffline,
     /* Who is signed in, for a surface that wants to ask. Resolves to the user
        record or null. */
     whenUser: whenUser,
@@ -890,6 +893,62 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  /* ------------------------------------------------------------ offline ----
+     Registers this surface's own service worker: ./sw.js, scoped to the folder
+     the page lives in. Each build copies the one file from packages/offline/
+     into place, so the front door gets /sw.js and each game its own. See that
+     file for what is cached and how.
+
+     The front door's scope, "/", contains every game's folder too, so it is
+     told which folders to leave alone through window.PS_OFFLINE_EXCLUDE (the
+     shell sets it from its own list of games), passed on the worker's URL.
+
+     After the worker takes over, the page hands it the list of everything it
+     loaded before the worker existed, so the FIRST visit is enough to make the
+     next one work offline. Any failure here is silent: a browser without
+     service workers simply plays online, exactly as before. */
+  /* Files a surface wants kept for offline play beyond what its landing page
+     loaded -- data fetched only once play begins. Queued until the worker is
+     ready, then handed over; safe to call before, during or after start-up. */
+  var offlineQueue = [], offlineReg = null;
+  function flushOffline() {
+    if (!offlineReg || !offlineQueue.length) return;
+    var w = navigator.serviceWorker.controller || offlineReg.active;
+    if (w) w.postMessage({ type: 'ps-cache', urls: offlineQueue.splice(0) });
+  }
+  function cacheForOffline(urls) {
+    if (!urls || !urls.length) return;
+    offlineQueue = offlineQueue.concat(urls);
+    flushOffline();
+  }
+
+  function offline() {
+    if (offline.__done) return;
+    offline.__done = true;
+    try {
+      if (!('serviceWorker' in navigator)) return;
+      var h = location.hostname;
+      if (location.protocol !== 'https:' && h !== 'localhost' && h !== '127.0.0.1') return;
+      var ex = isShell() ? (global.PS_OFFLINE_EXCLUDE || []) : [];
+      var url = 'sw.js' + (ex.length ? '?x=' + encodeURIComponent(ex.join(',')) : '');
+      navigator.serviceWorker.register(url, { scope: './', updateViaCache: 'none' })
+        .then(function () { return navigator.serviceWorker.ready; })
+        .then(function (reg) {
+          offlineReg = reg;
+          var send = function () {
+            var urls = [location.href.split('#')[0]];
+            try {
+              performance.getEntriesByType('resource').forEach(function (e) { urls.push(e.name); });
+            } catch (e) { /* no timing API: the page alone is still cached */ }
+            cacheForOffline(urls);
+          };
+          if (document.readyState === 'complete') send();
+          else global.addEventListener('load', send);
+        })
+        .catch(function () { /* blocked, private mode, unsupported: play online */ });
+    } catch (e) { /* as above */ }
+  }
+
   /* Links that act like buttons elsewhere on the bar. The Friends link goes
      THROUGH the real Friends button rather than opening the sheet directly, so
      each surface's own Friends handler runs and the gate still applies. */
@@ -934,6 +993,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (el && el.parentNode !== document.body) document.body.appendChild(el);
       });
     }
+    offline();
     wireGate();
     wirePromo();
     wireAnalytics();
@@ -3203,6 +3263,11 @@ const GAMES = [
     icon:'seed', soon:true   /* no palette: inherits the page, so it themes */
   }
 ];
+
+/* The front door's offline worker covers "/", which contains every game's
+   folder. Each game runs its own worker for its own folder, so this one is told
+   to leave them alone -- derived from GAMES so adding a game here is enough. */
+window.PS_OFFLINE_EXCLUDE = GAMES.filter(g => g.slug).map(g => '/' + g.slug + '/');
 
 /* --- render --------------------------------------------------------------- */
 const rail = document.getElementById('rail');

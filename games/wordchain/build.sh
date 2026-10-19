@@ -9,6 +9,8 @@ python3 "$HERE/src/build.py"
 
 rm -rf "$OUT"; mkdir -p "$OUT/wordchain"
 cp -R "$HERE/dist/." "$OUT/wordchain/"
+# This game's own offline worker, scoped to /wordchain/.
+cp "$ROOT/packages/offline/sw.js" "$OUT/wordchain/sw.js"
 
 # _headers and _redirects are read from the ROOT of the assets directory, and
 # their patterns are URL paths — so the file sits at cfroot/_headers while its
@@ -18,4 +20,5 @@ cp -R "$HERE/dist/." "$OUT/wordchain/"
 [ -f "$OUT/wordchain/_redirects.fragment" ] && mv "$OUT/wordchain/_redirects.fragment" "$OUT/_redirects"
 
 [ -f "$OUT/wordchain/index.html" ] || { echo "FATAL: wordchain/index.html missing"; exit 1; }
+[ -f "$OUT/wordchain/sw.js" ]      || { echo "FATAL: wordchain/sw.js missing - no offline play"; exit 1; }
 echo "word chain built -> $OUT"
