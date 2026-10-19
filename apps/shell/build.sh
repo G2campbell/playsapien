@@ -36,7 +36,7 @@ cp "$HERE/src/mark-light.png"    "$OUT/mark-light.png"
 cp "$HERE/src/mark-dark.png"     "$OUT/mark-dark.png"
 
 cp "$ROOT/apps/legal/legal.css"  "$OUT/legal.css"
-for p in about privacy terms; do
+for p in about sapien refunds privacy terms; do
   mkdir -p "$OUT/$p"
   cp "$ROOT/apps/legal/$p/index.html" "$OUT/$p/index.html"
 done
@@ -44,7 +44,7 @@ done
 cp "$ROOT/deploy/_headers"   "$OUT/_headers"
 cp "$ROOT/deploy/_redirects" "$OUT/_redirects"
 
-for f in index.html sw.js sdk.js tokens.css theme.js legal.css og.png makers.jpg mark-light.png mark-dark.png about/index.html avatars/monster-01.webp avatars/robot-01.webp avatars/animal-01.webp; do
+for f in index.html sw.js sdk.js tokens.css theme.js legal.css og.png makers.jpg mark-light.png mark-dark.png about/index.html sapien/index.html refunds/index.html avatars/monster-01.webp avatars/robot-01.webp avatars/animal-01d.webp; do
   [ -f "$OUT/$f" ] || { echo "FATAL: $f missing"; exit 1; }
 done
 echo "shell built -> $OUT"

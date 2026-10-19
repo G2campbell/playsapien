@@ -50,3 +50,11 @@ footer p{font-family:var(--f-mono); font-size:12px; color:var(--fg-3)}
 code{font-family:var(--f-mono); font-size:.88em; color:var(--fg);
   background:var(--bg-raise); border:1px solid var(--line); border-radius:5px; padding:1px 5px}
 em{color:var(--fg)}
+
+/* The Sapien page's price, set apart from the prose around it. */
+.price{padding:18px 20px; border:1px solid var(--line); border-radius:14px;
+  background:var(--bg-raise); margin:0 0 18px}
+.price .amount{font-family:var(--f-disp); font-size:30px; color:var(--fg); margin:0 0 6px}
+.price .amount strong{font-weight:600}
+.price .terms{margin:0; font-size:14.5px}
+p.note{font-family:var(--f-mono); font-size:12.5px; color:var(--fg-3)}
