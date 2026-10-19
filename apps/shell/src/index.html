@@ -2486,6 +2486,25 @@ footer a:hover{opacity:1}
 .pfsec:last-of-type{border-bottom:0; padding-bottom:4px; margin-bottom:0}
 .pfsec > h3:first-child{margin-top:0}
 
+/* Signed-in devices: the same row shape as the friends list, so the two
+   read as one family. The button keeps its own width (the shared .btn is
+   full-width inside Sojourner, and the habit is worth keeping here). */
+.devlist{margin:2px 0 0}
+.devlist .sethint{margin:10px 0 0}
+.devrow{display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--line)}
+.devrow:last-child{border-bottom:0}
+.devrow .ic{width:34px; height:34px; border-radius:9px; flex:none; display:grid; place-items:center;
+  background:var(--bg-sink); color:var(--fg-2)}
+.devrow .ic svg{width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.7;
+  stroke-linecap:round; stroke-linejoin:round}
+.devrow .dn{flex:1; min-width:0; font-size:14.5px; color:var(--fg)}
+.devrow .dn em{display:block; font-style:normal; font-size:12.5px; color:var(--fg-2)}
+.devrow .dn .here{display:inline-block; margin-left:7px; padding:1px 7px; border-radius:99px;
+  font-size:11px; font-weight:600; letter-spacing:.02em; vertical-align:2px;
+  color:var(--accent); background:color-mix(in srgb, var(--accent) 13%, transparent)}
+.devrow .btn{flex:none; white-space:nowrap; --btn-width:auto; width:auto;
+  --btn-pad:7px 12px; --btn-size:13px; --btn-radius:9px}
+
 .avnow{display:flex; align-items:center; gap:15px; margin:0 0 16px}
 .avnow .psav{width:66px; height:66px; font-size:66px}   /* .psav-ltr is .52em */
 .avnow .who{min-width:0}
@@ -3128,6 +3147,20 @@ footer a:hover{opacity:1}
       <div class="btnrow" id="planActions" style="margin-top:14px"></div>
     </section>
 
+    <!-- Devices. Each browser you are signed in on is one session on the
+         server (GET /api/auth/devices). Listing them is what makes a lost
+         phone or a borrowed laptop fixable from here: sign that one out and
+         it has to sign in again. Nothing you have played is touched. -->
+    <section class="pfsec">
+      <h3>Signed-in devices</h3>
+      <p class="sethint" style="margin:0 0 4px">Signed in somewhere you don’t recognise, or on a device you no longer have? Sign it out here.</p>
+      <div class="devlist" id="devList" aria-live="polite"></div>
+      <div class="btnrow" id="devAllRow" hidden>
+        <button class="btn ghost" type="button" id="devAllBtn">Sign out all other devices</button>
+      </div>
+      <div class="ui-note" id="devNote" hidden></div>
+    </section>
+
     <div class="btnrow" style="margin-top:20px">
       <button class="btn ghost" type="button" id="signOutBtn">Sign out</button>
       <button class="btn ghost danger" type="button" id="delBtn">Delete account</button>
@@ -3367,12 +3400,13 @@ const closeSheets = () => PSUI.close();
 
 $('aboutBtn').addEventListener('click', () => openSheet('aboutSheet'));
 $('settingsBtn').addEventListener('click', () => { fillSettings(); openSheet('settingsSheet'); });
-$('profileBtn').addEventListener('click', () => openSheet('profileSheet'));
+$('profileBtn').addEventListener('click', () => { loadDevices(); openSheet('profileSheet'); });
 $('friendsBtn').addEventListener('click', () => { loadFriends(); openSheet('friendsSheet'); });
 $('frSignIn').addEventListener('click', () => openSheet('profileSheet'));
 
 /* ---------- signed-in state ----------------------------------------------- */
 let ME = null;
+let DEVICES = [];   // signed-in devices, filled by loadDevices()
 
 function note(el, msg, bad) {
   const n = $(el);
@@ -3394,7 +3428,10 @@ function paintSession(user) {
      back -- a bar still showing yesterday's avatar after a sign-out reads as
      "it did not sign me out". */
   PSUI.setAvatar(user);
-  if (!user) return;
+  if (!user) { DEVICES = []; $('devList').textContent = ''; $('devAllRow').hidden = true; return; }
+  /* Signing in with the profile open (the usual way) should show this
+     device straight away rather than an empty section. */
+  if (!$('profileSheet').hidden) loadDevices();
   const name = user.display_name || user.handle || 'Player';
   $('pfAv').innerHTML = PSUI.avatar(user, { label: 'Your avatar' });
   $('pfName').textContent = name;
@@ -3665,6 +3702,151 @@ $('saveNameBtn').addEventListener('click', async () => {
   btn.textContent = r && r.ok ? 'Saved' : 'Try again';
   setTimeout(() => { btn.textContent = 'Save'; }, 1600);
   if (r && r.ok && r.user) paintSession(r.user);
+});
+
+/* ---------- signed-in devices --------------------------------------------- */
+/* The server keeps the browser's own description of itself (its user-agent)
+   and the country Cloudflare saw. Both are turned into plain words here; the
+   raw string never reaches the screen. */
+function describeUA(ua) {
+  ua = ua || '';
+  let browser = '';
+  if (/Edg(e|A|iOS)?\//.test(ua)) browser = 'Edge';
+  else if (/OPR\/|Opera/.test(ua)) browser = 'Opera';
+  else if (/SamsungBrowser/.test(ua)) browser = 'Samsung Internet';
+  else if (/Firefox\/|FxiOS/.test(ua)) browser = 'Firefox';
+  else if (/Chrome\/|CriOS/.test(ua)) browser = 'Chrome';
+  else if (/Safari\//.test(ua)) browser = 'Safari';
+  let os = '', kind = 'computer';
+  if (/iPhone|iPod/.test(ua)) { os = 'iPhone'; kind = 'phone'; }
+  else if (/iPad/.test(ua)) { os = 'iPad'; kind = 'tablet'; }
+  else if (/Android/.test(ua)) { os = 'Android'; kind = /Mobile/.test(ua) ? 'phone' : 'tablet'; }
+  else if (/CrOS/.test(ua)) os = 'Chromebook';
+  else if (/Windows/.test(ua)) os = 'Windows';
+  else if (/Macintosh|Mac OS X/.test(ua)) os = 'Mac';
+  else if (/Linux/.test(ua)) os = 'Linux';
+  const name = browser && os ? browser + ' on ' + os : (browser || os || 'Unknown device');
+  return { name, kind };
+}
+
+function countryName(cc) {
+  if (!cc || !/^[A-Z]{2}$/.test(cc) || cc === 'XX' || cc === 'T1') return '';
+  try { return new Intl.DisplayNames(undefined, { type: 'region' }).of(cc) || cc; }
+  catch (e) { return cc; }
+}
+
+function whenUsed(sec) {
+  if (!sec) return '';
+  const d = Math.max(0, Date.now() / 1000 - sec);
+  if (d < 600) return 'Active now';
+  if (d < 3600) return 'Used ' + Math.round(d / 60) + ' minutes ago';
+  if (d < 86400) { const h = Math.round(d / 3600); return 'Used ' + h + ' hour' + (h > 1 ? 's' : '') + ' ago'; }
+  const days = Math.floor(d / 86400);
+  if (days === 1) return 'Used yesterday';
+  if (days < 30) return 'Used ' + days + ' days ago';
+  return 'Last used ' + new Date(sec * 1000).toLocaleDateString(undefined,
+    { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+const DEV_ICON = {
+  phone:    '<svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
+  tablet:   '<svg viewBox="0 0 24 24"><rect x="4.5" y="2.5" width="15" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
+  computer: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16v4"/></svg>',
+};
+
+/* DELETE has no wrapper in the shared client, same as account deletion. */
+async function devApi(method, path) {
+  try {
+    const r = await fetch('/api' + path, {
+      method, credentials: 'include', headers: { Accept: 'application/json' },
+    });
+    const j = await r.json().catch(() => null);
+    return j && j.ok ? { ok: true, data: j.data } : { ok: false, status: r.status };
+  } catch (e) { return { ok: false, offline: true }; }
+}
+
+async function loadDevices() {
+  if (!ME) return;
+  const r = await devApi('GET', '/auth/devices');
+  if (!ME) return;
+  if (!r.ok) {
+    $('devList').innerHTML = '<p class="sethint">' + (r.offline
+      ? 'Your devices will show here when you\u2019re back online.'
+      : 'Your devices could not be loaded just now.') + '</p>';
+    $('devAllRow').hidden = true;
+    return;
+  }
+  DEVICES = ((r.data && r.data.devices) || []).slice()
+    .sort((a, b) => (b.current - a.current) || (b.last_used_at - a.last_used_at));
+  paintDevices();
+}
+
+function paintDevices() {
+  const list = $('devList');
+  list.textContent = '';
+  DEVICES.forEach(d => {
+    const who = describeUA(d.ua);
+    const row = document.createElement('div');
+    row.className = 'devrow';
+    const ic = document.createElement('div');
+    ic.className = 'ic';
+    ic.innerHTML = DEV_ICON[who.kind];
+    const dn = document.createElement('div');
+    dn.className = 'dn';
+    dn.appendChild(document.createTextNode(who.name));
+    if (d.current) {
+      const here = document.createElement('span');
+      here.className = 'here';
+      here.textContent = 'This device';
+      dn.appendChild(here);
+    }
+    const em = document.createElement('em');
+    em.textContent = [d.current ? 'Active now' : whenUsed(d.last_used_at), countryName(d.country)]
+      .filter(Boolean).join(' \u00b7 ');
+    dn.appendChild(em);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn ghost';
+    btn.textContent = 'Sign out';
+    btn.setAttribute('aria-label', 'Sign out ' + who.name + (d.current ? ' (this device)' : ''));
+    btn.addEventListener('click', () => signOutDevice(d, btn));
+    row.append(ic, dn, btn);
+    list.appendChild(row);
+  });
+  $('devAllRow').hidden = DEVICES.filter(d => !d.current).length < 2;
+}
+
+async function signOutDevice(d, btn) {
+  /* This device signs out the ordinary way, so the page clears itself too. */
+  if (d.current) { $('signOutBtn').click(); return; }
+  if (btn) btn.disabled = true;
+  const r = await devApi('DELETE', '/auth/devices/' + encodeURIComponent(d.id));
+  if (!r.ok && r.status !== 404) {
+    if (btn) btn.disabled = false;
+    note('devNote', r.offline ? 'You\u2019re offline. Try again when you\u2019re connected.'
+                              : 'That did not go through. Try again.', true);
+    return false;
+  }
+  DEVICES = DEVICES.filter(x => x.id !== d.id);
+  paintDevices();
+  note('devNote', 'Signed out. That device will need to sign in again.', false);
+  return true;
+}
+
+$('devAllBtn').addEventListener('click', async () => {
+  const btn = $('devAllBtn');
+  btn.disabled = true;
+  const others = DEVICES.filter(d => !d.current);
+  let failed = 0;
+  for (const d of others) {
+    const r = await devApi('DELETE', '/auth/devices/' + encodeURIComponent(d.id));
+    if (r.ok || r.status === 404) DEVICES = DEVICES.filter(x => x.id !== d.id); else failed++;
+  }
+  btn.disabled = false;
+  paintDevices();
+  note('devNote', failed
+    ? 'Some devices could not be signed out. Try again.'
+    : 'Every other device is signed out. Only this one is still signed in.', !!failed);
 });
 
 /* ---------- friends -------------------------------------------------------- */
