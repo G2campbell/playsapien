@@ -162,15 +162,27 @@
 
   <section>
     <h2>Friends</h2>
-    <p>There are two ways to add a friend. You can share an invite code &mdash; eight
-      characters, rotatable, revocable at any time. Or you can enter the email address of
-      someone you already know, and we will pass your request to them.</p>
-    <p>The second one is built so that it cannot be turned into a way of finding out who has an
-      account. When you enter an address we do not tell you whether it belongs to a player: the
-      answer is the same either way. If it does, that person gets a friend request they can
-      accept or ignore. If it does not, nothing further happens. You never learn which, no
-      address is ever revealed to you, and there is no directory to browse, no partial matching
-      and no list of results &mdash; only an exact address you already had.</p>
+    <p>There are two ways to invite a friend: share your invite code (eight characters,
+      which you can change at any time), or type the email address of someone you already
+      know.</p>
+    <p>Typing an address is built so that it cannot be used to find out who has an account.
+      Whatever you type, we answer &ldquo;Sent.&rdquo; If the address belongs to a player, the
+      invite appears on their Friends card and no email is sent. If it does not, we send that
+      address one short invitation email &mdash; at most one every 30 days, however many people
+      invite it &mdash; and keep the invite so that it is waiting if they join with that address.
+      There is no directory to browse, no partial matching and no list of results &mdash; only
+      an exact address you already had.</p>
+    <p>For an address with no account we keep a one-way scrambled code made from the address
+      (a keyed hash), never the address itself, along with who invited it and when. It is
+      deleted when that person joins, when the inviter deletes their account, or after 90 days.
+      Every invitation email has a link to stop invitation emails to that address; if it is
+      used, we keep the scrambled code so that we never send it another.</p>
+    <p>Invites you receive wait on your Friends card, up to 30 at a time, where you can
+      accept, leave for later, reject, or block the sender. A blocked player cannot invite you
+      or see you, and is never told; your block list is visible only to you, and you can remove
+      anyone from it at any time. If a player&rsquo;s invites are rejected several times in a
+      short period, their invites are paused for a while; to make that work we record, for 30
+      days, that an invite was rejected and by whom.</p>
     <p>We store the friendship (who, with whom, its state, and when), and your current invite
       code. Removing a friend removes their access to your results immediately.</p>
     <p>We also store short in-app notices to and from friends (for example, friend requests and
@@ -238,6 +250,10 @@
         own device.</li>
       <li><strong>Moderation records</strong> &mdash; indefinitely, with the author removed on
         account deletion, as described above.</li>
+      <li><strong>Invites to an address with no account</strong> &mdash; 90 days, or until that
+        person joins (scrambled code only, as described above). A request to stop invitation
+        emails is kept for as long as the service runs.</li>
+      <li><strong>Rejected invites</strong> &mdash; 30 days, for the pause described above.</li>
       <li><strong>The free-trial record</strong> &mdash; indefinitely, including after account
         deletion, so that each email address gets one free trial. It is the scrambled code
         described above, never the address itself.</li>

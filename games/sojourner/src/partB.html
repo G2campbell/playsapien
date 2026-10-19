@@ -497,6 +497,46 @@
     <div class="ui-note" id="delNote" hidden></div>
   </div>
 </section>
+
+<!-- Friends. One card for every surface, painted by ui.js (wireFriends /
+     loadFriends). Invite by email or by code; a queue of invites for you
+     (Accept, Later, Reject, Block); your friends; what you sent; and your
+     block list, which only you can see and only you can undo. -->
+<section class="sheet" id="friendsSheet" role="dialog" aria-modal="true" aria-labelledby="friendsTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head ps-head"><div class="ps-who" data-ps-who></div><h2 id="friendsTitle">Friends</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p class="sh-status">Across every game</p>
+
+    <div id="frOut" hidden>
+      <p class="empty">Friends need an account, so there is something for a friend to be
+        friends <em>with</em>.</p>
+      <div class="btnrow" style="justify-content:center">
+        <button class="btn" type="button" data-sheet="profileSheet">Sign in</button></div>
+    </div>
+
+    <div id="frIn" hidden>
+      <h3 class="pf-sub">Invite a friend</h3>
+      <p class="sethint" style="margin:0 0 10px">Type their email address or their invite code. If they
+        already play, the invite appears on their Friends card; if not, we email them an invitation.</p>
+      <form id="frAddForm" class="pf-mailrow" autocomplete="off">
+        <label class="ui-sr" for="frAddIn">Email address or invite code</label>
+        <input class="fld" type="text" id="frAddIn" inputmode="email" autocapitalize="off"
+               autocorrect="off" spellcheck="false" placeholder="Email or invite code">
+        <button class="btn" type="submit" id="frAddBtn">Invite</button>
+      </form>
+      <div class="ui-note" id="frNote" hidden></div>
+
+      <div class="frcode">
+        <div class="col"><span class="setlabel">Your invite code</span>
+          <code id="frCode">&middot;&middot;&middot;&middot;&middot;&middot;&middot;&middot;</code></div>
+        <button class="btn ghost" type="button" id="frCopy">Copy invite link</button>
+      </div>
+
+      <div id="frLists" aria-live="polite"></div>
+    </div>
+  </div>
+</section>
 <!-- ===== END packages/ui/bar.html ===== -->
 
   <button class="quitbtn" id="quitBtn" hidden>&times;&nbsp; Quit round</button>
@@ -765,13 +805,6 @@
     <p class="sethint">Build your own map puzzle &mdash; choose the places, set the order, and
       send it to a friend or put it up for everyone. The same workshop Word Chain has for
       chains.</p>
-  </div>
-
-  <div class="sheet" id="friendsSheet" role="dialog" aria-modal="true" aria-labelledby="friendsTitle" hidden>
-    <div class="sh-head ps-head"><div class="ps-who" data-ps-who></div><h2 id="friendsTitle">Friends</h2><button class="donebtn" id="friendsDone">Close</button></div>
-    <p class="soon">Coming soon.</p>
-    <p class="sethint">Follow the people you play against, compare today&rsquo;s run, and keep a
-      private league going. Shared with Word Chain, so a friend is a friend across both games.</p>
   </div>
 
   <div class="sheet" id="learnSheet" role="dialog" aria-modal="true" aria-labelledby="lnName" hidden>

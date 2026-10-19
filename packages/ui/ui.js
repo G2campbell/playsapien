@@ -230,6 +230,13 @@
     avatar: avatar,
     avatarTokens: avatarTokens,
     setAvatar: setAvatar,
+    /* Open the Friends card with an invite code already typed in (the
+       front door's ?f=CODE links). */
+    openFriends: function (code) {
+      var i = document.getElementById('frAddIn');
+      if (i && code) i.value = String(code).toUpperCase();
+      loadFriends(); UI.open('friendsSheet');
+    },
     /* The one call a surface makes when it learns who is signed in. */
     setUser: setUser,
     open: open,
@@ -520,6 +527,7 @@
     paintWho();
     paintProfile();
     if (ME.user && UI.isOpen('profileSheet')) loadDevices();
+    if (UI.isOpen('friendsSheet')) loadFriends(); else paintFriends();
     var w = ME.waiters; ME.waiters = [];
     for (var i = 0; i < w.length; i++) { try { w[i](ME.user); } catch (e) { /* one bad waiter must not stop the rest */ } }
   }
@@ -1274,6 +1282,154 @@
     });
   }
 
+  /* ------------------------------------------------------------ friends ----
+     The Friends card, the same on every surface. The server decides what is
+     allowed (routes/friends.js); this shows the lists and sends the taps.
+     An invite typed as an email address always reports "Sent." -- the server
+     never says whether that address belongs to a player. */
+  var FR = { data: null, busy: false };
+  function frNote(msg, bad) {
+    var n = $('frNote'); if (!n) return;
+    n.hidden = !msg; n.textContent = msg || ''; n.classList.toggle('bad', !!bad);
+  }
+  function frName(f) { return escapeAttr(f.display_name || f.handle || 'Player'); }
+  function frBtn(act, id, label, ghost) {
+    return '<button type="button" class="btn' + (ghost ? ' ghost' : '') + '" data-fr="' + act +
+      '" data-id="' + escapeAttr(id) + '">' + label + '</button>';
+  }
+  function frRow(f, note, acts, wide) {
+    return '<div class="frrow' + (wide ? ' wide' : '') + '"><span class="psav">' + avatar(f) + '</span>' +
+      '<div class="fn">' + frName(f) + (note ? '<em>' + note + '</em>' : '') + '</div>' +
+      '<div class="acts">' + acts + '</div></div>';
+  }
+  function frSection(title, small, body) {
+    return '<section class="frsec"><h3 class="pf-sub">' + title +
+      (small ? ' <small>' + small + '</small>' : '') + '</h3>' + body + '</section>';
+  }
+  function paintFriends() {
+    var out = $('frOut'), inn = $('frIn'), box = $('frLists');
+    if (!out || !inn) return;
+    out.hidden = !!ME.user || !ME.known; inn.hidden = !ME.user;
+    if (!ME.user || !box) return;
+    var d = FR.data;
+    if (!d) { box.innerHTML = '<p class="sethint" style="margin-top:16px">Loading…</p>'; return; }
+    var h = '';
+    if (d.paused_until) {
+      h += '<div class="ui-note bad frpaused">Several of your recent invites were declined, so ' +
+        'sending invites is paused until ' + new Date(d.paused_until * 1000).toLocaleDateString(undefined,
+        { month: 'long', day: 'numeric' }) + '.</div>';
+    }
+    var q = d.queue || { used: 0, cap: 30, waiting: 0 };
+    var inc = d.incoming || [], later = d.later || [];
+    if (inc.length || later.length || q.waiting) {
+      var body = inc.map(function (f) {
+        return frRow(f, 'Wants to be friends',
+          frBtn('accept', f.id, 'Accept') + frBtn('later', f.id, 'Later', true) +
+          frBtn('reject', f.id, 'Reject', true) + frBtn('block', f.id, 'Block', true), true);
+      }).join('');
+      if (q.waiting) {
+        body += '<p class="sethint">Your list is full. ' + q.waiting + ' more invite' +
+          (q.waiting > 1 ? 's are' : ' is') + ' waiting, and will appear as you make room.</p>';
+      }
+      if (later.length) {
+        body += '<p class="sethint" style="margin-top:12px">Saved for later</p>' + later.map(function (f) {
+          return frRow(f, 'Saved for later',
+            frBtn('accept', f.id, 'Accept') + frBtn('reject', f.id, 'Reject', true) +
+            frBtn('block', f.id, 'Block', true), true);
+        }).join('');
+      }
+      h += frSection('Invites for you', q.used + ' of ' + q.cap, body);
+    }
+    var acc = d.accepted || [];
+    h += frSection('Friends', acc.length ? String(acc.length) : '', acc.length
+      ? acc.map(function (f) {
+          return frRow(f, '', frBtn('remove', f.id, 'Remove', true) + frBtn('block', f.id, 'Block', true));
+        }).join('')
+      : '<p class="sethint">No friends yet. Invite someone above, or send them your invite link.</p>');
+    var sent = d.outgoing || [];
+    if (sent.length) {
+      h += frSection('Invites you sent', '', sent.map(function (f) {
+        return frRow(f, 'Waiting for them', frBtn('cancel', f.id, 'Cancel', true));
+      }).join(''));
+    }
+    var bl = d.blocked || [];
+    h += '<section class="frsec"><details class="frblocked"><summary>Blocked' +
+      (bl.length ? ' (' + bl.length + ')' : '') + '</summary>' +
+      (bl.length ? bl.map(function (f) { return frRow(f, 'Blocked', frBtn('unblock', f.id, 'Unblock', true)); }).join('')
+                 : '<p class="sethint">Nobody. A blocked player cannot invite you or see you, and is never told.</p>') +
+      '</details></section>';
+    box.innerHTML = h;
+    var blk = box.querySelector('.frblocked');
+    if (blk && FR.openBlocked) blk.open = true;
+  }
+  function loadFriends() {
+    if (!ME.user) { paintFriends(); return; }
+    Promise.all([api('GET', '/player/friends/code'), api('GET', '/player/friends')]).then(function (r) {
+      var c = $('frCode');
+      if (c && r[0].ok && r[0].data && r[0].data.code) c.textContent = r[0].data.code;
+      if (r[1].ok) FR.data = r[1].data;
+      else if (!FR.data) FR.data = { accepted: [], incoming: [], later: [], outgoing: [], blocked: [] };
+      paintFriends();
+    });
+  }
+  var FR_ACT = {
+    accept:  { m: 'POST',   p: '/accept',  t: 'You are now friends.' },
+    later:   { m: 'POST',   p: '/later',   t: 'Saved for later.' },
+    reject:  { m: 'POST',   p: '/reject',  t: 'Invite rejected.' },
+    block:   { m: 'POST',   p: '/block',   t: 'Blocked. You can undo this under Blocked.' },
+    unblock: { m: 'POST',   p: '/unblock', t: 'Unblocked.' },
+    remove:  { m: 'DELETE', p: '',         t: 'Removed.' },
+    cancel:  { m: 'DELETE', p: '',         t: 'Invite cancelled.' }
+  };
+  function wireFriends() {
+    var f = $('frAddForm');
+    if (!f || f.__wired) return;
+    f.__wired = true;
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var v = ($('frAddIn').value || '').trim();
+      if (!v || FR.busy) return;
+      var byEmail = v.indexOf('@') >= 0;
+      FR.busy = true; $('frAddBtn').disabled = true;
+      frNote('Sending…', false);
+      (byEmail ? api('POST', '/player/friends/invite', { email: v })
+               : api('POST', '/player/friends/add', { code: v.toUpperCase() })).then(function (r) {
+        FR.busy = false; $('frAddBtn').disabled = false;
+        if (r.ok) {
+          $('frAddIn').value = '';
+          frNote(byEmail ? 'Sent.' : (r.data && r.data.state === 'accepted' ? 'You are now friends.' : 'Sent.'), false);
+          loadFriends();
+          return;
+        }
+        frNote(r.status === 429 ? 'That is the limit for now. Try again later.'
+          : r.status === 403 ? 'Several of your recent invites were declined, so sending invites is paused for a few days.'
+          : r.status === 0 ? 'You’re offline. Try again when you’re connected.'
+          : byEmail ? 'That does not look like an email address you can invite.'
+          : r.status === 409 ? 'Already sent, or you are already friends.'
+          : 'That invite code did not work.', true);
+      });
+    });
+    $('frCopy').addEventListener('click', function () {
+      var c = ($('frCode').textContent || '').trim();
+      if (!/^[A-Z0-9]{8}$/i.test(c)) { toast('Your code has not loaded yet'); return; }
+      var link = location.origin + '/?f=' + c;
+      var done = function () { toast('Invite link copied'); };
+      try { navigator.clipboard.writeText(link).then(done, function () { toast(link); }); }
+      catch (e) { toast(link); }
+    });
+    $('frLists').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-fr]'); if (!b) return;
+      var a = FR_ACT[b.getAttribute('data-fr')]; if (!a) return;
+      b.disabled = true;
+      FR.openBlocked = b.getAttribute('data-fr') === 'unblock';
+      api(a.m, '/player/friends/' + encodeURIComponent(b.getAttribute('data-id')) + a.p,
+          a.m === 'POST' ? {} : undefined).then(function (r) {
+        toast(r.ok ? a.t : 'That did not go through. Try again.');
+        loadFriends();
+      });
+    });
+  }
+
   /* ----------------------------------------------------- promotion code ----
      Sends what was typed; the server decides. On success the page reloads,
      for the same reason the gate does: every surface already knows how to draw
@@ -1491,7 +1647,7 @@
       bar.__lifted = true;
       ['statsSheet', 'addSheet', 'gateSheet', 'friendsGamesSheet',
        'timedSheet', 'duelSheet', 'payWall', 'profileSheet', 'avPickSheet',
-       'downSheet', 'delSheet'].forEach(function (id) {
+       'downSheet', 'delSheet', 'friendsSheet'].forEach(function (id) {
         var el = document.getElementById(id);
         if (el && el.parentNode !== document.body) document.body.appendChild(el);
       });
@@ -1499,6 +1655,7 @@
     offline();
     wireGate();
     wireProfile();
+    wireFriends();
     paintWho();
     wirePromo();
     wireTrial();
@@ -1525,6 +1682,14 @@
         if (ME.user) loadDevices();
         UI.open('profileSheet');
       });
+    }
+
+    /* Friends: one card everywhere. The gate (above) already sends anyone
+       signed out to sign in before this runs. */
+    var fb = document.getElementById('friendsBtn');
+    if (fb && !fb.__wired) {
+      fb.__wired = true;
+      fb.addEventListener('click', function () { loadFriends(); UI.open('friendsSheet'); });
     }
 
     /* Add. Only the shell is wired here -- in a game this button is that game's

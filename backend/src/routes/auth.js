@@ -19,6 +19,7 @@ import { ok, err, ERRORS, readJson } from '../lib/http.js';
 import { effectivePlan, planStarted } from '../lib/plan.js';
 import { trialAvailable } from '../lib/trial.js';
 import { uniqueDisplayName } from '../lib/names.js';
+import { claimEmailInvites } from './friends.js';
 import { first, run, all, isUniqueViolation, MINUTE } from '../lib/db.js';
 import { newId } from '../lib/id.js';
 import {
@@ -466,6 +467,13 @@ export async function upsertUserForIdentity(ctx, { provider, subject, email, ema
        VALUES (?, ?, ?, ?, ?)`)
       .bind(newId('id'), id, provider, subject, ctx.now),
   ]);
+  /* Anyone who invited this address before it had an account: their invites
+     are now friend requests in this player's queue. Only for a verified
+     address -- an unverified one could be someone else's. */
+  if (row.email && emailVerified) {
+    try { await claimEmailInvites(ctx, id, row.email); }
+    catch (e) { console.error('[auth] claiming email invites failed: ' + (e && e.message)); }
+  }
   return shapeUser(row, ctx.now);
 }
 

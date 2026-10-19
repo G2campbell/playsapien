@@ -461,6 +461,13 @@ document.addEventListener('DOMContentLoaded', function () {
     avatar: avatar,
     avatarTokens: avatarTokens,
     setAvatar: setAvatar,
+    /* Open the Friends card with an invite code already typed in (the
+       front door's ?f=CODE links). */
+    openFriends: function (code) {
+      var i = document.getElementById('frAddIn');
+      if (i && code) i.value = String(code).toUpperCase();
+      loadFriends(); UI.open('friendsSheet');
+    },
     /* The one call a surface makes when it learns who is signed in. */
     setUser: setUser,
     open: open,
@@ -751,6 +758,7 @@ document.addEventListener('DOMContentLoaded', function () {
     paintWho();
     paintProfile();
     if (ME.user && UI.isOpen('profileSheet')) loadDevices();
+    if (UI.isOpen('friendsSheet')) loadFriends(); else paintFriends();
     var w = ME.waiters; ME.waiters = [];
     for (var i = 0; i < w.length; i++) { try { w[i](ME.user); } catch (e) { /* one bad waiter must not stop the rest */ } }
   }
@@ -1505,6 +1513,154 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  /* ------------------------------------------------------------ friends ----
+     The Friends card, the same on every surface. The server decides what is
+     allowed (routes/friends.js); this shows the lists and sends the taps.
+     An invite typed as an email address always reports "Sent." -- the server
+     never says whether that address belongs to a player. */
+  var FR = { data: null, busy: false };
+  function frNote(msg, bad) {
+    var n = $('frNote'); if (!n) return;
+    n.hidden = !msg; n.textContent = msg || ''; n.classList.toggle('bad', !!bad);
+  }
+  function frName(f) { return escapeAttr(f.display_name || f.handle || 'Player'); }
+  function frBtn(act, id, label, ghost) {
+    return '<button type="button" class="btn' + (ghost ? ' ghost' : '') + '" data-fr="' + act +
+      '" data-id="' + escapeAttr(id) + '">' + label + '</button>';
+  }
+  function frRow(f, note, acts, wide) {
+    return '<div class="frrow' + (wide ? ' wide' : '') + '"><span class="psav">' + avatar(f) + '</span>' +
+      '<div class="fn">' + frName(f) + (note ? '<em>' + note + '</em>' : '') + '</div>' +
+      '<div class="acts">' + acts + '</div></div>';
+  }
+  function frSection(title, small, body) {
+    return '<section class="frsec"><h3 class="pf-sub">' + title +
+      (small ? ' <small>' + small + '</small>' : '') + '</h3>' + body + '</section>';
+  }
+  function paintFriends() {
+    var out = $('frOut'), inn = $('frIn'), box = $('frLists');
+    if (!out || !inn) return;
+    out.hidden = !!ME.user || !ME.known; inn.hidden = !ME.user;
+    if (!ME.user || !box) return;
+    var d = FR.data;
+    if (!d) { box.innerHTML = '<p class="sethint" style="margin-top:16px">Loading…</p>'; return; }
+    var h = '';
+    if (d.paused_until) {
+      h += '<div class="ui-note bad frpaused">Several of your recent invites were declined, so ' +
+        'sending invites is paused until ' + new Date(d.paused_until * 1000).toLocaleDateString(undefined,
+        { month: 'long', day: 'numeric' }) + '.</div>';
+    }
+    var q = d.queue || { used: 0, cap: 30, waiting: 0 };
+    var inc = d.incoming || [], later = d.later || [];
+    if (inc.length || later.length || q.waiting) {
+      var body = inc.map(function (f) {
+        return frRow(f, 'Wants to be friends',
+          frBtn('accept', f.id, 'Accept') + frBtn('later', f.id, 'Later', true) +
+          frBtn('reject', f.id, 'Reject', true) + frBtn('block', f.id, 'Block', true), true);
+      }).join('');
+      if (q.waiting) {
+        body += '<p class="sethint">Your list is full. ' + q.waiting + ' more invite' +
+          (q.waiting > 1 ? 's are' : ' is') + ' waiting, and will appear as you make room.</p>';
+      }
+      if (later.length) {
+        body += '<p class="sethint" style="margin-top:12px">Saved for later</p>' + later.map(function (f) {
+          return frRow(f, 'Saved for later',
+            frBtn('accept', f.id, 'Accept') + frBtn('reject', f.id, 'Reject', true) +
+            frBtn('block', f.id, 'Block', true), true);
+        }).join('');
+      }
+      h += frSection('Invites for you', q.used + ' of ' + q.cap, body);
+    }
+    var acc = d.accepted || [];
+    h += frSection('Friends', acc.length ? String(acc.length) : '', acc.length
+      ? acc.map(function (f) {
+          return frRow(f, '', frBtn('remove', f.id, 'Remove', true) + frBtn('block', f.id, 'Block', true));
+        }).join('')
+      : '<p class="sethint">No friends yet. Invite someone above, or send them your invite link.</p>');
+    var sent = d.outgoing || [];
+    if (sent.length) {
+      h += frSection('Invites you sent', '', sent.map(function (f) {
+        return frRow(f, 'Waiting for them', frBtn('cancel', f.id, 'Cancel', true));
+      }).join(''));
+    }
+    var bl = d.blocked || [];
+    h += '<section class="frsec"><details class="frblocked"><summary>Blocked' +
+      (bl.length ? ' (' + bl.length + ')' : '') + '</summary>' +
+      (bl.length ? bl.map(function (f) { return frRow(f, 'Blocked', frBtn('unblock', f.id, 'Unblock', true)); }).join('')
+                 : '<p class="sethint">Nobody. A blocked player cannot invite you or see you, and is never told.</p>') +
+      '</details></section>';
+    box.innerHTML = h;
+    var blk = box.querySelector('.frblocked');
+    if (blk && FR.openBlocked) blk.open = true;
+  }
+  function loadFriends() {
+    if (!ME.user) { paintFriends(); return; }
+    Promise.all([api('GET', '/player/friends/code'), api('GET', '/player/friends')]).then(function (r) {
+      var c = $('frCode');
+      if (c && r[0].ok && r[0].data && r[0].data.code) c.textContent = r[0].data.code;
+      if (r[1].ok) FR.data = r[1].data;
+      else if (!FR.data) FR.data = { accepted: [], incoming: [], later: [], outgoing: [], blocked: [] };
+      paintFriends();
+    });
+  }
+  var FR_ACT = {
+    accept:  { m: 'POST',   p: '/accept',  t: 'You are now friends.' },
+    later:   { m: 'POST',   p: '/later',   t: 'Saved for later.' },
+    reject:  { m: 'POST',   p: '/reject',  t: 'Invite rejected.' },
+    block:   { m: 'POST',   p: '/block',   t: 'Blocked. You can undo this under Blocked.' },
+    unblock: { m: 'POST',   p: '/unblock', t: 'Unblocked.' },
+    remove:  { m: 'DELETE', p: '',         t: 'Removed.' },
+    cancel:  { m: 'DELETE', p: '',         t: 'Invite cancelled.' }
+  };
+  function wireFriends() {
+    var f = $('frAddForm');
+    if (!f || f.__wired) return;
+    f.__wired = true;
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var v = ($('frAddIn').value || '').trim();
+      if (!v || FR.busy) return;
+      var byEmail = v.indexOf('@') >= 0;
+      FR.busy = true; $('frAddBtn').disabled = true;
+      frNote('Sending…', false);
+      (byEmail ? api('POST', '/player/friends/invite', { email: v })
+               : api('POST', '/player/friends/add', { code: v.toUpperCase() })).then(function (r) {
+        FR.busy = false; $('frAddBtn').disabled = false;
+        if (r.ok) {
+          $('frAddIn').value = '';
+          frNote(byEmail ? 'Sent.' : (r.data && r.data.state === 'accepted' ? 'You are now friends.' : 'Sent.'), false);
+          loadFriends();
+          return;
+        }
+        frNote(r.status === 429 ? 'That is the limit for now. Try again later.'
+          : r.status === 403 ? 'Several of your recent invites were declined, so sending invites is paused for a few days.'
+          : r.status === 0 ? 'You’re offline. Try again when you’re connected.'
+          : byEmail ? 'That does not look like an email address you can invite.'
+          : r.status === 409 ? 'Already sent, or you are already friends.'
+          : 'That invite code did not work.', true);
+      });
+    });
+    $('frCopy').addEventListener('click', function () {
+      var c = ($('frCode').textContent || '').trim();
+      if (!/^[A-Z0-9]{8}$/i.test(c)) { toast('Your code has not loaded yet'); return; }
+      var link = location.origin + '/?f=' + c;
+      var done = function () { toast('Invite link copied'); };
+      try { navigator.clipboard.writeText(link).then(done, function () { toast(link); }); }
+      catch (e) { toast(link); }
+    });
+    $('frLists').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-fr]'); if (!b) return;
+      var a = FR_ACT[b.getAttribute('data-fr')]; if (!a) return;
+      b.disabled = true;
+      FR.openBlocked = b.getAttribute('data-fr') === 'unblock';
+      api(a.m, '/player/friends/' + encodeURIComponent(b.getAttribute('data-id')) + a.p,
+          a.m === 'POST' ? {} : undefined).then(function (r) {
+        toast(r.ok ? a.t : 'That did not go through. Try again.');
+        loadFriends();
+      });
+    });
+  }
+
   /* ----------------------------------------------------- promotion code ----
      Sends what was typed; the server decides. On success the page reloads,
      for the same reason the gate does: every surface already knows how to draw
@@ -1722,7 +1878,7 @@ document.addEventListener('DOMContentLoaded', function () {
       bar.__lifted = true;
       ['statsSheet', 'addSheet', 'gateSheet', 'friendsGamesSheet',
        'timedSheet', 'duelSheet', 'payWall', 'profileSheet', 'avPickSheet',
-       'downSheet', 'delSheet'].forEach(function (id) {
+       'downSheet', 'delSheet', 'friendsSheet'].forEach(function (id) {
         var el = document.getElementById(id);
         if (el && el.parentNode !== document.body) document.body.appendChild(el);
       });
@@ -1730,6 +1886,7 @@ document.addEventListener('DOMContentLoaded', function () {
     offline();
     wireGate();
     wireProfile();
+    wireFriends();
     paintWho();
     wirePromo();
     wireTrial();
@@ -1756,6 +1913,14 @@ document.addEventListener('DOMContentLoaded', function () {
         if (ME.user) loadDevices();
         UI.open('profileSheet');
       });
+    }
+
+    /* Friends: one card everywhere. The gate (above) already sends anyone
+       signed out to sign in before this runs. */
+    var fb = document.getElementById('friendsBtn');
+    if (fb && !fb.__wired) {
+      fb.__wired = true;
+      fb.addEventListener('click', function () { loadFriends(); UI.open('friendsSheet'); });
     }
 
     /* Add. Only the shell is wired here -- in a game this button is that game's
@@ -2994,6 +3159,32 @@ document.addEventListener('DOMContentLoaded', function () {
 html, body{ overflow-x:clip; max-width:100% }
 @supports not (overflow-x:clip){ body{ overflow-x:hidden } }
 html, body{ overscroll-behavior-y:none }
+
+/* --------------------------------------------------------- friends ----
+   The shared Friends card (bar.html #friendsSheet). */
+.frcode{display:flex; align-items:center; gap:12px; margin:16px 0 4px; padding:12px 14px;
+  border:1px dashed var(--line-2); border-radius:11px}
+.frcode .col{flex:1; min-width:0}
+.frcode code{display:block; margin-top:2px; font-family:var(--f-mono); font-size:18px;
+  letter-spacing:.2em; color:var(--fg)}
+.frcode .btn{flex:none; --btn-width:auto; width:auto; --btn-pad:8px 12px; --btn-size:13px; --btn-radius:9px}
+.frsec{margin:22px 0 0}
+.frsec > h3{display:flex; align-items:baseline; gap:8px}
+.frsec > h3 small{font-family:var(--f-mono); font-size:11px; font-weight:400; letter-spacing:.06em;
+  color:var(--fg-3)}
+.frrow{display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding:11px 0;
+  border-bottom:1px solid var(--line)}
+.frrow:last-child{border-bottom:0}
+.frrow > .psav{width:34px; height:34px; font-size:34px}
+.frrow .fn{flex:1; min-width:0; font-size:14.5px; color:var(--fg); overflow-wrap:anywhere}
+.frrow .fn em{display:block; font-style:normal; font-size:12.5px; color:var(--fg-2)}
+.frrow .acts{display:flex; flex-wrap:wrap; gap:6px; margin-left:auto}
+.frrow.wide .acts{flex-basis:100%; margin-left:46px}
+.frrow .btn{flex:none; white-space:nowrap; --btn-width:auto; width:auto;
+  --btn-pad:6px 11px; --btn-size:12.5px; --btn-radius:9px}
+.frsec .sethint{margin:4px 0 6px}
+.frblocked summary{cursor:pointer; font-size:13.5px; color:var(--fg-2); padding:6px 0}
+.frpaused{margin:14px 0 0}
 /* ===== END packages/ui/ui.css ===== */
 /* ===========================================================================
    PlaySapien -- the platform landing page.
@@ -3916,6 +4107,46 @@ footer a:hover{opacity:1}
     <div class="ui-note" id="delNote" hidden></div>
   </div>
 </section>
+
+<!-- Friends. One card for every surface, painted by ui.js (wireFriends /
+     loadFriends). Invite by email or by code; a queue of invites for you
+     (Accept, Later, Reject, Block); your friends; what you sent; and your
+     block list, which only you can see and only you can undo. -->
+<section class="sheet" id="friendsSheet" role="dialog" aria-modal="true" aria-labelledby="friendsTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head ps-head"><div class="ps-who" data-ps-who></div><h2 id="friendsTitle">Friends</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p class="sh-status">Across every game</p>
+
+    <div id="frOut" hidden>
+      <p class="empty">Friends need an account, so there is something for a friend to be
+        friends <em>with</em>.</p>
+      <div class="btnrow" style="justify-content:center">
+        <button class="btn" type="button" data-sheet="profileSheet">Sign in</button></div>
+    </div>
+
+    <div id="frIn" hidden>
+      <h3 class="pf-sub">Invite a friend</h3>
+      <p class="sethint" style="margin:0 0 10px">Type their email address or their invite code. If they
+        already play, the invite appears on their Friends card; if not, we email them an invitation.</p>
+      <form id="frAddForm" class="pf-mailrow" autocomplete="off">
+        <label class="ui-sr" for="frAddIn">Email address or invite code</label>
+        <input class="fld" type="text" id="frAddIn" inputmode="email" autocapitalize="off"
+               autocorrect="off" spellcheck="false" placeholder="Email or invite code">
+        <button class="btn" type="submit" id="frAddBtn">Invite</button>
+      </form>
+      <div class="ui-note" id="frNote" hidden></div>
+
+      <div class="frcode">
+        <div class="col"><span class="setlabel">Your invite code</span>
+          <code id="frCode">&middot;&middot;&middot;&middot;&middot;&middot;&middot;&middot;</code></div>
+        <button class="btn ghost" type="button" id="frCopy">Copy invite link</button>
+      </div>
+
+      <div id="frLists" aria-live="polite"></div>
+    </div>
+  </div>
+</section>
 <!-- ===== END packages/ui/bar.html ===== -->
 
   <main>
@@ -4034,29 +4265,7 @@ footer a:hover{opacity:1}
      games now: packages/ui/bar.html, inlined above with the bar. -->
 
 <!-- Friends ----------------------------------------------------------------- -->
-<section class="sheet" id="friendsSheet" role="dialog" aria-modal="true" aria-labelledby="friendsTitle" hidden>
-  <div class="sh-head ps-head"><div class="ps-who" data-ps-who></div><h2 id="friendsTitle">Friends</h2><button class="donebtn" type="button" data-sheet-close>Close</button></div>
-  <p class="sh-status">Across every game</p>
-  <div id="frOut" hidden>
-    <p class="empty">Friends need an account, so there is something for a friend to
-      be friends <em>with</em>.<br><br>
-      <button class="btn" type="button" id="frSignIn">Sign in</button></p>
-  </div>
-  <div id="frIn" hidden>
-    <p class="hint">Send someone your code and you will both see how the other did,
-       in every game, every day. Nothing else is shared.</p>
-    <div class="codebox"><code id="myCode">------</code>
-      <button class="btn ghost" type="button" id="copyCode">Copy link</button></div>
-    <div class="or">or add theirs</div>
-    <form id="addForm">
-      <input class="fld" type="text" id="addIn" maxlength="8" placeholder="Their code"
-             autocapitalize="characters" autocomplete="off">
-      <button class="btn wide" type="submit">Add friend</button>
-    </form>
-    <div class="ui-note" id="frNote" hidden></div>
-    <div id="frList"></div>
-  </div>
-</section>
+<!-- Friends is shared with both games now: packages/ui/bar.html. -->
 
 <!-- Settings ---------------------------------------------------------------- -->
 <section class="sheet" id="settingsSheet" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
@@ -4256,7 +4465,7 @@ const GAME_NAMES = { sojourner: 'Sojourner', wordchain: 'Word Chain' };
    another, and Sojourner had two. This is the one.
    -------------------------------------------------------------------------- */
 PSUI.init({
-  sheets: ['aboutSheet', 'friendsSheet', 'settingsSheet'],
+  sheets: ['aboutSheet', 'settingsSheet'],
   scrim: 'scrim',
   toast: 'toast'
 });
@@ -4266,8 +4475,7 @@ const closeSheets = () => PSUI.close();
 $('aboutBtn').addEventListener('click', () => openSheet('aboutSheet'));
 $('settingsBtn').addEventListener('click', () => { fillSettings(); openSheet('settingsSheet'); });
 /* Profile is wired by packages/ui (the same card in every game). */
-$('friendsBtn').addEventListener('click', () => { loadFriends(); openSheet('friendsSheet'); });
-$('frSignIn').addEventListener('click', () => openSheet('profileSheet'));
+/* Friends is wired by packages/ui too. */
 
 /* ---------- signed-in state ----------------------------------------------- */
 let ME = null;
@@ -4290,102 +4498,26 @@ function paintSession(user) { PSUI.setUser(user); }
 
 document.addEventListener('ps:user', e => {
   ME = e.detail || null;
-  $('frOut').hidden = !!ME;
-  $('frIn').hidden = !ME;
   if (!ME) paintStatus({});
 });
 
-/* ---------- friends --------------------------------------------------------
-   Talks to the API directly. It used to go through the SDK's friends() and
-   friendCode(), which expected a shape the API never sent (a `code` and a
-   `friends` list inside GET /player/friends): the code box stayed "------",
-   Copy link copied "/?f=------", and the list was always empty. The code has
-   its own endpoint, and the list comes back as accepted / incoming / outgoing.
+/* ---------- friends ---------------------------------------------------------
+   The Friends card is packages/ui's (the same in every game). What is left
+   here is the front door's own job: an invite link -- /?f=CODE -- opens it
+   with the code typed in, once we know whether the visitor is signed in; and
+   the link in an invitation email -- /?invited=1 -- opens the sign-in card.
    -------------------------------------------------------------------------- */
-const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
-  c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-
-async function frApi(method, path, body) {
-  try {
-    const r = await fetch('/api' + path, {
-      method, credentials: 'include',
-      headers: body ? { Accept: 'application/json', 'Content-Type': 'application/json' } : { Accept: 'application/json' },
-      body: body ? JSON.stringify(body) : undefined,
+{
+  const q = new URLSearchParams(location.search);
+  const inviteCode = q.get('f');
+  if (inviteCode) {
+    PSUI.whenUser().then(u => {
+      if (u) PSUI.openFriends(inviteCode);
+      else openSheet('profileSheet');
     });
-    const j = await r.json().catch(() => null);
-    return { ok: !!(j && j.ok), status: r.status, data: j && j.data, error: j && j.error };
-  } catch (e) { return { ok: false, status: 0 }; }
-}
-
-function frRow(f, kind) {
-  const name = esc(f.display_name || f.handle || 'Player');
-  const av = `<span class="psav av">${PSUI.avatar(f)}</span>`;
-  if (kind === 'incoming') {
-    return `<div class="frow">${av}<div class="fn">${name}<em>Wants to be friends</em></div>
-      <button class="btn" type="button" data-fr-accept="${esc(f.id)}">Accept</button>
-      <button class="btn ghost" type="button" data-fr-remove="${esc(f.id)}">Decline</button></div>`;
+  } else if (q.has('invited')) {
+    PSUI.whenUser().then(u => { if (u) PSUI.openFriends(); else openSheet('profileSheet'); });
   }
-  if (kind === 'outgoing') {
-    return `<div class="frow">${av}<div class="fn">${name}<em>Request sent</em></div>
-      <button class="btn ghost" type="button" data-fr-remove="${esc(f.id)}">Cancel</button></div>`;
-  }
-  return `<div class="frow">${av}<div class="fn">${name}<em>Friend</em></div></div>`;
-}
-
-async function loadFriends() {
-  if (!ME) return;
-  const [code, list] = await Promise.all([frApi('GET', '/player/friends/code'), frApi('GET', '/player/friends')]);
-  if (code.ok && code.data && code.data.code) $('myCode').textContent = code.data.code;
-  else if (code.status === 0) $('myCode').textContent = 'offline';
-  const d = (list.ok && list.data) || {};
-  const inc = d.incoming || [], out = d.outgoing || [], acc = d.accepted || [];
-  let html = '';
-  if (inc.length) html += `<p class="hint" style="margin:18px 0 2px">Requests for you</p>` + inc.map(f => frRow(f, 'incoming')).join('');
-  if (acc.length) html += `<p class="hint" style="margin:18px 0 2px">${acc.length} friend${acc.length > 1 ? 's' : ''}</p>` + acc.map(f => frRow(f, 'accepted')).join('');
-  if (out.length) html += `<p class="hint" style="margin:18px 0 2px">Waiting for them</p>` + out.map(f => frRow(f, 'outgoing')).join('');
-  $('frList').innerHTML = html || '<p class="empty">No friends yet. Send someone your code.</p>';
-}
-
-$('frList').addEventListener('click', async e => {
-  const a = e.target.closest('[data-fr-accept]'), r = e.target.closest('[data-fr-remove]');
-  if (!a && !r) return;
-  (a || r).disabled = true;
-  const res = a ? await frApi('POST', '/player/friends/' + encodeURIComponent(a.dataset.frAccept) + '/accept', {})
-                : await frApi('DELETE', '/player/friends/' + encodeURIComponent(r.dataset.frRemove));
-  if (!res.ok) PSUI.toast('That did not go through. Try again.');
-  loadFriends();
-});
-
-$('copyCode').addEventListener('click', async () => {
-  const code = $('myCode').textContent.trim();
-  if (!/^[A-Z0-9]{8}$/i.test(code)) { PSUI.toast('Your code has not loaded yet'); return; }
-  const link = location.origin + '/?f=' + code;
-  try { await navigator.clipboard.writeText(link); PSUI.toast('Invite link copied'); }
-  catch (e) { PSUI.toast('Could not copy — select the code instead'); }
-});
-
-$('addForm').addEventListener('submit', async e => {
-  e.preventDefault();
-  const c = $('addIn').value.trim().toUpperCase();
-  if (!c) return;
-  const r = await frApi('POST', '/player/friends/add', { code: c });
-  const code = r.error && r.error.code;
-  note('frNote', r.ok
-      ? (r.data && r.data.state === 'accepted' ? 'You are now friends.' : 'Request sent. They will see it on their Friends card.')
-      : code === 'already_friends' ? 'You are already friends.'
-      : code === 'already_requested' ? 'You have already asked. Give them a moment.'
-      : code === 'self' ? 'That is your own code.'
-      : r.status === 429 ? 'That is a lot of requests for one day. Try tomorrow.'
-      : 'That code did not work.', !r.ok);
-  if (r.ok) { $('addIn').value = ''; loadFriends(); }
-});
-
-/* an invite link -- ?f=CODE -- prefills the box and opens the right sheet once
-   we know whether this visitor is signed in */
-const inviteCode = new URLSearchParams(location.search).get('f');
-if (inviteCode) {
-  $('addIn').value = inviteCode.toUpperCase();
-  PSUI.whenUser().then(u => { if (u) loadFriends(); openSheet(u ? 'friendsSheet' : 'profileSheet'); });
 }
 
 /* ---------- arriving from a sign-in link, or back from Google --------------

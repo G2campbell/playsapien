@@ -317,14 +317,14 @@ test('standings cover the caller and friends over a rolling window', async () =>
   assert.equal(res.data.entries.some((e) => e.user_id === nii.user.id), false);
 });
 
-test('thirty friend adds a day, and the thirty-first is refused', async () => {
+test('forty friend adds by code a day, and the forty-first is refused', async () => {
   const h = makeEnv();
   const kai = await signIn(h, 'kai@example.com');
 
   /* The limit is on the attempt, not on the success, so a bad code still
-     spends the budget. Thirty rejected attempts, then a thirty-first that gets
+     spends the budget. Forty rejected attempts, then a forty-first that gets
      the rate limiter instead of the validator. */
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 40; i++) {
     const res = await call(h.env, 'POST', '/api/player/friends/add',
       { cookie: kai.cookie, body: { code: 'AAAAAAAA' } });
     assert.equal(res.status, 400, 'add ' + (i + 1));

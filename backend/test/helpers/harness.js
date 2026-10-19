@@ -47,6 +47,7 @@ export const DAY = 86400;
 export function makeEnv(overrides = {}) {
   const db = makeDb(MIGRATION);
   const sent = [];
+  const invites = [];
   let clock = overrides.now || T0;
 
   const env = {
@@ -65,6 +66,7 @@ export function makeEnv(overrides = {}) {
     DEPS: {
       now: () => clock,
       sendLoginCode: async (opts) => { sent.push(opts); return { sent: true }; },
+      sendFriendInvite: async (opts) => { invites.push(opts); return { sent: true }; },
       googleJwks: async () => overrides.jwks || { keys: [] },
       accessJwks: async () => overrides.accessJwks || { keys: [] },
       fetchImpl: overrides.fetchImpl || (async () => {
@@ -78,6 +80,7 @@ export function makeEnv(overrides = {}) {
     env,
     db,
     sent,
+    invites,
     /* Move the clock. Days are UTC, so advancing by whole days lands on the
        same time of day and never straddles a boundary. */
     setNow: (t) => { clock = t; },

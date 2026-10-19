@@ -17,7 +17,7 @@ import { ok, err, ERRORS, withCors, preflight, json } from './lib/http.js';
 import { Invalid } from './lib/validate.js';
 import { loadSession } from './middleware/session.js';
 import { sweep as sweepRateLimits } from './middleware/ratelimit.js';
-import { sendLoginCode, signinLink } from './lib/email.js';
+import { sendLoginCode, signinLink, sendFriendInvite } from './lib/email.js';
 import { DAY } from './lib/db.js';
 
 import * as auth from './routes/auth.js';
@@ -51,6 +51,11 @@ const ROUTES = [
   ['POST',   '/api/player/friends/code/rotate',  friends.rotateCode],
   ['POST',   '/api/player/friends/add',          friends.addByCode],
   ['POST',   '/api/player/friends/:id/accept',   friends.acceptRequest],
+  ['POST',   '/api/player/friends/invite',       friends.inviteByEmail],
+  ['POST',   '/api/player/friends/:id/later',    friends.laterRequest],
+  ['POST',   '/api/player/friends/:id/reject',   friends.rejectRequest],
+  ['POST',   '/api/player/friends/:id/unblock',  friends.unblockFriend],
+  ['GET',    '/api/invites/stop',                friends.stopInviteEmails],
   ['POST',   '/api/player/friends/:id/block',    friends.blockFriend],
   ['DELETE', '/api/player/friends/:id',          friends.removeFriend],
 
@@ -139,6 +144,14 @@ export function makeDeps(env) {
            domain Resend has not verified, and the send would 403 while the
            endpoint still answered { sent: true }. Keep it equal to the
            wrangler.toml value. */
+        from: env.MAIL_FROM || 'PlaySapien <no-reply@profiles.playsapien.com>',
+        fetchImpl,
+      })),
+
+    sendFriendInvite: override.sendFriendInvite || (({ to, inviter, joinLink, stopLink }) =>
+      sendFriendInvite({
+        to, inviter, joinLink, stopLink,
+        apiKey: env.RESEND_API_KEY,
         from: env.MAIL_FROM || 'PlaySapien <no-reply@profiles.playsapien.com>',
         fetchImpl,
       })),
@@ -282,6 +295,10 @@ export default {
              is how someone confirms that signing out everywhere worked. */
           env.DB.prepare('DELETE FROM sessions WHERE expires_at < ? OR revoked_at < ?')
             .bind(now - 30 * DAY, now - 30 * DAY),
+          /* Invites to an address that never joined: 90 days, then gone. */
+          env.DB.prepare('DELETE FROM email_invites WHERE created_at < ?').bind(now - 90 * DAY),
+          /* Rejections only matter for the last 30 days (the sender pause). */
+          env.DB.prepare('DELETE FROM friend_rejections WHERE at < ?').bind(now - 30 * DAY),
           /* Sapien grants that have run out. Access already ended at the
              instant plan_until passed -- effectivePlan decides that at read
              time -- so this only makes the stored row say what is already

@@ -36,6 +36,14 @@ export const LIMITS = {
   chain: { limit: 5, window: DAY, prefix: 'chain' },
   /* "Thirty friend adds per user per day." */
   friend_add: { limit: 30, window: DAY, prefix: 'friendadd' },
+  /* Friend invites (routes/friends.js). An invite typed as an EMAIL ADDRESS
+     counts against the email limits whether it lands in the game or in a
+     mailbox -- the sender cannot be told which, so the limit cannot differ
+     either. Invites by code or link count against the game limits. */
+  invite_email_day:   { limit: 20,  window: DAY,      prefix: 'invmail1' },
+  invite_email_month: { limit: 50,  window: 30 * DAY, prefix: 'invmail30' },
+  invite_game_day:    { limit: 40,  window: DAY,      prefix: 'invgame1' },
+  invite_game_month:  { limit: 100, window: 30 * DAY, prefix: 'invgame30' },
   /* Promotion codes. Ten tries an hour per player: plenty for typos, far too
      few to guess a code by working through variations of a known one. */
   redeem: { limit: 10, window: HOUR, prefix: 'redeem' },

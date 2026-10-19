@@ -148,3 +148,82 @@ export async function sendLoginCode({
   }
   return { sent: true };
 }
+
+/* ---------------------------------------------------------- friend invites
+   Sent only when a player invites an address that no PlaySapien account uses
+   (routes/friends.js inviteByEmail), at most once per address per 30 days.
+   Plain, personal, and with a one-click way to stop: the link at the bottom
+   records an opt-out for this address and nothing is sent to it again. */
+export function inviteSubject(inviter) {
+  return inviter + ' invited you to PlaySapien';
+}
+export function inviteText({ inviter, joinLink, stopLink }) {
+  return [
+    inviter + ' would like to be friends on PlaySapien -- daily puzzle games you can',
+    'play in your browser, free, and compare with friends.',
+    '',
+    'Join with this email address and the invitation will be waiting for you:',
+    joinLink,
+    '',
+    'If you would rather not get invitations by email, follow this link and we',
+    'will not send this address any more:',
+    stopLink,
+    '',
+    'PlaySapien',
+  ].join('\n');
+}
+export function inviteHtml({ inviter, joinLink, stopLink }) {
+  const who = escapeHtml(inviter);
+  return `<!doctype html>
+<html><body style="margin:0;padding:0;background:#F6F1E7;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="background:#F6F1E7;padding:32px 16px;">
+<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="max-width:440px;background:#FFFFFF;border-radius:14px;padding:32px;
+              font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+              color:#1F1A14;">
+  <tr><td style="font-size:17px;line-height:1.5;padding-bottom:16px;">
+    <b>${who}</b> would like to be friends on PlaySapien.
+  </td></tr>
+  <tr><td style="font-size:15px;line-height:1.5;padding-bottom:22px;color:#4A4036;">
+    Daily puzzle games you play in your browser, free &mdash; and compare with friends.
+    Join with this email address and the invitation will be waiting for you.
+  </td></tr>
+  <tr><td align="center" style="padding-bottom:26px;">
+    <a href="${escapeHtml(joinLink)}" style="display:inline-block;background:#213946;color:#FFFFFF;
+       text-decoration:none;font-weight:600;font-size:15px;padding:12px 22px;border-radius:999px;">
+       Join PlaySapien</a>
+  </td></tr>
+  <tr><td style="font-size:12.5px;line-height:1.5;color:#8A7F72;">
+    Rather not get invitations by email?
+    <a href="${escapeHtml(stopLink)}" style="color:#8A7F72;">Stop invitation emails to this address</a>.
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+}
+export async function sendFriendInvite({ to, inviter, joinLink, stopLink, apiKey, from, fetchImpl = fetch }) {
+  if (!apiKey) {
+    console.log('[email] RESEND_API_KEY unset; friend invite to ' + to + ' not sent');
+    return { sent: false, reason: 'no_api_key' };
+  }
+  const res = await fetchImpl(RESEND_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from, to: [to],
+      subject: inviteSubject(inviter),
+      text: inviteText({ inviter, joinLink, stopLink }),
+      html: inviteHtml({ inviter, joinLink, stopLink }),
+      headers: { 'X-Entity-Ref-ID': 'playsapien-invite' },
+    }),
+  });
+  if (!res.ok) {
+    let detail = '';
+    try { detail = (await res.text()).slice(0, 300); } catch { /* consumed */ }
+    console.error('[email] resend rejected an invite: ' + res.status + ' ' + detail);
+    return { sent: false, reason: 'provider_error', status: res.status };
+  }
+  return { sent: true };
+}

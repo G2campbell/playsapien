@@ -640,7 +640,7 @@ function goHome() {
    to live here are gone; call PSUI.open / PSUI.close / PSUI.toast. The open class
    is `.sheet.on`, not `.sheet.up`. */
 PSUI.init({
-  sheets: ['aboutSheet', 'friendsSheet', 'settingsSheet', 'mineSheet', 'shareSheet'],
+  sheets: ['aboutSheet', 'settingsSheet', 'mineSheet', 'shareSheet'],
   scrim: 'scrim',
   toast: 'toast'
 });
@@ -908,7 +908,6 @@ function paintTurnBadge(n) {
 }
 window.PSWC_setTurns = paintTurnBadge;      /* until the server feeds it */
 $('aboutBtn').addEventListener('click', function () { PSUI.open('aboutSheet'); });
-$('friendsBtn').addEventListener('click', function () { PSUI.open('friendsSheet'); });
 $('settingsBtn').addEventListener('click', function () { paintSettings(); PSUI.open('settingsSheet'); });
 /* Profile: wired by packages/ui, the same card on every surface. */
 /* The scrim click and every [data-sheet-close] button are PSUI.init's, by delegation. */

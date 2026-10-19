@@ -728,3 +728,29 @@
 html, body{ overflow-x:clip; max-width:100% }
 @supports not (overflow-x:clip){ body{ overflow-x:hidden } }
 html, body{ overscroll-behavior-y:none }
+
+/* --------------------------------------------------------- friends ----
+   The shared Friends card (bar.html #friendsSheet). */
+.frcode{display:flex; align-items:center; gap:12px; margin:16px 0 4px; padding:12px 14px;
+  border:1px dashed var(--line-2); border-radius:11px}
+.frcode .col{flex:1; min-width:0}
+.frcode code{display:block; margin-top:2px; font-family:var(--f-mono); font-size:18px;
+  letter-spacing:.2em; color:var(--fg)}
+.frcode .btn{flex:none; --btn-width:auto; width:auto; --btn-pad:8px 12px; --btn-size:13px; --btn-radius:9px}
+.frsec{margin:22px 0 0}
+.frsec > h3{display:flex; align-items:baseline; gap:8px}
+.frsec > h3 small{font-family:var(--f-mono); font-size:11px; font-weight:400; letter-spacing:.06em;
+  color:var(--fg-3)}
+.frrow{display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding:11px 0;
+  border-bottom:1px solid var(--line)}
+.frrow:last-child{border-bottom:0}
+.frrow > .psav{width:34px; height:34px; font-size:34px}
+.frrow .fn{flex:1; min-width:0; font-size:14.5px; color:var(--fg); overflow-wrap:anywhere}
+.frrow .fn em{display:block; font-style:normal; font-size:12.5px; color:var(--fg-2)}
+.frrow .acts{display:flex; flex-wrap:wrap; gap:6px; margin-left:auto}
+.frrow.wide .acts{flex-basis:100%; margin-left:46px}
+.frrow .btn{flex:none; white-space:nowrap; --btn-width:auto; width:auto;
+  --btn-pad:6px 11px; --btn-size:12.5px; --btn-radius:9px}
+.frsec .sethint{margin:4px 0 6px}
+.frblocked summary{cursor:pointer; font-size:13.5px; color:var(--fg-2); padding:6px 0}
+.frpaused{margin:14px 0 0}
