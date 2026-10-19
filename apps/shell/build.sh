@@ -27,11 +27,11 @@ cp "$ROOT/packages/tokens/theme.js"   "$OUT/theme.js"
 cp "$ROOT/packages/offline/sw.js" "$OUT/sw.js"
 cp "$HERE/src/og.png"            "$OUT/og.png"
 cp "$HERE/src/makers.jpg"        "$OUT/makers.jpg"
-# The avatar pictures (the Monsters set). Served from the root, /avatars/, so
-# every surface -- the front door and each game under its own path -- can
-# show the same face from the same address.
+# The avatar pictures (Monsters, Robots, Animals). Served from the root,
+# /avatars/, so every surface -- the front door and each game under its own
+# path -- can show the same face from the same address.
 mkdir -p "$OUT/avatars"
-cp "$ROOT"/packages/avatars/monsters/*.webp "$OUT/avatars/"
+cp "$ROOT"/packages/avatars/*/*.webp "$OUT/avatars/"
 cp "$HERE/src/mark-light.png"    "$OUT/mark-light.png"
 cp "$HERE/src/mark-dark.png"     "$OUT/mark-dark.png"
 
@@ -44,7 +44,7 @@ done
 cp "$ROOT/deploy/_headers"   "$OUT/_headers"
 cp "$ROOT/deploy/_redirects" "$OUT/_redirects"
 
-for f in index.html sw.js sdk.js tokens.css theme.js legal.css og.png makers.jpg mark-light.png mark-dark.png about/index.html avatars/monster-01.webp; do
+for f in index.html sw.js sdk.js tokens.css theme.js legal.css og.png makers.jpg mark-light.png mark-dark.png about/index.html avatars/monster-01.webp avatars/robot-01.webp avatars/animal-01.webp; do
   [ -f "$OUT/$f" ] || { echo "FATAL: $f missing"; exit 1; }
 done
 echo "shell built -> $OUT"

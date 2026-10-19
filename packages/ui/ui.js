@@ -272,15 +272,21 @@
   ];
   var AV_COUNT = AV_INK.length;
 
-  /* The Monsters set: pictures, not drawings, served from /avatars/ at the
-     site root (packages/avatars/monsters, copied in by the front door's
-     build). The numbers are the files' own, gaps and all, so a token always
-     names the same picture. */
+  /* The picture sets -- Monsters, Robots, Animals -- served from /avatars/ at
+     the site root (packages/avatars/<set>/, copied in by the front door's
+     build). A token is "<kind>-NN"; the numbers are the files' own, gaps and
+     all, so a token always names the same picture. */
+  function range(a, b) {
+    var out = [];
+    for (var i = a; i <= b; i++) out.push(i < 10 ? '0' + i : String(i));
+    return out;
+  }
   var MONSTERS = ['01','02','03','04','05','06','07','08',
                   '11','12','13','14','15','16','17','18','19',
                   '21','22','23','24','25',
                   '31','32','33','34','35','36','37','38','39',
                   '41','42','43','44','45','46','47','48','49'];
+  var PICTURE_SETS = { monster: MONSTERS, robot: range(1, 18), animal: range(1, 63) };
 
   function avatarTokens() {
     var out = [], i;
@@ -311,8 +317,8 @@
              escapeAttr(label) + '">';
     }
 
-    var mm = /^monster-(\d{2})$/.exec(token);
-    if (mm && MONSTERS.indexOf(mm[1]) >= 0) {
+    var mm = /^(monster|robot|animal)-(\d{2})$/.exec(token);
+    if (mm && PICTURE_SETS[mm[1]].indexOf(mm[2]) >= 0) {
       return '<img class="psav-img" src="/avatars/' + token + '.webp" alt="' +
              escapeAttr(label) + '" decoding="async">';
     }
@@ -722,19 +728,25 @@
   var CATS = [
     { k: 'icons',    name: 'Icons' },
     { k: 'monsters', name: 'Monsters' },
+    { k: 'robots',   name: 'Robots' },
+    { k: 'animals',  name: 'Animals' },
     { k: 'custom',   name: 'Your Image' }
   ];
+  var CAT_KIND = { monsters: 'monster', robots: 'robot', animals: 'animal' };
   var PF = { uid: null, draft: null, rand: {} };
 
   function catOf(token) {
     token = String(token || '');
     if (/^ps-\d{2}$/.test(token)) return 'icons';
     if (/^monster-\d{2}$/.test(token)) return 'monsters';
+    if (/^robot-\d{2}$/.test(token)) return 'robots';
+    if (/^animal-\d{2}$/.test(token)) return 'animals';
     if (token === 'custom') return 'custom';
     return '';
   }
   function setOf(k) {
-    if (k === 'monsters') return MONSTERS.map(function (n) { return 'monster-' + n; });
+    var kind = CAT_KIND[k];
+    if (kind) return PICTURE_SETS[kind].map(function (n) { return kind + '-' + n; });
     return avatarTokens();
   }
   function pfSaved() {
@@ -834,8 +846,7 @@
   function repFor(k) {
     var d = PF.draft;
     if (d && catOf(d.avatar) === k) return d.avatar;
-    if (k === 'monsters' && d && catOf(ME.user && ME.user.avatar) === 'monsters') return ME.user.avatar;
-    if (k === 'icons' && d && catOf(ME.user && ME.user.avatar) === 'icons') return ME.user.avatar;
+    if (d && catOf(ME.user && ME.user.avatar) === k) return ME.user.avatar;
     if (!PF.rand[k]) {
       var s = setOf(k);
       PF.rand[k] = s[Math.floor(Math.random() * s.length)];
@@ -880,7 +891,7 @@
     var c = CATS.filter(function (x) { return x.k === k; })[0];
     if (t) t.textContent = c ? c.name : 'Choose';
     var cur = PF.draft ? PF.draft.avatar : '';
-    grid.className = 'avgrid' + (k === 'monsters' ? ' big' : '');
+    grid.className = 'avgrid' + (CAT_KIND[k] ? ' big' : '');
     grid.innerHTML = setOf(k).map(function (tok, i) {
       return '<button type="button" data-av="' + tok + '" aria-pressed="' + (tok === cur) + '" ' +
         'aria-label="' + c.name + ' ' + (i + 1) + '"><span class="psav">' +
