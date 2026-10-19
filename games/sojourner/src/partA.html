@@ -2756,9 +2756,12 @@ PSTheme.init('sj-game');
   letter-spacing:-.006em; color:var(--fg); margin:0 0 12px}
 #pfIn .setlabel{margin:0 0 8px}
 
-/* Signed In > FREE, and the one button that changes it -- right-aligned. */
-.pf-planrow{display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap;
+/* Signed In > FREE on the left, the one button that changes it on the right.
+   On a phone too narrow for both, the button drops to its own line and keeps
+   to the right; the status never drifts toward the middle. */
+.pf-planrow{display:flex; align-items:center; justify-content:flex-start; flex-wrap:wrap;
   gap:10px 16px; margin:0 0 12px}
+.pf-planbtn{margin-left:auto}
 .pf-state{display:inline-flex; align-items:center; gap:3px; margin:0}
 .pf-state .chev{width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:2;
   stroke-linecap:round; stroke-linejoin:round; opacity:.55}
