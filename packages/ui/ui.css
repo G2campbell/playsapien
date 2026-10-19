@@ -566,3 +566,21 @@
 /* Below this the wordmark would push the icons off the edge; the mark alone
    still identifies the platform and still goes home. */
 @media (max-width:359px){ .psbar-name{ display:none } }
+
+/* ------------------------------------------------- the daily-game row ---- */
+/* TODAY, then the days before it, in a row that scrolls sideways. Each button
+   is a little under a third of the row, so the edge of a fourth shows and
+   says "there is more this way". The 2px padding (taken back by the margin)
+   keeps a keyboard focus ring from being clipped by the scroller.
+   Specificity is three classes on purpose: each game sizes its own .btn with
+   two (".playset .btn"), and this has to win in both. */
+.dayrow{display:flex; gap:8px; overflow-x:auto; overscroll-behavior-x:contain;
+  scroll-snap-type:x proximity; scrollbar-width:none; padding:2px; margin:-2px}
+.dayrow::-webkit-scrollbar{display:none}
+.dayrow .btn.dayb{flex:0 0 calc((100% - 16px) / 3.2); width:auto; min-width:0;
+  scroll-snap-align:start; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; gap:3px; padding:11px 4px; line-height:1.1}
+.dayrow .btn.dayb .dayn{font-size:17px; font-weight:700; letter-spacing:.04em;
+  font-variant-numeric:tabular-nums}
+.dayrow .btn.dayb small{display:block; font-family:var(--f-mono); font-size:11px;
+  font-weight:400; letter-spacing:.02em; text-transform:none; opacity:.75}

@@ -221,6 +221,11 @@
     paintAnalytics: paintAnalytics,
     /* "1 November 2026" from a plan_until, for any surface that shows it. */
     untilText: untilText,
+    /* The daily-game row: TODAY, then the days before it. */
+    dayButtons: dayButtons,
+    wireDayRow: wireDayRow,
+    /* How many earlier days the row offers. */
+    pastDays: function () { return PAST_DAYS; },
     avatar: avatar,
     avatarTokens: avatarTokens,
     setAvatar: setAvatar,
@@ -438,6 +443,47 @@
      This is presentation, not security. The API refuses the underlying calls
      to anyone without a session regardless of what the page shows; this only
      makes sure the page never offers a door that will not open. */
+  /* ---------- the daily-game row ------------------------------------------
+     Both games open on a row of day buttons that scrolls sideways: TODAY
+     first, then one button per earlier day, numbered by its day of the month
+     ("18", "09"). Earlier days are Sapien's, so each carries data-gate and
+     the guard below answers anyone else before the game ever sees the tap.
+     A game passes plain facts about each day; the markup lives here so the
+     two games cannot drift apart. A past game counts for the player's own
+     record only -- not that day's ranking and not the streak. */
+  var PAST_DAYS = 30;
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  /* days: [{key:'2026-10-18', today:bool, done:bool, sub:'Play'}], newest first.
+     A key is read as a calendar date; no clock is involved. */
+  function dayButtons(days) {
+    return days.map(function (d) {
+      var p = String(d.key).split('-'), mo = MONTHS[(+p[1] || 1) - 1], dd = p[2] || '';
+      var long = (+dd) + ' ' + mo + ' ' + p[0];
+      var sub = d.sub != null ? d.sub : (d.done ? '\u2713 ' + mo : mo);
+      var aria = (d.today ? 'Today, ' : '') + long + (d.done ? ', played' : '');
+      return '<button type="button" class="btn dayb' + (d.today ? '' : ' alt ghost') +
+        (d.done ? ' done' : '') + '" data-day="' + escapeAttr(d.key) + '"' +
+        (d.today ? '' : ' data-gate="sapien" data-gate-label="past daily games"') +
+        ' aria-label="' + escapeAttr(aria) + '">' +
+        '<span class="dayn">' + (d.today ? 'TODAY' : escapeAttr(dd)) + '</span>' +
+        (sub ? '<small>' + escapeAttr(sub) + '</small>' : '') + '</button>';
+    }).join('');
+  }
+
+  /* A mouse wheel only scrolls up and down, and the row only scrolls across,
+     so over the row the wheel is turned sideways. A trackpad's own sideways
+     swipe (deltaX) is left alone. Wired once per row element. */
+  function wireDayRow(el) {
+    if (!el || el.__wired) return;
+    el.__wired = true;
+    el.addEventListener('wheel', function (e) {
+      if (Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return;
+      if (el.scrollWidth <= el.clientWidth) return;
+      el.scrollLeft += e.deltaY;
+      e.preventDefault();
+    }, { passive: false });
+  }
+
   var GATE_LABEL = { statsBtn: 'Analytics', friendsBtn: 'Friends', friendsGamesBtn: 'Friends’ games' };
 
   function needFor(t) {
@@ -465,8 +511,13 @@
     if (!ME.user) {
       var m = document.getElementById('gateMsg');
       if (m) {
-        m.innerHTML = 'Sign up or sign in to use <b>' + escapeAttr(labelFor(t)) + '</b>. ' +
-          'It is free, and it keeps your streak when you change device.';
+        /* A Sapien control cannot promise "it is free": signing up is, the
+           thing behind the button is not. */
+        m.innerHTML = need === 'sapien'
+          ? 'Sign up or sign in to use <b>' + escapeAttr(labelFor(t)) + '</b>. ' +
+            'Signing up is free, and Sapien can be added after.'
+          : 'Sign up or sign in to use <b>' + escapeAttr(labelFor(t)) + '</b>. ' +
+            'It is free, and it keeps your streak when you change device.';
       }
       gateReset();
       UI.open('gateSheet');

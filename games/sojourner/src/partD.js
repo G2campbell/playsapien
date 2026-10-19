@@ -361,7 +361,7 @@ function noStoryText(){
    Nothing is sent while it is unset. */
 function submitScore(){
   var api = window.SOJOURNER_API;
-  if(!api || S.practice) return;
+  if(!api || S.practice || S.late) return;   // a past day is for your own record
   try{
     fetch(api.replace(/\/$/,'') + '/score', {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -422,6 +422,18 @@ function practicePicks(){
 function utcDayKey(){
   var d = new Date();
   return d.getUTCFullYear() + '-' + String(d.getUTCMonth()+1).padStart(2,'0') + '-' + String(d.getUTCDate()).padStart(2,'0');
+}
+// The day `n` days before today, as a UTC key -- the same clock dailyPicks reads.
+function utcDayKeyAgo(n){
+  var d = new Date(Date.now() - n*86400000);
+  return d.getUTCFullYear() + '-' + String(d.getUTCMonth()+1).padStart(2,'0') + '-' + String(d.getUTCDate()).padStart(2,'0');
+}
+// Finished on this device? Read-only: loadDay() would load it into S.
+function dayPlayed(key){
+  try{
+    var d = JSON.parse(localStorage.getItem('sojourner:'+key) || 'null');
+    return !!(d && d.results && d.results.length === 5);
+  }catch(e){ return false; }
 }
 function prettyDate(key){
   var p = key.split('-'), mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -869,6 +881,9 @@ function openBridge(){
 function startGame(practice){
   S.sprint = null; S.phase = 1;
   S.practice = practice;
+  // A past day's game is still that day's five places, but it was played
+  // late: it counts for your own record and never for that day's ranking.
+  S.late = !practice && S.dayKey !== utcDayKey();
   S.picks = practice ? practicePicks() : dailyPicks(S.dayKey);
   S.round = 0; S.results = []; S.total = 0; S.phase1Total = 0;
   resetStoryPicks(); ensureFacts();   // the reveal wants to know if a story has a journey
@@ -1096,6 +1111,7 @@ function finish(){
 // A practice run is a side trip; make the way back to today's game explicit.
 function backToDaily(){
   PSUI.close();
+  S.dayKey = utcDayKey();          // "back to today's game", whatever came before
   if(!loadDay()){ startGame(false); return; }
   S.mode = 'done'; S.practice = false; refreshQuit();
   M.clearMarks(); M.setPulse(false); M.idle(true); M.setShift(0);
@@ -1162,7 +1178,8 @@ function renderResults(){
   var q = S.sprint;
   $('factsBtn').style.display = '';
   $('resScoreDen').textContent = ' points';
-  $('resDate').textContent = S.practice ? 'Practice round' : ('Daily · ' + prettyDate(S.dayKey));
+  $('resDate').textContent = S.practice ? 'Practice round' :
+    ('Daily · ' + prettyDate(S.dayKey) + (S.late ? ' · played later' : ''));
   $('resScore').textContent = S.total;
   $('resShapes').innerHTML = shapeRow(S.results, -1, q || null);
   var sum = $('quizSum');
@@ -1461,6 +1478,7 @@ function resetToIntro(){
   M.clearMarks(); M.setPulse(false); M.setShift(0); M.idle(true);
   M.target.dist = 3.5;
   S.mode = 'idle'; S.practice = false; S.results = []; S.total = 0; S.round = 0;
+  S.dayKey = utcDayKey(); S.late = false;   // back on the intro is back to today
   S.sprint = null; S.phase = 1; stopClock(); M.clearQuiz(); applySettings();
   askLeave(false); refreshQuit();
   $('topbar').style.display = 'none';
@@ -1518,8 +1536,18 @@ function refreshIntro(){
   if(!ready) return;
   renderLevelRow();
   replay = loadDay();
+  /* TODAY, then the days before it (shared markup: PSUI.dayButtons). The
+     earlier days carry data-gate="sapien", so only a Sapien player's tap on
+     one ever reaches the handler below. */
+  var today = utcDayKey(), days = [{ key:today, today:true, done:!!replay,
+                                     sub: replay ? 'See result' : 'Play' }];
+  for(var i=1;i<=PSUI.pastDays();i++){
+    var k = utcDayKeyAgo(i);
+    days.push({ key:k, done:dayPlayed(k) });
+  }
   $('playRow').innerHTML =
-    playButton('daily', replay ? 'See result' : 'Play Daily Game', '', true) +
+    '<div class="dayrow" id="dayRow" role="group" aria-label="Daily games">' +
+      PSUI.dayButtons(days) + '</div>' +
     '<div class="pair">' +
       playButton('practice', 'Practice', '', false) +
       playButton('explore', 'Explore', '', false) +
@@ -1530,6 +1558,7 @@ function refreshIntro(){
        someone who is allowed to make it. */
     playButton('friends', 'Play Friends\u2019 Games', '', false)
       .replace('data-go="friends"', 'data-go="friends" data-gate="account"');
+  PSUI.wireDayRow($('dayRow'));
   var fn = $('focusName');
   if(fn) fn.textContent = focusLabel();
 }
@@ -1540,7 +1569,8 @@ function saveDay(){
     var sp = S.sprint ? { score:S.sprint.score, right:S.sprint.right, bonus:S.sprint.bonus,
                           n:S.sprint.bag.length, log:S.sprint.log } : null;
     localStorage.setItem('sojourner:'+S.dayKey, JSON.stringify(
-      {total:S.total, results:S.results, picks:S.picks, p1:S.phase1Total, sprint:sp}));
+      {total:S.total, results:S.results, picks:S.picks, p1:S.phase1Total, sprint:sp,
+       late:!!S.late}));
   }catch(e){}
 }
 function loadDay(){
@@ -1550,6 +1580,7 @@ function loadDay(){
     var d = JSON.parse(raw);
     if(!d || !d.results || d.results.length !== 5) return false;
     S.total = d.total; S.results = d.results; S.picks = d.picks; S.practice = false; S.round = 4;
+    S.late = !!d.late;
     S.phase1Total = (d.p1 === undefined) ? d.total : d.p1;
     S.sprint = d.sprint ? { score:d.sprint.score, right:d.sprint.right, bonus:d.sprint.bonus,
                             bag:new Array(d.sprint.n), log:d.sprint.log || [],
@@ -1691,16 +1722,19 @@ $('levelRow').addEventListener('click', function(ev){
   saveSettings(); applySettings(); refreshIntro();
 });
 $('playRow').addEventListener('click', function(ev){
-  var b = ev.target.closest('button[data-go]'); if(!b || !ready) return;
-  var go = b.getAttribute('data-go');
-  if(go === 'friends'){ PSUI.open('friendsGamesSheet'); return; }
-  if(go === 'explore'){ startLearn(); return; }
-  if(go === 'practice'){ startGame(true); return; }
-  if(go === 'daily'){
+  var b = ev.target.closest('button[data-go], button[data-day]'); if(!b || !ready) return;
+  var day = b.getAttribute('data-day');
+  if(day){
+    S.dayKey = day;
+    replay = loadDay();
     if(replay){ show($('introView'), false); M.idle(true); renderResults(); show($('resultsView'), true); }
     else startGame(false);
     return;
   }
+  var go = b.getAttribute('data-go');
+  if(go === 'friends'){ PSUI.open('friendsGamesSheet'); return; }
+  if(go === 'explore'){ startLearn(); return; }
+  if(go === 'practice'){ startGame(true); return; }
 });
 $('setLink').addEventListener('click', function(){ $('settingsBtn').click(); });
 $('aboutBtn').addEventListener('click', function(){ PSUI.open('aboutSheet'); });

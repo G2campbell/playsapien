@@ -343,7 +343,9 @@
   <h1>Word Chain</h1>
   <p class="tagline">Link every word to the next.</p>
   <div class="homebtns">
-    <button class="btn" id="dailyBtn">Play Daily Game</button>
+    <!-- TODAY, then the days before it, scrolling sideways. Filled by
+         paintHome() from PSUI.dayButtons; earlier days are Sapien's. -->
+    <div class="dayrow" id="dayRow" role="group" aria-label="Daily games"></div>
     <button class="btn ghost" id="practiceBtn">Practice</button>
     <!-- The two challenge screens replace the old "Play Friends' Games": a
          puzzle a friend made for you IS a challenge they sent you, and one

@@ -189,6 +189,21 @@ function dayIndex() { return Math.floor(Date.now() / 86400000); }
    warming up cannot spoil the challenge. */
 function dailyIdx() { return dayIndex() % BANK.length; }
 function dailyChain() { return BANK[dailyIdx()]; }
+/* Earlier days, for the day row. The keys are local dates, the same as
+   todayKey() (so audit S1 above applies to them too), and the chain is the
+   one the bank served that day, counted back from today's exactly as
+   dailyIdx() counts. */
+function keyAgo(n) {
+  var d = new Date(); d.setDate(d.getDate() - n);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function chainAgo(n) { var L = BANK.length; return BANK[(((dayIndex() - n) % L) + L) % L]; }
+/* A past day counts as done if it was played on the day or played later. */
+function pastDone(key) { return store('daily:' + key) || store('past:' + key); }
+function longDay(key) {
+  var p = key.split('-');
+  return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+}
 function practiceChain() {
   var at = store('practiceAt') || 0, d = dailyIdx(), i = at % BANK.length, guard = 0;
   while (i === d && guard++ < BANK.length) i = (i + 1) % BANK.length;
@@ -198,7 +213,7 @@ function practiceChain() {
 
 /* ------------------------------------------------------------------ persistence */
 var S = null, tick = null, sampler = null, samplerTried = false;
-var HELD = { daily: null, practice: null };
+var HELD = { daily: null, practice: null, past: null };
 var pauseAt = 0, typed = '';
 
 function baseMs() { return Date.now() - S.t0 - S.frozenMs; }
@@ -208,7 +223,7 @@ function save() {
     mode: S.mode, words: S.words, links: S.links, i: S.i, revealed: S.revealed,
     hintsThisWord: S.hintsThisWord, hintCount: S.hintCount, penaltyMs: S.penaltyMs,
     baseMs: baseMs(), tried: S.tried, wrongThisWord: S.wrongThisWord,
-    perWord: S.perWord, wordMs: S.wordMs, day: todayKey()
+    perWord: S.perWord, wordMs: S.wordMs, day: S.mode === 'past' ? S.day : todayKey()
   });
 }
 function loadHeld(mode) {
@@ -222,7 +237,7 @@ function loadHeld(mode) {
     penaltyMs: g.penaltyMs || 0, frozenMs: 0, t0: Date.now() - (g.baseMs || 0),
     perWord: g.perWord || [], wordMs: g.wordMs || [], wordT0: Date.now(),
     tried: g.tried || [], wrongThisWord: g.wrongThisWord || 0,
-    locked: false, done: false, pausedAt: 0
+    locked: false, done: false, pausedAt: 0, day: g.day
   };
 }
 /* One circle per word, sized by that word's share of the total time, so the row
@@ -256,15 +271,18 @@ function recordResult(r) {
 function dailyDone() { return store('daily:' + todayKey()); }
 
 /* ------------------------------------------------------------------ starting */
-function startGame(mode) {
+function startGame(mode, past) {
+  /* One past day can be held at a time; starting a different one drops it. */
+  if (mode === 'past' && HELD.past && HELD.past.day !== past.key) { HELD.past = null; drop('game:past'); }
   if (HELD[mode]) {
     S = HELD[mode]; HELD[mode] = null;
     if (S.pausedAt) S.frozenMs += Date.now() - S.pausedAt;
     S.pausedAt = 0;
   } else {
-    var c = mode === 'daily' ? dailyChain() : practiceChain();
+    var c = mode === 'daily' ? dailyChain() : mode === 'past' ? chainAgo(past.n) : practiceChain();
     S = {
       mode: mode, words: c.words, links: c.links, i: 1,
+      day: mode === 'past' ? past.key : todayKey(),
       revealed: c.words.map(function (w, k) { return k === 0 ? w.length : 1; }),
       hintsThisWord: 0, hintCount: 0, penaltyMs: 0, frozenMs: 0, perWord: [], wordMs: [],
       wrongThisWord: 0, tried: [], t0: Date.now(), wordT0: Date.now(),
@@ -272,7 +290,7 @@ function startGame(mode) {
     };
   }
   typed = '';
-  $('mode').textContent = mode === 'daily' ? 'Daily' : 'Practice';
+  $('mode').textContent = mode === 'daily' ? 'Daily' : mode === 'past' ? 'Daily \u00b7 ' + longDay(S.day) : 'Practice';
   $('home').hidden = true; $('app').hidden = false; $('compose').hidden = true;
   mountKeyboard($('app'));
   setInput(true); renderChain(); updateHintBtn(); renderBank(); setMsg('', null);
@@ -500,7 +518,7 @@ function finish() {
   renderChain(); paintClock(); setInput(false); $('hintBtn').disabled = true;
   setMsg('', null);
   var total = elapsedMs(), base = total - S.penaltyMs;
-  var r = { day: todayKey(), mode: S.mode, total: total, hints: S.hintCount,
+  var r = { day: S.mode === 'past' ? S.day : todayKey(), mode: S.mode, total: total, hints: S.hintCount,
             words: S.words, perWord: S.perWord, wordMs: S.wordMs };
   drop('game:' + S.mode);
   /* the full record, not just the time: the home screen shares this hours later, by
@@ -509,11 +527,20 @@ function finish() {
     mode: 'daily', day: todayKey(), total: total, hints: S.hintCount,
     words: S.words, perWord: S.perWord, wordMs: S.wordMs
   });
+  /* A past day is kept under its own key: it shows as played in the day row,
+     and it is never mistaken for a daily -- not for the streak, not for the
+     best daily time, and not for that day's ranking once results are sent. */
+  if (S.mode === 'past') store('past:' + S.day, {
+    mode: 'past', day: S.day, total: total, hints: S.hintCount, late: true,
+    words: S.words, perWord: S.perWord, wordMs: S.wordMs
+  });
   recordResult({ day: r.day, mode: r.mode, total: total, hints: S.hintCount, chain: S.words.join(' · ') });
   store('last', r);
 
   $('resLine').innerHTML = S.mode === 'daily'
     ? 'You finished today’s chain in <b>' + fmt(total) + '</b>.'
+    : S.mode === 'past'
+    ? 'You finished the ' + longDay(S.day) + ' chain in <b>' + fmt(total) + '</b>.'
     : 'Practice chain, <b>' + fmt(total) + '</b>.';
   $('resBreak').textContent = S.hintCount
     ? 'base ' + fmt(base) + '  ·  ' + S.hintCount + ' lifeline' + (S.hintCount > 1 ? 's' : '') + ' +' + Math.round(S.penaltyMs / 1000) + 's'
@@ -619,23 +646,33 @@ PSUI.init({
 });
 
 /* ------------------------------------------------------------------ home */
+/* A past day already played: its result, on the same card a finish shows.
+   Read-only -- a day is played once, past or present. */
+function showPast(rec, key) {
+  $('resLine').innerHTML = 'You finished the ' + longDay(key) + ' chain in <b>' + fmt(rec.total) + '</b>.';
+  $('resBreak').textContent = rec.hints
+    ? rec.hints + ' lifeline' + (rec.hints > 1 ? 's' : '') + ' used' : 'no lifelines';
+  $('resChain').innerHTML = chainHTML(rec.words || [], rec.perWord);
+  $('shareBtn').hidden = true;
+  $('againBtn').className = 'btn';
+  $('results').classList.add('on');
+}
+
 function paintHome() {
-  var done = dailyDone();
-  var d = $('dailyBtn'), p = $('practiceBtn');
-  if (done) {
-    /* the challenge is spent, so the button stops being a way in and becomes the thing
-       you actually want next - the score itself moves down to the footer line */
-    d.disabled = false;
-    d.textContent = 'Share your score';
-    d.dataset.act = 'share';
-    prepCard(done);                       /* ready before the tap, not after it */
-  } else {
-    d.disabled = false;
-    d.dataset.act = 'play';
-    /* "Play Daily Game", the same words as Sojourner's button: one platform,
-       one name for the same action. */
-    d.textContent = HELD.daily ? 'Resume Daily Game' : 'Play Daily Game';
+  var done = dailyDone(), p = $('practiceBtn');
+  /* TODAY, then the days before it. Once today is played its button becomes
+     the thing you want next -- sharing the score -- and the score itself sits
+     large in the footer. */
+  var days = [{ key: todayKey(), today: true, done: !!done,
+                sub: done ? 'Share score' : (HELD.daily ? 'Resume' : 'Play') }];
+  for (var i = 1; i <= PSUI.pastDays(); i++) {
+    var k = keyAgo(i);
+    days.push({ key: k, done: !!pastDone(k),
+                sub: HELD.past && HELD.past.day === k ? 'Resume' : undefined });
   }
+  $('dayRow').innerHTML = PSUI.dayButtons(days);
+  PSUI.wireDayRow($('dayRow'));
+  if (done) prepCard(done);               /* ready before the tap, not after it */
   p.textContent = HELD.practice ? 'Resume practice' : 'Practice';
   var dt = new Date();
   $('homeDate').textContent = dt.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
@@ -694,7 +731,7 @@ function paintProfile() {
   var bd = null, bp = null, streak = 0;
   h.forEach(function (r) {
     if (r.mode === 'daily') { if (bd === null || r.total < bd) bd = r.total; }
-    else if (bp === null || r.total < bp) bp = r.total;
+    else if (r.mode === 'practice' && (bp === null || r.total < bp)) bp = r.total;
   });
   var days = {}; h.forEach(function (r) { if (r.mode === 'daily') days[r.day] = 1; });
   var probe = new Date();
@@ -892,9 +929,21 @@ $('hintBtn').addEventListener('click', takeHint);
 $('homeBtn').addEventListener('click', function () { if (S && S.done) goHome(); else askPause(); });
 $('pauseNo').addEventListener('click', resumePlay);
 $('pauseYes').addEventListener('click', goHome);
-$('dailyBtn').addEventListener('click', function () {
-  if (this.dataset.act === 'share') doShare(dailyDone());
-  else startGame('daily');
+/* Earlier days carry data-gate="sapien": the shared bar layer answers anyone
+   else before this handler ever runs. */
+$('dayRow').addEventListener('click', function (e) {
+  var b = e.target.closest('button[data-day]'); if (!b) return;
+  var key = b.getAttribute('data-day');
+  if (key === todayKey()) {
+    var done = dailyDone();
+    if (done) doShare(done); else startGame('daily');
+    return;
+  }
+  var rec = pastDone(key);
+  if (rec) { showPast(rec, key); return; }
+  for (var n = 1; n <= PSUI.pastDays(); n++) {
+    if (keyAgo(n) === key) { startGame('past', { key: key, n: n }); return; }
+  }
 });
 $('practiceBtn').addEventListener('click', function () { startGame('practice'); });
 $('timedBtn').addEventListener('click', function () { PSUI.open('timedSheet'); });
@@ -960,6 +1009,7 @@ document.addEventListener('keydown', function (e) {
 
 HELD.daily = loadHeld('daily');
 HELD.practice = loadHeld('practice');
+HELD.past = loadHeld('past');
 paintHome(); paintSettings(); paintProfile();
 /* Repaint once we know who is here. PSUI is the shared bar layer; it asks the
    API itself, so this game never has to load the account SDK to find out. */
