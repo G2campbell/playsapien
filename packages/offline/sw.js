@@ -72,6 +72,10 @@ self.addEventListener('activate', (event) => {
 function mine(url) {
   if (url.origin === self.location.origin) {
     if (url.pathname.startsWith('/api/')) return false;
+    /* The avatar pictures live at the site root (/avatars/) but are worn on
+       every surface, so each game's worker keeps the ones it has shown --
+       otherwise a player's face would vanish from a game's bar offline. */
+    if (url.pathname.startsWith('/avatars/')) return true;
     if (!url.pathname.startsWith(SCOPE)) return false;
     if (EXCLUDE.some((x) => url.pathname.startsWith(x))) return false;
     if (url.pathname.endsWith('/sw.js')) return false;

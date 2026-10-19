@@ -1769,7 +1769,7 @@ $('stBack').addEventListener('click', closeStories);
    neither of the two systems this replaces did. */
 PSUI.init({
   sheets: ['revealSheet','storySheet','bridgeSheet','reviewSheet','learnSheet',
-           'settingsSheet','profileSheet','aboutSheet','composeSheet','friendsSheet'],
+           'settingsSheet','aboutSheet','composeSheet','friendsSheet'],
   scrim: 'scrim',
   toast: 'toast'
 });
@@ -1778,7 +1778,7 @@ $('settingsBtn').addEventListener('click', function(){
   $('rowLeave').style.display = mid ? 'block' : 'none';
   syncSettingsUI(); PSUI.open('settingsSheet');
 });
-$('profileBtn').addEventListener('click', function(){ PSUI.open('profileSheet'); });
+// Profile is packages/ui's: the same card on every surface, wired there.
 $('setDone').addEventListener('click', PSUI.close);
 $('lnClose').addEventListener('click', closeLearn);
 $('quitBtn').addEventListener('click', function(){
@@ -1810,7 +1810,6 @@ $('askWrap').addEventListener('click', function(ev){ if(ev.target === $('askWrap
 document.addEventListener('keydown', function(ev){
   if(ev.key === 'Escape' && !$('askWrap').hidden) askLeave(false);
 });
-$('profDone').addEventListener('click', PSUI.close);
 $('segStyle').addEventListener('click', function(ev){
   var b = ev.target.closest('button'); if(!b) return;
   SET.style = b.getAttribute('data-v'); saveSettings();

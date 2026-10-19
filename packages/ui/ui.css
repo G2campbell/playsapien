@@ -584,3 +584,114 @@
   font-variant-numeric:tabular-nums}
 .dayrow .btn.dayb small{display:block; font-family:var(--f-mono); font-size:11px;
   font-weight:400; letter-spacing:.02em; text-transform:none; opacity:.75}
+
+/* ------------------------------------------------------ who is here ----
+   The strip at the top-left of Analytics, Friends, Settings and Profile:
+   face, name over email, a hairline, then the card's title; Close stays top
+   right; a hairline under the whole row. The face, the two lines of text and
+   the hairline are all 30px tall -- the height the 23px title occupies -- so
+   the row reads as one line of type. ui.js fills [data-ps-who]. The text is
+   the part that gives way on a narrow phone (ellipsis), never the title. */
+.sh-head.ps-head{align-items:center; gap:10px; padding-bottom:14px; margin-bottom:18px;
+  border-bottom:1px solid var(--line)}
+.ps-head h2{line-height:30px; white-space:nowrap; flex:none}
+.ps-head .donebtn{flex:none}
+.ps-head + .sh-status{margin-top:0}
+.ps-who{display:flex; align-items:center; gap:10px; min-width:0; flex:0 1 auto}
+.ps-who:empty{display:none}
+.ps-who-av{width:30px; height:30px; font-size:30px}
+.ps-who-av.anon svg{width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.7;
+  stroke-linecap:round; stroke-linejoin:round; opacity:.75}
+.ps-who-tx{display:flex; flex-direction:column; justify-content:center; height:30px;
+  min-width:0; max-width:200px; line-height:1.18}
+.ps-who-tx b, .ps-who-tx span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.ps-who-tx b{font-size:13px; font-weight:600; color:var(--fg)}
+.ps-who-tx span{font-size:11px; color:var(--fg-3)}
+.ps-who-rule{width:1px; height:30px; background:var(--line-2); flex:none}
+
+/* --------------------------------------------------------- profile ----
+   The Profile card, shared by every surface (bar.html). Section rules, the
+   subtitle (.pf-sub) and the sub-subtitle (.setlabel) are set here rather
+   than borrowed from a surface, so the card looks like itself everywhere and
+   takes only its colours from the game it is opened in. */
+.pfsec{padding:0 0 20px; margin:0 0 20px; border-bottom:1px solid var(--line)}
+.pfsec:last-of-type{border-bottom:0; padding-bottom:4px; margin-bottom:0}
+.pf-sub{font-family:var(--f-disp); font-weight:700; font-size:15.5px; line-height:1.25;
+  letter-spacing:-.006em; color:var(--fg); margin:0 0 12px}
+#pfIn .setlabel{margin:0 0 8px}
+
+/* Signed In > FREE, and the one button that changes it -- right-aligned. */
+.pf-planrow{display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap;
+  gap:10px 16px; margin:0 0 12px}
+.pf-state{display:inline-flex; align-items:center; gap:3px; margin:0}
+.pf-state .chev{width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:2;
+  stroke-linecap:round; stroke-linejoin:round; opacity:.55}
+.pf-state b{font-weight:inherit; letter-spacing:.05em}
+.pf-planbtn .btn{--btn-width:auto; width:auto; white-space:nowrap; --btn-pad:10px 18px; --btn-size:14px}
+/* Reserved height: the two plans' words differ in length, and the hover swap
+   must not make the card jump under the pointer. */
+.planwhy{font-size:14px; line-height:1.62; color:var(--fg-2); margin:0; min-height:4.86em}
+.planwhy b{color:var(--fg)}
+.planwhy.peek{color:var(--fg-3); font-style:italic}
+
+/* The three avatar categories: a picture over its name. */
+.avcats{display:flex; gap:16px; flex-wrap:wrap; margin:4px 0 20px}
+.avcat{display:flex; flex-direction:column; align-items:center; gap:7px; width:92px}
+.avcat-pic{position:relative; width:92px; height:92px; padding:0; border:0; border-radius:50%;
+  background:none; cursor:pointer; color:inherit; display:block}
+.avcat-pic:focus-visible{outline:2px solid var(--accent); outline-offset:3px}
+.avcat-pic .psav{width:100%; height:100%; font-size:92px; transition:opacity .15s}
+.avcat.on .avcat-pic .psav{box-shadow:0 0 0 3px var(--sheet-bg, var(--bg-raise)), 0 0 0 5px var(--accent)}
+.avcat-name{font-size:12.5px; color:var(--fg-2); text-align:center}
+.avcat.on .avcat-name{color:var(--fg); font-weight:600}
+.avcat-pic.add .psav{background:transparent; border:2px dashed var(--line-2); box-sizing:border-box;
+  color:var(--fg-3)}
+.avcat-pic.add:hover .psav{color:var(--fg); border-color:var(--fg-3)}
+.avcat-pic.add svg{width:44px; height:44px; fill:none; stroke:currentColor; stroke-width:1.6;
+  stroke-linecap:round}
+/* Your Image, once there is one: hover (or a tap, which focuses it) fades the
+   picture and offers three pills. */
+.avcat-ops{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; gap:4px; opacity:0; pointer-events:none; transition:opacity .15s}
+.avcat-ops button{font-family:var(--f-body); font-size:10px; font-weight:700; letter-spacing:.08em;
+  line-height:1; padding:5px 0; width:68px; border-radius:99px; cursor:pointer;
+  border:1px solid var(--line-2); background:var(--bg-raise); color:var(--fg)}
+.avcat-ops button:hover, .avcat-ops button:focus-visible{background:var(--fg); color:var(--bg-raise);
+  border-color:var(--fg); outline:none}
+@media (hover:hover){
+  .avcat-img:hover .avcat-ops{opacity:1; pointer-events:auto}
+  .avcat-img:hover .psav{opacity:.16}
+}
+.avcat-img:focus-within .avcat-ops{opacity:1; pointer-events:auto}
+.avcat-img:focus-within .psav{opacity:.16}
+
+/* Every face in a category (the picker, over the Profile card). */
+.avgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(56px,1fr)); gap:12px; margin:0 0 6px}
+.avgrid.big{grid-template-columns:repeat(auto-fill,minmax(74px,1fr))}
+.avgrid button{padding:0; background:none; cursor:pointer; aspect-ratio:1;
+  border:2px solid transparent; border-radius:50%}
+.avgrid .psav{width:100%; height:100%; font-size:46px}
+.avgrid button[aria-pressed="true"]{border-color:var(--accent)}
+.avgrid button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+/* Signed-in devices: the same row shape as a friends list. */
+.devlist{margin:2px 0 0}
+.devlist .sethint{margin:10px 0 0}
+.devrow{display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--line)}
+.devrow:last-child{border-bottom:0}
+.devrow .ic{width:34px; height:34px; border-radius:9px; flex:none; display:grid; place-items:center;
+  background:var(--bg-sink); color:var(--fg-2)}
+.devrow .ic svg{width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.7;
+  stroke-linecap:round; stroke-linejoin:round}
+.devrow .dn{flex:1; min-width:0; font-size:14.5px; color:var(--fg)}
+.devrow .dn em{display:block; font-style:normal; font-size:12.5px; color:var(--fg-2)}
+.devrow .dn .here{display:inline-block; margin-left:7px; padding:1px 7px; border-radius:99px;
+  font-size:11px; font-weight:600; letter-spacing:.02em; vertical-align:2px;
+  color:var(--accent); background:color-mix(in srgb, var(--accent) 13%, transparent)}
+.devrow .btn{flex:none; white-space:nowrap; --btn-width:auto; width:auto;
+  --btn-pad:7px 12px; --btn-size:13px; --btn-radius:9px}
+#pfIn .btnrow .btn, #delSheet .btnrow .btn, #downSheet .btnrow .btn{--btn-width:auto; width:auto}
+
+/* The one button that destroys something: a ghost in the warning colour. */
+.btn.ghost.danger{color:var(--warn); border-color:color-mix(in srgb, var(--warn) 40%, transparent)}
+.btn.ghost.danger:hover{background:color-mix(in srgb, var(--warn) 10%, transparent)}

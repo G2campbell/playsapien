@@ -640,7 +640,7 @@ function goHome() {
    to live here are gone; call PSUI.open / PSUI.close / PSUI.toast. The open class
    is `.sheet.on`, not `.sheet.up`. */
 PSUI.init({
-  sheets: ['aboutSheet', 'friendsSheet', 'settingsSheet', 'profileSheet', 'mineSheet', 'shareSheet'],
+  sheets: ['aboutSheet', 'friendsSheet', 'settingsSheet', 'mineSheet', 'shareSheet'],
   scrim: 'scrim',
   toast: 'toast'
 });
@@ -698,66 +698,10 @@ function paintSettings() {
   $('gentleTog').setAttribute('aria-pressed', SET.gentle ? 'true' : 'false');
   $('motionTog').setAttribute('aria-pressed', SET.motion ? 'true' : 'false');
 }
-/* Signed in or not, as far as this game is concerned. null until the bar's
-   session check answers; paintProfile treats null as signed out, and is run
-   again the moment the answer lands. */
-var SIGNED_IN = null;
-
-function paintProfile() {
-  var h = store('history') || [], box = $('profileBody');
-  /* Signed out, the profile shows TODAY only: no streak, no bests, no past
-     days. The history is still kept on this device, untouched -- it is what
-     gets carried into an account the moment this player signs up, which is
-     the best reason there is to sign up. It is only not SHOWN. */
-  var guest = SIGNED_IN !== true;
-  if (guest) {
-    var tk = todayKey();
-    h = h.filter(function (r) { return r.day === tk; });
-  }
-  if (!h.length) return;
-  if (guest) {
-    var g = ['<div class="mine-head" style="margin-top:0">Today</div><div class="hist">'];
-    h.forEach(function (r) {
-      var parts = r.chain.split(' \u00b7 ');
-      g.push('<div class="hrow"><span class="hl">' + r.mode + '</span><span class="hc">' +
-        parts[0] + ' \u2026 ' + parts[parts.length - 1] + '</span><span class="ht">' +
-        fmt(r.total) + (r.hints ? ' \u00b7 ' + r.hints + 'L' : '') + '</span></div>');
-    });
-    g.push('</div><p class="sethint" style="margin-top:14px">Sign in to keep your streak, ' +
-           'your bests and every day you have played.</p>');
-    box.innerHTML = g.join('');
-    return;
-  }
-  var bd = null, bp = null, streak = 0;
-  h.forEach(function (r) {
-    if (r.mode === 'daily') { if (bd === null || r.total < bd) bd = r.total; }
-    else if (r.mode === 'practice' && (bp === null || r.total < bp)) bp = r.total;
-  });
-  var days = {}; h.forEach(function (r) { if (r.mode === 'daily') days[r.day] = 1; });
-  var probe = new Date();
-  for (;;) {
-    var k = probe.getFullYear() + '-' + String(probe.getMonth() + 1).padStart(2, '0') + '-' + String(probe.getDate()).padStart(2, '0');
-    if (days[k]) { streak++; probe.setDate(probe.getDate() - 1); }
-    else if (streak === 0 && k === todayKey()) { probe.setDate(probe.getDate() - 1); }
-    else break;
-  }
-  /* .mine-head, not .setlabel: these head a SECTION of the profile sheet, and the
-     shared .setlabel is the label of a settings ROW (15px, body weight). .mine-head
-     is this game's mono eyebrow and is what the My chains sheet already uses. */
-  var out = ['<div class="mine-head" style="margin-top:0">Your times</div><div class="bests">',
-    '<div class="best"><span class="bl">Daily best</span><span class="bt">' + (bd !== null ? fmt(bd) : '—') + '</span></div>',
-    '<div class="best"><span class="bl">Practice best</span><span class="bt">' + (bp !== null ? fmt(bp) : '—') + '</span></div>',
-    '<div class="best"><span class="bl">Streak</span><span class="bt">' + streak + '</span></div>',
-    '</div><div class="mine-head">Finished</div><div class="hist">'];
-  h.slice(0, 12).forEach(function (r) {
-    var parts = r.chain.split(' · ');
-    out.push('<div class="hrow"><span class="hl">' + r.mode + '</span><span class="hc">' +
-      parts[0] + ' … ' + parts[parts.length - 1] + '</span><span class="ht">' +
-      fmt(r.total) + (r.hints ? ' · ' + r.hints + 'L' : '') + '</span></div>');
-  });
-  out.push('</div>');
-  box.innerHTML = out.join('');
-}
+/* The Profile card is packages/ui's now -- the same card as the front
+   door's, in this game's colours -- so the old per-game one (times, bests,
+   streak) is gone from here. The history it read is still kept on this
+   device, untouched; Analytics is where those numbers come back. */
 /* ------------------------------------------------------------------ the share card */
 function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 
@@ -966,7 +910,7 @@ window.PSWC_setTurns = paintTurnBadge;      /* until the server feeds it */
 $('aboutBtn').addEventListener('click', function () { PSUI.open('aboutSheet'); });
 $('friendsBtn').addEventListener('click', function () { PSUI.open('friendsSheet'); });
 $('settingsBtn').addEventListener('click', function () { paintSettings(); PSUI.open('settingsSheet'); });
-$('profileBtn').addEventListener('click', function () { paintProfile(); PSUI.open('profileSheet'); });
+/* Profile: wired by packages/ui, the same card on every surface. */
 /* The scrim click and every [data-sheet-close] button are PSUI.init's, by delegation. */
 PSTheme.bindControl($('themeSeg'));
 $('gentleTog').addEventListener('click', function () { SET.gentle = !SET.gentle; saveSet(); paintSettings(); });
@@ -1010,12 +954,7 @@ document.addEventListener('keydown', function (e) {
 HELD.daily = loadHeld('daily');
 HELD.practice = loadHeld('practice');
 HELD.past = loadHeld('past');
-paintHome(); paintSettings(); paintProfile();
-/* Repaint once we know who is here. PSUI is the shared bar layer; it asks the
-   API itself, so this game never has to load the account SDK to find out. */
-if (window.PSUI && PSUI.whenUser) PSUI.whenUser().then(function (u) {
-  SIGNED_IN = !!u; paintProfile();
-});
+paintHome(); paintSettings();
 document.addEventListener('visibilitychange', function () { if (document.hidden) save(); });
 window.addEventListener('pagehide', save);
 

@@ -460,6 +460,8 @@ document.addEventListener('DOMContentLoaded', function () {
     avatar: avatar,
     avatarTokens: avatarTokens,
     setAvatar: setAvatar,
+    /* The one call a surface makes when it learns who is signed in. */
+    setUser: setUser,
     open: open,
     close: close,
     closeAll: closeAll,
@@ -500,6 +502,16 @@ document.addEventListener('DOMContentLoaded', function () {
   ];
   var AV_COUNT = AV_INK.length;
 
+  /* The Monsters set: pictures, not drawings, served from /avatars/ at the
+     site root (packages/avatars/monsters, copied in by the front door's
+     build). The numbers are the files' own, gaps and all, so a token always
+     names the same picture. */
+  var MONSTERS = ['01','02','03','04','05','06','07','08',
+                  '11','12','13','14','15','16','17','18','19',
+                  '21','22','23','24','25',
+                  '31','32','33','34','35','36','37','38','39',
+                  '41','42','43','44','45','46','47','48','49'];
+
   function avatarTokens() {
     var out = [], i;
     for (i = 1; i <= AV_COUNT; i++) out.push('ps-' + (i < 10 ? '0' : '') + i);
@@ -527,6 +539,12 @@ document.addEventListener('DOMContentLoaded', function () {
     if (token === 'custom' && /^data:image\/(png|jpeg|webp);base64,/.test(img)) {
       return '<img class="psav-img" src="' + escapeAttr(img) + '" alt="' +
              escapeAttr(label) + '">';
+    }
+
+    var mm = /^monster-(\d{2})$/.exec(token);
+    if (mm && MONSTERS.indexOf(mm[1]) >= 0) {
+      return '<img class="psav-img" src="/avatars/' + token + '.webp" alt="' +
+             escapeAttr(label) + '" decoding="async">';
     }
 
     var m = /^ps-(\d{2})$/.exec(token);
@@ -600,12 +618,24 @@ document.addEventListener('DOMContentLoaded', function () {
      player's own face. Called with null on sign-out, which puts the icon back
      -- a bar still showing yesterday's face after signing out is a bug people
      read as "it did not sign me out". */
-  function setAvatar(user) {
-    learnUser(user);                                   // the shell's word is final
+  /* Who is signed in has changed -- signed in, signed out, saved a new face.
+     Everything that shows the player repaints from here: the bar's button,
+     the who-strip on each card, the Profile card. Then the page is told, so
+     a surface with its own signed-in parts (the front door's Friends) can
+     follow without being called by name. */
+  function setUser(user) {
+    learnUser(user);                                   // the newest word is final
+    paintBarAvatar(user);
+    try { document.dispatchEvent(new CustomEvent('ps:user', { detail: user || null })); }
+    catch (e) { /* very old browser: the surface repaints on its next load */ }
+  }
+  function setAvatar(user) { setUser(user); }        // the old name, still exported
+
+  function paintBarAvatar(user) {
     var b = document.getElementById('profileBtn');
     if (!b) return;
     if (b.__icon == null) b.__icon = b.innerHTML;      // keep the original once
-    var on = !!(user && (user.avatar || user.avatar_img));
+    var on = !!(user && user.avatar);
     b.classList.toggle('has-av', on);
     b.innerHTML = on ? avatar(user, { label: 'Your profile' }) : b.__icon;
     /* A face arriving ends the pulse, and remembers it: someone with an avatar
@@ -639,6 +669,9 @@ document.addEventListener('DOMContentLoaded', function () {
   function learnUser(u) {
     ME.user = u || null;
     ME.known = true;
+    paintWho();
+    paintProfile();
+    if (ME.user && UI.isOpen('profileSheet')) loadDevices();
     var w = ME.waiters; ME.waiters = [];
     for (var i = 0; i < w.length; i++) { try { w[i](ME.user); } catch (e) { /* one bad waiter must not stop the rest */ } }
   }
@@ -781,19 +814,22 @@ document.addEventListener('DOMContentLoaded', function () {
      a game that has never heard of the SDK. On success the page reloads: every
      surface already knows how to draw itself for a signed-in player on load,
      and a reload is the one way to be sure all of it agrees. */
-  var gtEmail = '';
-  function gtNote(msg, bad) {
-    var n = document.getElementById('gtNote');
+  /* Two copies of the same card: the gate (ids gt*) and the Profile card's
+     signed-out half (ids pfs*). One function wires either, by prefix. */
+  function siNote(px, msg, bad) {
+    var n = document.getElementById(px + 'Note');
     if (!n) return;
     n.hidden = !msg; n.textContent = msg || '';
     n.classList.toggle('bad', !!bad);
   }
-  function gateReset() {
-    var ef = document.getElementById('gtEmailForm'), cf = document.getElementById('gtCodeForm');
+  function signinReset(px) {
+    var ef = document.getElementById(px + 'EmailForm'), cf = document.getElementById(px + 'CodeForm');
     if (ef) ef.hidden = false;
     if (cf) cf.hidden = true;
-    gtNote('', false);
+    siNote(px, '', false);
   }
+  function gtNote(msg, bad) { siNote('gt', msg, bad); }
+  function gateReset() { signinReset('gt'); }
   function deviceId() {
     try { return localStorage.getItem('ps:device') || ''; } catch (e) { return ''; }
   }
@@ -810,49 +846,543 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     }).catch(function () { return { ok: false, data: null, status: 0 }; });
   }
-  function wireGate() {
-    var ef = document.getElementById('gtEmailForm');
+  function wireSignin(px) {
+    var ef = document.getElementById(px + 'EmailForm');
     if (!ef || ef.__wired) return;
     ef.__wired = true;
-    var cf = document.getElementById('gtCodeForm');
+    var cf = document.getElementById(px + 'CodeForm');
+    var addr = '';
+    var note = function (m, b) { siNote(px, m, b); };
 
     ef.addEventListener('submit', function (e) {
       e.preventDefault();
-      var v = (document.getElementById('gtEmail').value || '').trim().toLowerCase();
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) { gtNote('That does not look like an email address.', true); return; }
-      gtEmail = v;
-      gtNote('Sending…', false);
+      var v = (document.getElementById(px + 'Email').value || '').trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) { note('That does not look like an email address.', true); return; }
+      addr = v;
+      note('Sending…', false);
       api('POST', '/auth/email/start', { email: v }).then(function (r) {
-        if (!r.ok) { gtNote(r.status === 429 ? 'Too many tries. Wait a minute and try again.' : 'That did not send. Try again.', true); return; }
-        gtNote('', false);
-        document.getElementById('gtAddr').textContent = v;
+        if (!r.ok) { note(r.status === 429 ? 'Too many tries. Wait a minute and try again.' : 'That did not send. Try again.', true); return; }
+        note('', false);
+        document.getElementById(px + 'Addr').textContent = v;
         ef.hidden = true; cf.hidden = false;
-        var c = document.getElementById('gtCode'); if (c) { c.value = ''; c.focus(); }
+        var c = document.getElementById(px + 'Code'); if (c) { c.value = ''; c.focus(); }
       });
     });
 
     cf.addEventListener('submit', function (e) {
       e.preventDefault();
-      var code = (document.getElementById('gtCode').value || '').replace(/\D/g, '');
-      if (code.length !== 6) { gtNote('The code is six digits.', true); return; }
-      gtNote('Checking…', false);
-      api('POST', '/auth/email/verify', { email: gtEmail, code: code }).then(function (r) {
-        if (!r.ok) { gtNote('That code did not work. Check it, or ask for a new one.', true); return; }
+      var code = (document.getElementById(px + 'Code').value || '').replace(/\D/g, '');
+      if (code.length !== 6) { note('The code is six digits.', true); return; }
+      note('Checking…', false);
+      api('POST', '/auth/email/verify', { email: addr, code: code }).then(function (r) {
+        if (!r.ok) { note('That code did not work. Check it, or ask for a new one.', true); return; }
         /* Carry this browser's history into the account before reloading --
            what the SDK does after its own sign-in. Best effort: a failure here
-           loses nothing, it is simply retried the next time the SDK runs. */
+           loses nothing, it is simply retried the next time the SDK runs.
+           Then reload: every surface already knows how to draw itself for a
+           signed-in player on load, and a reload is the one way to be sure all
+           of it agrees. */
         var dev = deviceId();
         var after = dev ? api('POST', '/player/claim', { device_ids: [dev] }) : Promise.resolve();
         after.then(function () { location.reload(); });
       });
     });
 
-    var back = document.getElementById('gtBack');
-    if (back) back.addEventListener('click', gateReset);
+    var back = document.getElementById(px + 'Back');
+    if (back) back.addEventListener('click', function () { signinReset(px); });
 
-    var g = document.getElementById('gtGoogle');
+    var g = document.getElementById(px + 'Google');
     if (g) g.addEventListener('click', function () {
       location.href = '/api/auth/google/start?next=' + encodeURIComponent(location.pathname);
+    });
+  }
+  function wireGate() { wireSignin('gt'); wireSignin('pfs'); }
+
+  /* --------------------------------------------------------- who is here ----
+     The strip at the top-left of Analytics, Friends, Settings and Profile, on
+     every surface: the player's face, their name over their email, a hairline,
+     then the card's own title. Any element marked data-ps-who is filled from
+     here, so a card opts in with one empty div and never has to repaint it --
+     a name change or a new avatar reaches every card at once.
+
+     Before the session answers it stays blank rather than guessing "Guest":
+     a signed-in player should not see themselves signed out for a moment. */
+  var PERSON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/>' +
+                   '<path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg>';
+  function paintWho() {
+    var els = document.querySelectorAll('[data-ps-who]');
+    if (!els.length) return;
+    var u = ME.user, known = ME.known, html;
+    if (!known) {
+      html = '<span class="psav ps-who-av"></span>' +
+             '<span class="ps-who-tx"><b>&nbsp;</b><span>&nbsp;</span></span>';
+    } else {
+      html = '<span class="psav ps-who-av' + (u ? '' : ' anon') + '">' +
+               (u ? avatar(u) : PERSON_SVG) + '</span>' +
+             '<span class="ps-who-tx"><b>' +
+               escapeAttr(u ? (u.display_name || u.handle || 'Player') : 'Guest') +
+             '</b><span>' + escapeAttr(u ? (u.email || '') : 'Not signed in') + '</span></span>';
+    }
+    html += '<span class="ps-who-rule" aria-hidden="true"></span>';
+    for (var i = 0; i < els.length; i++) els[i].innerHTML = html;
+  }
+
+  /* ------------------------------------------------------------ profile ----
+     One Profile card for every surface, in packages/ui/bar.html, painted from
+     here. The front door used to own it and each game showed "Nothing here
+     yet"; now a player sees the same card, in the colours of wherever they
+     are, with the same sign-in, the same account type, the same avatar and
+     the same list of devices.
+
+     The avatar and name section is a DRAFT until Save. Picking a face,
+     uploading a picture, deleting it -- none of it is sent until Save, and
+     Cancel puts back what was last saved. That is what makes it safe to look
+     around: nothing changes for friends until the player says so. */
+  var PLAN_TEXT = {
+    free: 'Free keeps everything you play; daily results count in Analytics and are ' +
+          'ranked against others; but no puzzles of your own or history.',
+    sapien: '$2/mo billed annually allowing friends, building and sharing puzzles, ' +
+            'tracking all your results, comparing against just friends, and more.'
+  };
+  var CATS = [
+    { k: 'icons',    name: 'Icons' },
+    { k: 'monsters', name: 'Monsters' },
+    { k: 'custom',   name: 'Your Image' }
+  ];
+  var PF = { uid: null, draft: null, rand: {} };
+
+  function catOf(token) {
+    token = String(token || '');
+    if (/^ps-\d{2}$/.test(token)) return 'icons';
+    if (/^monster-\d{2}$/.test(token)) return 'monsters';
+    if (token === 'custom') return 'custom';
+    return '';
+  }
+  function setOf(k) {
+    if (k === 'monsters') return MONSTERS.map(function (n) { return 'monster-' + n; });
+    return avatarTokens();
+  }
+  function pfSaved() {
+    var u = ME.user || {};
+    return { avatar: u.avatar || '', img: u.avatar_img || '', name: u.display_name || '' };
+  }
+  function pfDirty() {
+    if (!PF.draft) return false;
+    var s = pfSaved(), d = PF.draft;
+    return s.avatar !== d.avatar || s.img !== d.img || s.name !== d.name.trim();
+  }
+  function pfReset() {
+    PF.draft = pfSaved();
+    var n = $('nameIn'); if (n) n.value = PF.draft.name;
+    pfNote('', false);
+  }
+  function pfNote(msg, bad) {
+    var n = $('avNote'); if (!n) return;
+    n.hidden = !msg; n.textContent = msg || ''; n.classList.toggle('bad', !!bad);
+  }
+  function pfButtons() {
+    var dirty = pfDirty();
+    var s = $('pfSave'), c = $('pfCancel');
+    if (s) s.disabled = !dirty;
+    if (c) c.disabled = !dirty;
+  }
+
+  function paintProfile() {
+    var out = $('pfOut'), inn = $('pfIn');
+    if (!out || !inn) return;
+    var u = ME.user;
+    out.hidden = !ME.known ? true : !!u;
+    inn.hidden = !u;
+    if (!u) { PF.uid = null; PF.draft = null; return; }
+    /* A new player, or nothing being edited: follow the account. An edit in
+       progress survives a repaint (a session refresh landing mid-edit must
+       not throw away what the player was doing). */
+    if (PF.uid !== u.id || !pfDirty()) { PF.uid = u.id; pfReset(); }
+    paintPlan();
+    paintCats();
+    pfButtons();
+  }
+
+  /* Signed In > FREE, the one button that changes it, and what the plan is.
+     The button's hover shows the OTHER plan's words in the same place, so
+     the question "what would I get?" is answered where it is asked. */
+  function planWhy(which) {
+    var u = ME.user, plan = planOf(u), el = $('planWhy');
+    if (!el) return;
+    var txt = escapeAttr(PLAN_TEXT[which]);
+    if (which === 'sapien' && plan === 'sapien' && u && u.plan_until) {
+      txt += '<br><b>Your Sapien access runs through ' + escapeAttr(untilText(u.plan_until)) + '.</b>';
+    }
+    el.innerHTML = txt;
+    el.classList.toggle('peek', which !== plan);
+  }
+  function paintPlan() {
+    var plan = planOf(ME.user);
+    var nm = $('pfPlanName'); if (nm) nm.textContent = plan.toUpperCase();
+    var w = $('pfPlanBtn');
+    if (w) {
+      w.innerHTML = plan === 'sapien'
+        ? '<button class="btn ghost" type="button" id="pfDown">Downgrade to Free</button>'
+        : '<button class="btn" type="button" id="pfUp">UPGRADE TO SAPIEN</button>';
+    }
+    planWhy(plan);
+  }
+
+  /* The three category tiles. Each shows the face the player has chosen from
+     it, or else one picked at random once per visit (not on every repaint --
+     a tile that changed face each time it was looked at would read as a bug). */
+  function repFor(k) {
+    var d = PF.draft;
+    if (d && catOf(d.avatar) === k) return d.avatar;
+    if (k === 'monsters' && d && catOf(ME.user && ME.user.avatar) === 'monsters') return ME.user.avatar;
+    if (k === 'icons' && d && catOf(ME.user && ME.user.avatar) === 'icons') return ME.user.avatar;
+    if (!PF.rand[k]) {
+      var s = setOf(k);
+      PF.rand[k] = s[Math.floor(Math.random() * s.length)];
+    }
+    return PF.rand[k];
+  }
+  var PLUS_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+  function paintCats() {
+    var box = $('avCats'), d = PF.draft;
+    if (!box || !d) return;
+    var cur = catOf(d.avatar);
+    box.innerHTML = CATS.map(function (c) {
+      var on = cur === c.k ? ' on' : '';
+      if (c.k !== 'custom') {
+        return '<div class="avcat' + on + '" data-cat="' + c.k + '">' +
+          '<button type="button" class="avcat-pic" data-pick="' + c.k + '" aria-label="' +
+            c.name + ': choose an avatar' + (on ? ' (in use)' : '') + '">' +
+            '<span class="psav">' + avatar({ avatar: repFor(c.k) }) + '</span></button>' +
+          '<span class="avcat-name">' + c.name + '</span></div>';
+      }
+      if (!d.img) {
+        return '<div class="avcat" data-cat="custom">' +
+          '<button type="button" class="avcat-pic add" data-op="add" aria-label="Upload your own picture">' +
+            '<span class="psav">' + PLUS_SVG + '</span></button>' +
+          '<span class="avcat-name">' + c.name + '</span></div>';
+      }
+      return '<div class="avcat avcat-img' + on + '" data-cat="custom">' +
+        '<div class="avcat-pic" tabindex="0" role="group" aria-label="Your image' + (on ? ' (in use)' : '') + '">' +
+          '<span class="psav">' + avatar({ avatar: 'custom', avatar_img: d.img }) + '</span>' +
+          '<span class="avcat-ops">' +
+            '<button type="button" data-op="replace">REPLACE</button>' +
+            '<button type="button" data-op="use">USE</button>' +
+            '<button type="button" data-op="delete">DELETE</button>' +
+          '</span></div>' +
+        '<span class="avcat-name">' + c.name + '</span></div>';
+    }).join('');
+  }
+
+  function openPicker(k) {
+    var grid = $('avPickGrid'), t = $('avPickTitle');
+    if (!grid) return;
+    var c = CATS.filter(function (x) { return x.k === k; })[0];
+    if (t) t.textContent = c ? c.name : 'Choose';
+    var cur = PF.draft ? PF.draft.avatar : '';
+    grid.className = 'avgrid' + (k === 'monsters' ? ' big' : '');
+    grid.innerHTML = setOf(k).map(function (tok, i) {
+      return '<button type="button" data-av="' + tok + '" aria-pressed="' + (tok === cur) + '" ' +
+        'aria-label="' + c.name + ' ' + (i + 1) + '"><span class="psav">' +
+        avatar({ avatar: tok }) + '</span></button>';
+    }).join('');
+    UI.open('avPickSheet', { stack: true });
+  }
+
+  /* The upload never leaves the browser at full size: centre-cropped to a
+     square, drawn at 128px, JPEG, stepped down in quality until it fits the
+     API's 24 KB cap. */
+  var AV_PX = 128, AV_MAX = 24000;
+  function squareDataUrl(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file), im = new Image();
+      im.onload = function () {
+        try {
+          var side = Math.min(im.width, im.height);
+          var c = document.createElement('canvas');
+          c.width = c.height = AV_PX;
+          var g = c.getContext('2d');
+          g.fillStyle = '#fff'; g.fillRect(0, 0, AV_PX, AV_PX);
+          g.drawImage(im, (im.width - side) / 2, (im.height - side) / 2, side, side, 0, 0, AV_PX, AV_PX);
+          var q = 0.82, out = c.toDataURL('image/jpeg', q);
+          while (out.length > AV_MAX && q > 0.3) { q -= 0.12; out = c.toDataURL('image/jpeg', q); }
+          resolve(out.length > AV_MAX ? null : out);
+        } catch (err) { reject(err); }
+        finally { URL.revokeObjectURL(url); }
+      };
+      im.onerror = function () { URL.revokeObjectURL(url); reject(new Error('not an image')); };
+      im.src = url;
+    });
+  }
+
+  /* ---- signed-in devices: every browser signed in to this account ---- */
+  var DEVICES = [];
+  function describeUA(ua) {
+    ua = ua || '';
+    var browser = '';
+    if (/Edg(e|A|iOS)?\//.test(ua)) browser = 'Edge';
+    else if (/OPR\/|Opera/.test(ua)) browser = 'Opera';
+    else if (/SamsungBrowser/.test(ua)) browser = 'Samsung Internet';
+    else if (/Firefox\/|FxiOS/.test(ua)) browser = 'Firefox';
+    else if (/Chrome\/|CriOS/.test(ua)) browser = 'Chrome';
+    else if (/Safari\//.test(ua)) browser = 'Safari';
+    var os = '', kind = 'computer';
+    if (/iPhone|iPod/.test(ua)) { os = 'iPhone'; kind = 'phone'; }
+    else if (/iPad/.test(ua)) { os = 'iPad'; kind = 'tablet'; }
+    else if (/Android/.test(ua)) { os = 'Android'; kind = /Mobile/.test(ua) ? 'phone' : 'tablet'; }
+    else if (/CrOS/.test(ua)) os = 'Chromebook';
+    else if (/Windows/.test(ua)) os = 'Windows';
+    else if (/Macintosh|Mac OS X/.test(ua)) os = 'Mac';
+    else if (/Linux/.test(ua)) os = 'Linux';
+    return { name: browser && os ? browser + ' on ' + os : (browser || os || 'Unknown device'), kind: kind };
+  }
+  function countryName(cc) {
+    if (!cc || !/^[A-Z]{2}$/.test(cc) || cc === 'XX' || cc === 'T1') return '';
+    try { return new Intl.DisplayNames(undefined, { type: 'region' }).of(cc) || cc; }
+    catch (e) { return cc; }
+  }
+  function whenUsed(sec) {
+    if (!sec) return '';
+    var d = Math.max(0, Date.now() / 1000 - sec);
+    if (d < 600) return 'Active now';
+    if (d < 3600) return 'Used ' + Math.round(d / 60) + ' minutes ago';
+    if (d < 86400) { var h = Math.round(d / 3600); return 'Used ' + h + ' hour' + (h > 1 ? 's' : '') + ' ago'; }
+    var days = Math.floor(d / 86400);
+    if (days === 1) return 'Used yesterday';
+    if (days < 30) return 'Used ' + days + ' days ago';
+    return 'Last used ' + new Date(sec * 1000).toLocaleDateString(undefined,
+      { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  var DEV_ICON = {
+    phone:    '<svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
+    tablet:   '<svg viewBox="0 0 24 24"><rect x="4.5" y="2.5" width="15" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
+    computer: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16v4"/></svg>'
+  };
+  function devNote(msg, bad) {
+    var n = $('devNote'); if (!n) return;
+    n.hidden = !msg; n.textContent = msg || ''; n.classList.toggle('bad', !!bad);
+  }
+  function loadDevices() {
+    if (!ME.user || !$('devList')) return;
+    api('GET', '/auth/devices').then(function (r) {
+      if (!ME.user) return;
+      if (!r.ok) {
+        $('devList').innerHTML = '<p class="sethint">' + (r.status === 0
+          ? 'Your devices will show here when you’re back online.'
+          : 'Your devices could not be loaded just now.') + '</p>';
+        $('devAllRow').hidden = true;
+        return;
+      }
+      DEVICES = ((r.data && r.data.devices) || []).slice().sort(function (a, b) {
+        return (b.current - a.current) || (b.last_used_at - a.last_used_at);
+      });
+      paintDevices();
+    });
+  }
+  function paintDevices() {
+    var list = $('devList');
+    if (!list) return;
+    list.textContent = '';
+    DEVICES.forEach(function (d) {
+      var who = describeUA(d.ua);
+      var row = document.createElement('div'); row.className = 'devrow';
+      var ic = document.createElement('div'); ic.className = 'ic'; ic.innerHTML = DEV_ICON[who.kind];
+      var dn = document.createElement('div'); dn.className = 'dn';
+      dn.appendChild(document.createTextNode(who.name));
+      if (d.current) {
+        var here = document.createElement('span'); here.className = 'here'; here.textContent = 'This device';
+        dn.appendChild(here);
+      }
+      var em = document.createElement('em');
+      em.textContent = [d.current ? 'Active now' : whenUsed(d.last_used_at), countryName(d.country)]
+        .filter(Boolean).join(' · ');
+      dn.appendChild(em);
+      var btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'btn ghost'; btn.textContent = 'Sign out';
+      btn.setAttribute('aria-label', 'Sign out ' + who.name + (d.current ? ' (this device)' : ''));
+      btn.addEventListener('click', function () { signOutDevice(d, btn); });
+      row.appendChild(ic); row.appendChild(dn); row.appendChild(btn);
+      list.appendChild(row);
+    });
+    $('devAllRow').hidden = DEVICES.filter(function (d) { return !d.current; }).length < 2;
+  }
+  function signOutDevice(d, btn) {
+    if (d.current) { signOut(); return; }
+    if (btn) btn.disabled = true;
+    api('DELETE', '/auth/devices/' + encodeURIComponent(d.id)).then(function (r) {
+      if (!r.ok && r.status !== 404) {
+        if (btn) btn.disabled = false;
+        devNote(r.status === 0 ? 'You’re offline. Try again when you’re connected.'
+                               : 'That did not go through. Try again.', true);
+        return;
+      }
+      DEVICES = DEVICES.filter(function (x) { return x.id !== d.id; });
+      paintDevices();
+      devNote('Signed out. That device will need to sign in again.', false);
+    });
+  }
+
+  /* The platform SDK (front door only) keeps copies of the account in
+     storage; after a sign-out or a deletion they would put the old account
+     back on screen at the next load if they were left behind. */
+  function dropCachedAccount() {
+    try {
+      ['ps:cache:session', 'ps:cache:me', 'ps:cache:friends', 'ps:cache:notices'].forEach(function (k) {
+        localStorage.removeItem(k);
+      });
+    } catch (e) { /* storage blocked: nothing was cached either */ }
+  }
+  function signOut() {
+    api('POST', '/auth/logout').then(function () {
+      dropCachedAccount();
+      DEVICES = [];
+      setUser(null);
+      toast('Signed out');
+    });
+  }
+
+  function wireProfile() {
+    var sheet = $('profileSheet');
+    if (!sheet || sheet.__wired) return;
+    sheet.__wired = true;
+
+    /* account type */
+    var pw = $('pfPlanBtn');
+    pw.addEventListener('click', function (e) {
+      if (e.target.closest('#pfUp')) UI.open('payWall', { stack: true });
+      else if (e.target.closest('#pfDown')) UI.open('downSheet', { stack: true });
+    });
+    var other = function () { return planOf(ME.user) === 'sapien' ? 'free' : 'sapien'; };
+    pw.addEventListener('mouseover', function (e) { if (e.target.closest('.btn')) planWhy(other()); });
+    pw.addEventListener('mouseout', function (e) { if (e.target.closest('.btn')) planWhy(planOf(ME.user)); });
+    pw.addEventListener('focusin', function () { planWhy(other()); });
+    pw.addEventListener('focusout', function () { planWhy(planOf(ME.user)); });
+
+    var dy = $('downYes');
+    if (dy) dy.addEventListener('click', function () {
+      dy.disabled = true;
+      api('PATCH', '/player/me', { plan: 'free' }).then(function (r) {
+        dy.disabled = false;
+        close();                                   // back to the Profile card
+        if (!r.ok || !(r.data && r.data.user)) { toast('That did not save.'); return; }
+        setUser(r.data.user);
+        toast('You are on the Free plan.');
+      });
+    });
+
+    /* the avatar categories */
+    var cats = $('avCats'), file = $('avFile');
+    cats.addEventListener('click', function (e) {
+      var pick = e.target.closest('[data-pick]');
+      if (pick) { openPicker(pick.getAttribute('data-pick')); return; }
+      var op = e.target.closest('[data-op]');
+      var tile = e.target.closest('.avcat-img');
+      if (!op) {
+        /* A touch screen has no hover: the first tap on the picture shows the
+           three choices, a tap elsewhere on it hides them again. */
+        if (tile) tile.classList.toggle('open');
+        return;
+      }
+      var what = op.getAttribute('data-op');
+      if (what === 'add' || what === 'replace') { file.click(); return; }
+      if (what === 'use') { PF.draft.avatar = 'custom'; }
+      if (what === 'delete') {
+        PF.draft.img = '';
+        if (PF.draft.avatar === 'custom') PF.draft.avatar = '';
+      }
+      paintCats(); pfButtons();
+    });
+    file.addEventListener('change', function () {
+      var f = file.files && file.files[0];
+      file.value = '';                             // the same file can be picked again
+      if (!f) return;
+      if (!/^image\/(png|jpeg|webp)$/.test(f.type)) { pfNote('PNG, JPEG or WebP, please.', true); return; }
+      pfNote('Resizing…', false);
+      squareDataUrl(f).then(function (data) {
+        if (!data) { pfNote('That picture will not compress small enough. Try another.', true); return; }
+        PF.draft.img = data;
+        PF.draft.avatar = 'custom';                // an upload becomes the avatar
+        pfNote('', false);
+        paintCats(); pfButtons();
+      }, function () { pfNote('That file could not be read as a picture.', true); });
+    });
+    var grid = $('avPickGrid');
+    if (grid) grid.addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-av]');
+      if (!b || !PF.draft) return;
+      PF.draft.avatar = b.getAttribute('data-av');
+      close();
+      paintCats(); pfButtons();
+    });
+
+    /* name, save, cancel */
+    $('nameIn').addEventListener('input', function (e) {
+      if (PF.draft) { PF.draft.name = e.target.value; pfButtons(); }
+    });
+    $('pfCancel').addEventListener('click', function () { pfReset(); paintCats(); pfButtons(); });
+    $('pfSave').addEventListener('click', function () {
+      var d = PF.draft, s = pfSaved(), btn = $('pfSave');
+      if (!d) return;
+      var patch = { display_name: d.name.trim(), avatar: d.avatar || null };
+      if (d.img !== s.img) patch.avatar_img = d.img || null;
+      btn.disabled = true;
+      pfNote('Saving…', false);
+      api('PATCH', '/player/me', patch).then(function (r) {
+        if (!r.ok || !(r.data && r.data.user)) {
+          pfNote(r.status === 413 ? 'That picture is too big. Try a smaller one.'
+               : r.status === 0 ? 'You’re offline. Try again when you’re connected.'
+               : 'That did not save. Try again.', true);
+          pfButtons();
+          return;
+        }
+        PF.draft = null;                           // the account is the truth again
+        setUser(r.data.user);
+        pfNote('Saved.', false);
+        setTimeout(function () { if ($('avNote').textContent === 'Saved.') pfNote('', false); }, 1800);
+      });
+    });
+
+    /* devices, sign out, delete */
+    $('devAllBtn').addEventListener('click', function () {
+      var btn = $('devAllBtn'), others = DEVICES.filter(function (d) { return !d.current; }), failed = 0;
+      btn.disabled = true;
+      Promise.all(others.map(function (d) {
+        return api('DELETE', '/auth/devices/' + encodeURIComponent(d.id)).then(function (r) {
+          if (r.ok || r.status === 404) DEVICES = DEVICES.filter(function (x) { return x.id !== d.id; });
+          else failed++;
+        });
+      })).then(function () {
+        btn.disabled = false;
+        paintDevices();
+        devNote(failed ? 'Some devices could not be signed out. Try again.'
+                       : 'Every other device is signed out. Only this one is still signed in.', !!failed);
+      });
+    });
+    $('signOutBtn').addEventListener('click', signOut);
+
+    $('delBtn').addEventListener('click', function () {
+      $('delIn').value = ''; $('delGo').disabled = true;
+      var n = $('delNote'); n.hidden = true; n.textContent = '';
+      UI.open('delSheet', { stack: true });
+    });
+    $('delIn').addEventListener('input', function (e) {
+      $('delGo').disabled = e.target.value.trim().toUpperCase() !== 'DELETE';
+    });
+    $('delGo').addEventListener('click', function () {
+      $('delGo').disabled = true;
+      api('DELETE', '/player/me').then(function (r) {
+        if (!r.ok) {
+          var n = $('delNote');
+          n.hidden = false; n.classList.add('bad');
+          n.textContent = 'That did not go through. Nothing has been deleted — try again.';
+          $('delGo').disabled = false;
+          return;
+        }
+        closeAll();
+        dropCachedAccount();
+        setUser(null);
+        toast('Your account has been deleted.');
+      });
     });
   }
 
@@ -1039,13 +1569,16 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!bar.__lifted) {
       bar.__lifted = true;
       ['statsSheet', 'addSheet', 'gateSheet', 'friendsGamesSheet',
-       'timedSheet', 'duelSheet', 'payWall'].forEach(function (id) {
+       'timedSheet', 'duelSheet', 'payWall', 'profileSheet', 'avPickSheet',
+       'downSheet', 'delSheet'].forEach(function (id) {
         var el = document.getElementById(id);
         if (el && el.parentNode !== document.body) document.body.appendChild(el);
       });
     }
     offline();
     wireGate();
+    wireProfile();
+    paintWho();
     wirePromo();
     wireAnalytics();
     wireLinks();
@@ -1057,6 +1590,19 @@ document.addEventListener('DOMContentLoaded', function () {
     if (sb && !sb.__wired) {
       sb.__wired = true;
       sb.addEventListener('click', function () { paintAnalytics(); UI.open('statsSheet'); });
+    }
+
+    /* Profile: the same card on every surface, so it is wired here too. The
+       devices list is fetched on each open -- it is the one part of the card
+       that changes without the player doing anything on this page. */
+    var pb = document.getElementById('profileBtn');
+    if (pb && !pb.__wired) {
+      pb.__wired = true;
+      pb.addEventListener('click', function () {
+        paintProfile();
+        if (ME.user) loadDevices();
+        UI.open('profileSheet');
+      });
     }
 
     /* Add. Only the shell is wired here -- in a game this button is that game's
@@ -1084,7 +1630,7 @@ document.addEventListener('DOMContentLoaded', function () {
           .then(function (j) {
             var u = j && j.data && j.data.user;
             if (!ME.known) learnUser(u || null);        // the shell may have answered first
-            if (u) setAvatar(u);
+            if (u) setUser(u);
           })
           .catch(function () { if (!ME.known) learnUser(null); });
       } catch (e) { if (!ME.known) learnUser(null); }
@@ -2151,6 +2697,117 @@ document.addEventListener('DOMContentLoaded', function () {
   font-variant-numeric:tabular-nums}
 .dayrow .btn.dayb small{display:block; font-family:var(--f-mono); font-size:11px;
   font-weight:400; letter-spacing:.02em; text-transform:none; opacity:.75}
+
+/* ------------------------------------------------------ who is here ----
+   The strip at the top-left of Analytics, Friends, Settings and Profile:
+   face, name over email, a hairline, then the card's title; Close stays top
+   right; a hairline under the whole row. The face, the two lines of text and
+   the hairline are all 30px tall -- the height the 23px title occupies -- so
+   the row reads as one line of type. ui.js fills [data-ps-who]. The text is
+   the part that gives way on a narrow phone (ellipsis), never the title. */
+.sh-head.ps-head{align-items:center; gap:10px; padding-bottom:14px; margin-bottom:18px;
+  border-bottom:1px solid var(--line)}
+.ps-head h2{line-height:30px; white-space:nowrap; flex:none}
+.ps-head .donebtn{flex:none}
+.ps-head + .sh-status{margin-top:0}
+.ps-who{display:flex; align-items:center; gap:10px; min-width:0; flex:0 1 auto}
+.ps-who:empty{display:none}
+.ps-who-av{width:30px; height:30px; font-size:30px}
+.ps-who-av.anon svg{width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.7;
+  stroke-linecap:round; stroke-linejoin:round; opacity:.75}
+.ps-who-tx{display:flex; flex-direction:column; justify-content:center; height:30px;
+  min-width:0; max-width:200px; line-height:1.18}
+.ps-who-tx b, .ps-who-tx span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.ps-who-tx b{font-size:13px; font-weight:600; color:var(--fg)}
+.ps-who-tx span{font-size:11px; color:var(--fg-3)}
+.ps-who-rule{width:1px; height:30px; background:var(--line-2); flex:none}
+
+/* --------------------------------------------------------- profile ----
+   The Profile card, shared by every surface (bar.html). Section rules, the
+   subtitle (.pf-sub) and the sub-subtitle (.setlabel) are set here rather
+   than borrowed from a surface, so the card looks like itself everywhere and
+   takes only its colours from the game it is opened in. */
+.pfsec{padding:0 0 20px; margin:0 0 20px; border-bottom:1px solid var(--line)}
+.pfsec:last-of-type{border-bottom:0; padding-bottom:4px; margin-bottom:0}
+.pf-sub{font-family:var(--f-disp); font-weight:700; font-size:15.5px; line-height:1.25;
+  letter-spacing:-.006em; color:var(--fg); margin:0 0 12px}
+#pfIn .setlabel{margin:0 0 8px}
+
+/* Signed In > FREE, and the one button that changes it -- right-aligned. */
+.pf-planrow{display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap;
+  gap:10px 16px; margin:0 0 12px}
+.pf-state{display:inline-flex; align-items:center; gap:3px; margin:0}
+.pf-state .chev{width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:2;
+  stroke-linecap:round; stroke-linejoin:round; opacity:.55}
+.pf-state b{font-weight:inherit; letter-spacing:.05em}
+.pf-planbtn .btn{--btn-width:auto; width:auto; white-space:nowrap; --btn-pad:10px 18px; --btn-size:14px}
+/* Reserved height: the two plans' words differ in length, and the hover swap
+   must not make the card jump under the pointer. */
+.planwhy{font-size:14px; line-height:1.62; color:var(--fg-2); margin:0; min-height:4.86em}
+.planwhy b{color:var(--fg)}
+.planwhy.peek{color:var(--fg-3); font-style:italic}
+
+/* The three avatar categories: a picture over its name. */
+.avcats{display:flex; gap:16px; flex-wrap:wrap; margin:4px 0 20px}
+.avcat{display:flex; flex-direction:column; align-items:center; gap:7px; width:92px}
+.avcat-pic{position:relative; width:92px; height:92px; padding:0; border:0; border-radius:50%;
+  background:none; cursor:pointer; color:inherit; display:block}
+.avcat-pic:focus-visible{outline:2px solid var(--accent); outline-offset:3px}
+.avcat-pic .psav{width:100%; height:100%; font-size:92px; transition:opacity .15s}
+.avcat.on .avcat-pic .psav{box-shadow:0 0 0 3px var(--sheet-bg, var(--bg-raise)), 0 0 0 5px var(--accent)}
+.avcat-name{font-size:12.5px; color:var(--fg-2); text-align:center}
+.avcat.on .avcat-name{color:var(--fg); font-weight:600}
+.avcat-pic.add .psav{background:transparent; border:2px dashed var(--line-2); box-sizing:border-box;
+  color:var(--fg-3)}
+.avcat-pic.add:hover .psav{color:var(--fg); border-color:var(--fg-3)}
+.avcat-pic.add svg{width:44px; height:44px; fill:none; stroke:currentColor; stroke-width:1.6;
+  stroke-linecap:round}
+/* Your Image, once there is one: hover (or a tap, which focuses it) fades the
+   picture and offers three pills. */
+.avcat-ops{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; gap:4px; opacity:0; pointer-events:none; transition:opacity .15s}
+.avcat-ops button{font-family:var(--f-body); font-size:10px; font-weight:700; letter-spacing:.08em;
+  line-height:1; padding:5px 0; width:68px; border-radius:99px; cursor:pointer;
+  border:1px solid var(--line-2); background:var(--bg-raise); color:var(--fg)}
+.avcat-ops button:hover, .avcat-ops button:focus-visible{background:var(--fg); color:var(--bg-raise);
+  border-color:var(--fg); outline:none}
+@media (hover:hover){
+  .avcat-img:hover .avcat-ops{opacity:1; pointer-events:auto}
+  .avcat-img:hover .psav{opacity:.16}
+}
+.avcat-img:focus-within .avcat-ops{opacity:1; pointer-events:auto}
+.avcat-img:focus-within .psav{opacity:.16}
+
+/* Every face in a category (the picker, over the Profile card). */
+.avgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(56px,1fr)); gap:12px; margin:0 0 6px}
+.avgrid.big{grid-template-columns:repeat(auto-fill,minmax(74px,1fr))}
+.avgrid button{padding:0; background:none; cursor:pointer; aspect-ratio:1;
+  border:2px solid transparent; border-radius:50%}
+.avgrid .psav{width:100%; height:100%; font-size:46px}
+.avgrid button[aria-pressed="true"]{border-color:var(--accent)}
+.avgrid button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+/* Signed-in devices: the same row shape as a friends list. */
+.devlist{margin:2px 0 0}
+.devlist .sethint{margin:10px 0 0}
+.devrow{display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--line)}
+.devrow:last-child{border-bottom:0}
+.devrow .ic{width:34px; height:34px; border-radius:9px; flex:none; display:grid; place-items:center;
+  background:var(--bg-sink); color:var(--fg-2)}
+.devrow .ic svg{width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.7;
+  stroke-linecap:round; stroke-linejoin:round}
+.devrow .dn{flex:1; min-width:0; font-size:14.5px; color:var(--fg)}
+.devrow .dn em{display:block; font-style:normal; font-size:12.5px; color:var(--fg-2)}
+.devrow .dn .here{display:inline-block; margin-left:7px; padding:1px 7px; border-radius:99px;
+  font-size:11px; font-weight:600; letter-spacing:.02em; vertical-align:2px;
+  color:var(--accent); background:color-mix(in srgb, var(--accent) 13%, transparent)}
+.devrow .btn{flex:none; white-space:nowrap; --btn-width:auto; width:auto;
+  --btn-pad:7px 12px; --btn-size:13px; --btn-radius:9px}
+#pfIn .btnrow .btn, #delSheet .btnrow .btn, #downSheet .btnrow .btn{--btn-width:auto; width:auto}
+
+/* The one button that destroys something: a ghost in the warning colour. */
+.btn.ghost.danger{color:var(--warn); border-color:color-mix(in srgb, var(--warn) 40%, transparent)}
+.btn.ghost.danger:hover{background:color-mix(in srgb, var(--warn) 10%, transparent)}
 /* ===== END packages/ui/ui.css ===== */
 /* ===========================================================================
    PlaySapien -- the platform landing page.
@@ -2550,75 +3207,9 @@ footer a:hover{opacity:1}
    packages/ui/ui.css: the sign-in gate uses them on every surface, not only
    here. Left as a pointer so nobody re-adds them locally and gets two copies. */
 
-/* ---------- profile: the signed-in sections ------------------------------- */
-.pfsec{padding:0 0 20px; margin:0 0 20px; border-bottom:1px solid var(--line)}
-.pfsec:last-of-type{border-bottom:0; padding-bottom:4px; margin-bottom:0}
-.pfsec > h3:first-child{margin-top:0}
-
-/* Signed-in devices: the same row shape as the friends list, so the two
-   read as one family. The button keeps its own width (the shared .btn is
-   full-width inside Sojourner, and the habit is worth keeping here). */
-.devlist{margin:2px 0 0}
-.devlist .sethint{margin:10px 0 0}
-.devrow{display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--line)}
-.devrow:last-child{border-bottom:0}
-.devrow .ic{width:34px; height:34px; border-radius:9px; flex:none; display:grid; place-items:center;
-  background:var(--bg-sink); color:var(--fg-2)}
-.devrow .ic svg{width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.7;
-  stroke-linecap:round; stroke-linejoin:round}
-.devrow .dn{flex:1; min-width:0; font-size:14.5px; color:var(--fg)}
-.devrow .dn em{display:block; font-style:normal; font-size:12.5px; color:var(--fg-2)}
-.devrow .dn .here{display:inline-block; margin-left:7px; padding:1px 7px; border-radius:99px;
-  font-size:11px; font-weight:600; letter-spacing:.02em; vertical-align:2px;
-  color:var(--accent); background:color-mix(in srgb, var(--accent) 13%, transparent)}
-.devrow .btn{flex:none; white-space:nowrap; --btn-width:auto; width:auto;
-  --btn-pad:7px 12px; --btn-size:13px; --btn-radius:9px}
-
-.avnow{display:flex; align-items:center; gap:15px; margin:0 0 16px}
-.avnow .psav{width:66px; height:66px; font-size:66px}   /* .psav-ltr is .52em */
-.avnow .who{min-width:0}
-.avnow .who strong{display:block; font-family:var(--f-disp); font-size:18px; font-weight:600; color:var(--fg)}
-.avnow .who span{display:block; font-size:13px; color:var(--fg-2); word-break:break-all}
-
-.avgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(50px,1fr)); gap:10px; margin:0 0 12px}
-.avgrid button{
-  padding:0; background:none; cursor:pointer; aspect-ratio:1;
-  border:2px solid transparent; border-radius:50%;
-}
-.avgrid .psav{width:100%; height:100%; font-size:46px}
-.avgrid button[aria-pressed="true"]{border-color:var(--accent)}
-.avgrid button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
-
-/* ---------- account type -------------------------------------------------
-   The same two-wide-buttons pattern Sojourner uses for Wanderer/Globetrotter:
-   equal widths, the chosen one lit, the other faded rather than hidden, so the
-   alternative is always legible as a thing you could switch to. */
-.planset{display:flex; gap:10px; margin:2px 0 14px}
-.planset button{
-  flex:1 1 0; font-family:var(--f-mono); font-size:15px; letter-spacing:.03em;
-  padding:15px 10px; border-radius:11px; cursor:pointer;
-  border:1px solid var(--line); background:var(--bg-sink); color:var(--fg-2);
-  opacity:.55; transition:background .15s, color .15s, border-color .15s, opacity .15s;
-}
-.planset button:hover{opacity:.8; border-color:var(--line-2); color:var(--fg)}
-.planset button[aria-pressed="true"]{
-  background:var(--line-2); border-color:var(--line-2); color:var(--fg); opacity:1;
-}
-.planset button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
-.planset em{
-  display:block; margin-top:4px; font-style:normal;
-  font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--accent);
-  min-height:11px;      /* reserved, so the row does not jump when it appears */
-}
-.planwhy{font-size:14px; line-height:1.62; color:var(--fg-2); margin:0}
-.planwhy b{color:var(--fg)}
-
-/* The one button on the site that destroys something. Coloured like the
-   warning it is, but still a ghost button rather than a filled red slab: it
-   should be findable by someone looking for it and not the loudest thing in
-   the corner of the eye of someone who is not. */
-.btn.ghost.danger{color:var(--warn); border-color:color-mix(in srgb, var(--warn) 40%, transparent)}
-.btn.ghost.danger:hover{background:color-mix(in srgb, var(--warn) 10%, transparent)}
+/* The Profile card -- its sections, avatars, account type, devices and the
+   danger button -- now lives in packages/ui (bar.html + ui.css), shared with
+   both games. */
 
 
 /* ---------- the makers' photograph ---------------------------------------
@@ -2778,7 +3369,7 @@ footer a:hover{opacity:1}
      signed out reaches this sheet at all: the bar's gate stops them first. -->
 <section class="sheet" id="statsSheet" role="dialog" aria-modal="true" aria-labelledby="statsTitle" hidden>
   <div class="sheet-in">
-    <div class="sh-head"><h2 id="statsTitle">Analytics</h2>
+    <div class="sh-head ps-head"><div class="ps-who" data-ps-who></div><h2 id="statsTitle">Analytics</h2>
       <button class="donebtn" type="button" data-sheet-close>Close</button></div>
     <p class="sh-status" id="anWhat">&nbsp;</p>
 
@@ -2972,7 +3563,156 @@ footer a:hover{opacity:1}
       <button class="btn ghost" type="button" data-sheet-close>Back</button>
     </div>
   </div>
-</section><!-- ===== END packages/ui/bar.html ===== -->
+</section>
+<!-- Profile. One card for every surface -- the front door and each game --
+     painted by ui.js (wireProfile / paintProfile). Signed out, it is the
+     sign-in card; signed in, it is the account type, the avatar and name,
+     and the devices signed in to the account. -->
+<section class="sheet" id="profileSheet" role="dialog" aria-modal="true" aria-labelledby="profileTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head ps-head"><div class="ps-who" data-ps-who></div><h2 id="profileTitle">Profile</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+
+    <!-- signed out -->
+    <div id="pfOut" hidden>
+      <p class="pf-lead">We send a six-digit code to your email &mdash; enter the code;
+         no passwords to manage.</p>
+      <form id="pfsEmailForm" class="pf-mailrow" autocomplete="on">
+        <label class="ui-sr" for="pfsEmail">Your email address</label>
+        <input class="fld" type="email" id="pfsEmail" name="email" inputmode="email"
+               autocomplete="email" placeholder="you@example.com" required>
+        <button class="btn" type="submit" id="pfsEmailBtn">Send me a code</button>
+      </form>
+      <form id="pfsCodeForm" hidden autocomplete="off">
+        <p class="sethint" style="margin:0 0 9px">Six digits, sent to <b id="pfsAddr"></b>.
+          It expires in ten minutes.</p>
+        <div class="pf-mailrow">
+          <label class="ui-sr" for="pfsCode">Six-digit code</label>
+          <input class="fld code" type="text" id="pfsCode" name="one-time-code" inputmode="numeric"
+                 autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required>
+          <button class="btn" type="submit" id="pfsCodeBtn">Sign in</button>
+        </div>
+        <p class="an-how" style="margin-top:8px">
+          <button class="inlink" type="button" id="pfsBack">Use a different address</button></p>
+      </form>
+      <div class="ui-note" id="pfsNote" hidden></div>
+
+      <div class="pf-rule"><span>or</span></div>
+
+    <button class="oauth" type="button" id="pfsGoogle">
+      <span class="lead">Login with:</span>
+      <svg viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.83.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+      <span>Google</span>
+    </button>
+
+      <div class="pf-rule bare"></div>
+
+      <p class="pf-legal">By signing in, you confirm that you have read and accepted the
+        <a href="/terms/">Terms</a> and <a href="/privacy/">Privacy Policy</a>.</p>
+    </div>
+
+    <!-- signed in -->
+    <div id="pfIn" hidden>
+      <!-- Account type. The button's hover shows the other plan's words in
+           #planWhy; pressing it opens the upgrade or the downgrade card ON TOP
+           of this one, so closing either comes back here. -->
+      <section class="pfsec">
+        <div class="pf-planrow">
+          <span class="pf-sub pf-state">Signed In<svg class="chev" viewBox="0 0 24 24"
+            aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><b id="pfPlanName">FREE</b></span>
+          <span class="pf-planbtn" id="pfPlanBtn"></span>
+        </div>
+        <p class="planwhy" id="planWhy"></p>
+      </section>
+
+      <!-- Avatar and display name: a draft until Save; Cancel puts back the
+           last saved version. -->
+      <section class="pfsec">
+        <h3 class="pf-sub">Avatar and Display Name</h3>
+        <span class="setlabel">Choose Avatar</span>
+        <div class="avcats" id="avCats" role="group" aria-label="Avatar categories"></div>
+        <!-- accept is a hint, not a guarantee; the handler checks the type. -->
+        <input type="file" id="avFile" accept="image/png,image/jpeg,image/webp" hidden>
+
+        <label class="setlabel" for="nameIn">Display Name</label>
+        <input class="fld" type="text" id="nameIn" maxlength="32" placeholder="Your name">
+        <div class="btnrow">
+          <button class="btn" type="button" id="pfSave" disabled>Save</button>
+          <button class="btn ghost" type="button" id="pfCancel" disabled>Cancel</button>
+        </div>
+        <div class="ui-note" id="avNote" hidden></div>
+      </section>
+
+      <!-- Each browser signed in is one session on the server
+           (GET /api/auth/devices); sign out any of them from here. -->
+      <section class="pfsec">
+        <h3 class="pf-sub">Signed-in devices</h3>
+        <p class="sethint" style="margin:0 0 4px">Signed in somewhere you don’t recognise, or on a device you no longer have? Sign it out here.</p>
+        <div class="devlist" id="devList" aria-live="polite"></div>
+        <div class="btnrow" id="devAllRow" hidden>
+          <button class="btn ghost" type="button" id="devAllBtn">Sign out all other devices</button>
+        </div>
+        <div class="ui-note" id="devNote" hidden></div>
+      </section>
+
+      <div class="btnrow" style="margin-top:20px">
+        <button class="btn ghost" type="button" id="signOutBtn">Sign out</button>
+        <button class="btn ghost danger" type="button" id="delBtn">Delete account</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Every face in one avatar category, opened over the Profile card. Close
+     without picking changes nothing. -->
+<section class="sheet" id="avPickSheet" role="dialog" aria-modal="true" aria-labelledby="avPickTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="avPickTitle">Choose</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <div class="avgrid" id="avPickGrid"></div>
+  </div>
+</section>
+
+<!-- Downgrade, confirmed on its own card over the Profile card rather than
+     with confirm(): Keep Sapien and Close both lead back to the Profile. -->
+<section class="sheet" id="downSheet" role="dialog" aria-modal="true" aria-labelledby="downTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="downTitle">Downgrade to Free?</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p>On the Free plan you can still play each day’s puzzle, but you will
+       <b>lose access to your game score history</b> — past days, streaks and
+       comparisons with friends all stop being visible.</p>
+    <p class="hint">Nothing is deleted. Your history is kept, and it comes back if you
+       return to Sapien.</p>
+    <div class="btnrow">
+      <button class="btn" type="button" id="downYes">Downgrade to Free</button>
+      <button class="btn ghost" type="button" data-sheet-close>Keep Sapien</button>
+    </div>
+  </div>
+</section>
+
+<!-- Deleting the account: typed confirmation, over the Profile card. -->
+<section class="sheet" id="delSheet" role="dialog" aria-modal="true" aria-labelledby="delTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="delTitle">Delete your account?</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p>This removes your account, your email address, your sign-in methods, your sessions,
+       your results, your streaks, your friendships, your invite codes and your notices.
+       It is a real deletion from the database, not a flag, and <b>it cannot be undone</b>.</p>
+    <p class="hint">The one exception is the moderation record of any puzzle submission that
+       was rejected on safety grounds, which is kept with its author removed.
+       <a href="/privacy/">The privacy page</a> explains why.</p>
+    <label class="setlabel" for="delIn">Type DELETE to confirm</label>
+    <input class="fld" type="text" id="delIn" autocomplete="off" autocapitalize="characters"
+           spellcheck="false" placeholder="DELETE">
+    <div class="btnrow">
+      <button class="btn" type="button" id="delGo" disabled>Delete for ever</button>
+      <button class="btn ghost" type="button" data-sheet-close>Keep my account</button>
+    </div>
+    <div class="ui-note" id="delNote" hidden></div>
+  </div>
+</section>
+<!-- ===== END packages/ui/bar.html ===== -->
 
   <main>
     <!-- The crest used to live here. It now sits in the fixed bar at the top of
@@ -3068,24 +3808,7 @@ footer a:hover{opacity:1}
      plain words, and the word DELETE typed out. A single tap is too cheap for
      something with no undo, and "are you sure?" has been trained out of people
      by a decade of dialogs that did not mean it. -->
-<section class="sheet" id="delSheet" role="dialog" aria-modal="true" aria-labelledby="delTitle" hidden>
-  <div class="sh-head"><h2 id="delTitle">Delete your account?</h2>
-    <button class="donebtn" type="button" data-sheet-close>Close</button></div>
-  <p>This removes your account, your email address, your sign-in methods, your sessions,
-     your results, your streaks, your friendships, your invite codes and your notices.
-     It is a real deletion from the database, not a flag, and <b>it cannot be undone</b>.</p>
-  <p class="hint">The one exception is the moderation record of any puzzle submission that
-     was rejected on safety grounds, which is kept with its author removed.
-     <a href="/privacy/">The privacy page</a> explains why.</p>
-  <label class="setlabel" for="delIn">Type DELETE to confirm</label>
-  <input class="fld" type="text" id="delIn" autocomplete="off" autocapitalize="characters"
-         spellcheck="false" placeholder="DELETE">
-  <div class="btnrow">
-    <button class="btn" type="button" id="delGo" disabled>Delete for ever</button>
-    <button class="btn ghost" type="button" data-sheet-close>Keep my account</button>
-  </div>
-  <div class="ui-note" id="delNote" hidden></div>
-</section>
+
 
 <!-- payWall moved to packages/ui/bar.html: games need it too. -->
 
@@ -3098,148 +3821,14 @@ footer a:hover{opacity:1}
      with you. Saying "lost" would have been the easier sentence and a false
      one, and the first person to find out it was false would be someone who
      downgraded believing it. -->
-<section class="sheet" id="downSheet" role="dialog" aria-modal="true" aria-labelledby="downTitle" hidden>
-  <div class="sh-head"><h2 id="downTitle">Downgrade to Free?</h2>
-    <button class="donebtn" type="button" data-sheet-close>Close</button></div>
-  <p>On the Free plan you can still play each day\u2019s puzzle, but you will
-     <b>lose access to your game score history</b> \u2014 past days, streaks and
-     comparisons with friends all stop being visible.</p>
-  <p class="hint">Nothing is deleted. Your history is kept, and it comes back if you
-     return to Sapien.</p>
-  <div class="btnrow">
-    <button class="btn" type="button" id="downYes">Downgrade to Free</button>
-    <button class="btn ghost" type="button" data-sheet-close>Keep Sapien</button>
-  </div>
-</section>
 
-<!-- Profile / sign-in ------------------------------------------------------- -->
-<section class="sheet" id="profileSheet" role="dialog" aria-modal="true" aria-labelledby="profileTitle" hidden>
-  <!-- Close, top right, the same control in the same place as About, Analytics
-       and Add. Six sheets that dismiss six different ways is six things to
-       learn; one is none. The signed-in/out status that used to sit here has
-       not been dropped, it has moved under the heading -- a status line is not
-       a control and was only ever in the corner because the corner was free. -->
-  <div class="sh-head"><h2 id="profileTitle">Profile</h2><button class="donebtn" type="button" data-sheet-close>Close</button></div>
-  <p class="sh-status" id="pfSub">Not signed in</p>
 
-  <!-- signed out -->
-  <div id="pfOut">
-    <p class="pf-lead">We send a six-digit code to your email &mdash; enter the code;
-       no passwords to manage.</p>
-
-    <form id="emailForm" class="pf-mailrow" autocomplete="on">
-      <label class="ui-sr" for="emailIn">Your email address</label>
-      <input class="fld" type="email" id="emailIn" name="email" inputmode="email"
-             autocomplete="email" placeholder="you@example.com" required>
-      <button class="btn" type="submit" id="emailBtn">Send me a code</button>
-    </form>
-
-    <!-- step two: the code -->
-    <form id="codeForm" hidden autocomplete="off">
-      <label class="setlabel" for="codeIn">Enter the code</label>
-      <p class="sethint" style="margin-bottom:9px">Six digits, sent to <b id="codeAddr"></b>. It expires in ten minutes.</p>
-      <input class="fld code" type="text" id="codeIn" name="one-time-code" inputmode="numeric"
-             autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required>
-      <button class="btn wide" type="submit" id="codeBtn">Sign in</button>
-      <div class="btnrow" style="margin-top:10px">
-        <button class="btn ghost" type="button" id="backBtn">Use a different address</button>
-        <button class="btn ghost" type="button" id="resendBtn">Send again</button>
-      </div>
-    </form>
-    <div class="ui-note" id="pfNote" hidden></div>
-
-    <div class="pf-rule"><span>or</span></div>
-
-    <button class="oauth" type="button" id="googleBtn">
-      <span class="lead">Login with:</span>
-      <svg viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.83.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
-      <span>Google</span>
-    </button>
-
-    <div class="pf-rule bare"></div>
-
-    <p class="pf-legal">By signing in, you confirm that you have read and accepted the
-      <a href="/terms/">Terms</a> and <a href="/privacy/">Privacy Policy</a>.</p>
-  </div>
-
-  <!-- signed in.
-
-       The streak numbers and the per-game breakdown that used to live here
-       have moved to the Analytics sheet, which is where someone goes looking
-       for them and which was otherwise an empty promise. This screen is now
-       only the things you come here to CHANGE. -->
-  <div id="pfIn" hidden>
-
-    <!-- General. Deliberately unnamed: a heading over the first section of a
-         screen called Profile only repeats the screen. -->
-    <section class="pfsec">
-      <div class="avnow">
-        <div class="psav" id="pfAv"></div>
-        <div class="who"><strong id="pfName">&nbsp;</strong><span id="pfMail">&nbsp;</span></div>
-      </div>
-
-      <p class="sethint" style="margin:0 0 10px">Pick a face, or use one of your own.</p>
-      <div class="avgrid" id="avGrid" role="group" aria-label="Choose an avatar"></div>
-      <div class="btnrow">
-        <button class="btn ghost" type="button" id="avUpBtn">Upload a picture</button>
-        <button class="btn ghost" type="button" id="avClrBtn" hidden>Remove picture</button>
-      </div>
-      <!-- accept is a hint, not a guarantee; the handler checks the type. -->
-      <input type="file" id="avFile" accept="image/png,image/jpeg,image/webp" hidden>
-      <div class="ui-note" id="avNote" hidden></div>
-
-      <div class="setrow" style="margin-top:18px">
-        <div class="col">
-          <label class="setlabel" for="nameIn">Display name</label>
-          <p class="sethint">What your friends see on a leaderboard.</p>
-        </div>
-      </div>
-      <input class="fld" type="text" id="nameIn" maxlength="32" placeholder="Your name">
-      <div class="btnrow">
-        <button class="btn" type="button" id="saveNameBtn">Save</button>
-      </div>
-    </section>
-
-    <!-- Account type -->
-    <section class="pfsec">
-      <h3>Account type</h3>
-      <!-- The two buttons choose which option you are READING about; the
-           button underneath is what actually changes anything. They cannot be
-           the same control, because Sapien costs money: a tap that silently
-           upgraded you would be a purchase made by mistake. Your current plan
-           is marked, so the pair still answers "which am I on?" at a glance. -->
-      <div class="planset" id="planSet" role="group" aria-label="Account type">
-        <button type="button" data-plan="free"   aria-pressed="true">Free<em></em></button>
-        <button type="button" data-plan="sapien" aria-pressed="false">Sapien<em></em></button>
-      </div>
-      <p class="planwhy" id="planWhy"></p>
-      <div class="btnrow" id="planActions" style="margin-top:14px"></div>
-    </section>
-
-    <!-- Devices. Each browser you are signed in on is one session on the
-         server (GET /api/auth/devices). Listing them is what makes a lost
-         phone or a borrowed laptop fixable from here: sign that one out and
-         it has to sign in again. Nothing you have played is touched. -->
-    <section class="pfsec">
-      <h3>Signed-in devices</h3>
-      <p class="sethint" style="margin:0 0 4px">Signed in somewhere you don’t recognise, or on a device you no longer have? Sign it out here.</p>
-      <div class="devlist" id="devList" aria-live="polite"></div>
-      <div class="btnrow" id="devAllRow" hidden>
-        <button class="btn ghost" type="button" id="devAllBtn">Sign out all other devices</button>
-      </div>
-      <div class="ui-note" id="devNote" hidden></div>
-    </section>
-
-    <div class="btnrow" style="margin-top:20px">
-      <button class="btn ghost" type="button" id="signOutBtn">Sign out</button>
-      <button class="btn ghost danger" type="button" id="delBtn">Delete account</button>
-    </div>
-  </div>
-</section>
+<!-- Profile, the downgrade card and the delete card are shared with both
+     games now: packages/ui/bar.html, inlined above with the bar. -->
 
 <!-- Friends ----------------------------------------------------------------- -->
 <section class="sheet" id="friendsSheet" role="dialog" aria-modal="true" aria-labelledby="friendsTitle" hidden>
-  <div class="sh-head"><h2 id="friendsTitle">Friends</h2><button class="donebtn" type="button" data-sheet-close>Close</button></div>
+  <div class="sh-head ps-head"><div class="ps-who" data-ps-who></div><h2 id="friendsTitle">Friends</h2><button class="donebtn" type="button" data-sheet-close>Close</button></div>
   <p class="sh-status">Across every game</p>
   <div id="frOut" hidden>
     <p class="empty">Friends need an account, so there is something for a friend to
@@ -3264,7 +3853,7 @@ footer a:hover{opacity:1}
 
 <!-- Settings ---------------------------------------------------------------- -->
 <section class="sheet" id="settingsSheet" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
-  <div class="sh-head"><h2 id="settingsTitle">Settings</h2><button class="donebtn" type="button" data-sheet-close>Close</button></div>
+  <div class="sh-head ps-head"><div class="ps-who" data-ps-who></div><h2 id="settingsTitle">Settings</h2><button class="donebtn" type="button" data-sheet-close>Close</button></div>
   <p class="sh-status">Platform</p>
   <div class="setrow">
     <div class="col">
@@ -3459,8 +4048,7 @@ const GAME_NAMES = { sojourner: 'Sojourner', wordchain: 'Word Chain' };
    another, and Sojourner had two. This is the one.
    -------------------------------------------------------------------------- */
 PSUI.init({
-  sheets: ['aboutSheet', 'profileSheet', 'friendsSheet', 'settingsSheet',
-           'payWall', 'downSheet', 'delSheet'],
+  sheets: ['aboutSheet', 'friendsSheet', 'settingsSheet'],
   scrim: 'scrim',
   toast: 'toast'
 });
@@ -3469,13 +4057,12 @@ const closeSheets = () => PSUI.close();
 
 $('aboutBtn').addEventListener('click', () => openSheet('aboutSheet'));
 $('settingsBtn').addEventListener('click', () => { fillSettings(); openSheet('settingsSheet'); });
-$('profileBtn').addEventListener('click', () => { loadDevices(); openSheet('profileSheet'); });
+/* Profile is wired by packages/ui (the same card in every game). */
 $('friendsBtn').addEventListener('click', () => { loadFriends(); openSheet('friendsSheet'); });
 $('frSignIn').addEventListener('click', () => openSheet('profileSheet'));
 
 /* ---------- signed-in state ----------------------------------------------- */
 let ME = null;
-let DEVICES = [];   // signed-in devices, filled by loadDevices()
 
 function note(el, msg, bad) {
   const n = $(el);
@@ -3486,436 +4073,18 @@ function note(el, msg, bad) {
 
 const initials = s => (s || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 
-function paintSession(user) {
-  ME = user;
-  $('pfOut').hidden = !!user;
-  $('pfIn').hidden = !user;
-  $('frOut').hidden = !!user;
-  $('frIn').hidden = !user;
-  $('pfSub').textContent = user ? 'Signed in' : 'Not signed in';
-  /* The bar wears the face on every surface, and null puts the generic icon
-     back -- a bar still showing yesterday's avatar after a sign-out reads as
-     "it did not sign me out". */
-  PSUI.setAvatar(user);
-  if (!user) { DEVICES = []; $('devList').textContent = ''; $('devAllRow').hidden = true; return; }
-  /* Signing in with the profile open (the usual way) should show this
-     device straight away rather than an empty section. */
-  if (!$('profileSheet').hidden) loadDevices();
-  const name = user.display_name || user.handle || 'Player';
-  $('pfAv').innerHTML = PSUI.avatar(user, { label: 'Your avatar' });
-  $('pfName').textContent = name;
-  $('pfMail').textContent = user.email || '';
-  $('nameIn').value = user.display_name || '';
-  paintAvatarGrid(user);
-  paintPlan(user);
-}
+/* Who is signed in. The Profile card, the bar's face and the strip at the top
+   of each card are all packages/ui's now; this page hands it the account and
+   listens for the answer, so the parts only the front door has -- Friends,
+   the "Play today / Show score" labels -- follow every change, including a
+   sign-out or a deletion made from inside the Profile card. */
+function paintSession(user) { PSUI.setUser(user); }
 
-/* ---------- avatars --------------------------------------------------------
-   The grid is drawn from PSUI.avatarTokens() rather than a list kept here, so
-   adding a face is one array in packages/ui and every surface gets it.
-   -------------------------------------------------------------------------- */
-function paintAvatarGrid(user) {
-  const cur = (user && user.avatar) || '';
-  $('avGrid').innerHTML = PSUI.avatarTokens().map(t => `
-    <button type="button" data-av="${t}" aria-pressed="${t === cur}"
-            aria-label="Avatar ${t.slice(3)}">
-      <span class="psav">${PSUI.avatar({ avatar: t })}</span>
-    </button>`).join('');
-  $('avClrBtn').hidden = cur !== 'custom';
-}
-
-async function setAvatar(patch) {
-  const r = await PS.updateMe(patch);
-  if (!r.ok) { note('avNote', 'That did not save. Try again.', true); return; }
-  note('avNote', '', false);
-  $('avNote').hidden = true;
-  paintSession(r.user);
-}
-
-$('avGrid').addEventListener('click', e => {
-  const b = e.target.closest('button[data-av]');
-  if (b) setAvatar({ avatar: b.dataset.av, avatar_img: null });
-});
-$('avUpBtn').addEventListener('click', () => $('avFile').click());
-$('avClrBtn').addEventListener('click', () => setAvatar({ avatar: null, avatar_img: null }));
-
-/* The upload never leaves the browser at full size. It is centre-cropped to a
-   square and drawn at 128px, then encoded as JPEG and stepped down in quality
-   until it fits the API's 24 KB cap -- which a 128px photo does at the first
-   attempt, the loop being there for the pathological ones. Cropping here, not
-   on the server, is what lets the whole thing be a single column in D1 rather
-   than an image service. */
-const AV_PX = 128, AV_MAX = 24000;
-
-function squareDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const im = new Image();
-    im.onload = () => {
-      try {
-        const side = Math.min(im.width, im.height);
-        const c = document.createElement('canvas');
-        c.width = c.height = AV_PX;
-        const g = c.getContext('2d');
-        /* White underneath: JPEG has no alpha, and a transparent PNG would
-           otherwise composite onto black. */
-        g.fillStyle = '#fff'; g.fillRect(0, 0, AV_PX, AV_PX);
-        g.drawImage(im, (im.width - side) / 2, (im.height - side) / 2, side, side,
-                    0, 0, AV_PX, AV_PX);
-        let q = 0.82, out = c.toDataURL('image/jpeg', q);
-        while (out.length > AV_MAX && q > 0.3) { q -= 0.12; out = c.toDataURL('image/jpeg', q); }
-        resolve(out.length > AV_MAX ? null : out);
-      } catch (err) { reject(err); }
-      finally { URL.revokeObjectURL(url); }
-    };
-    im.onerror = () => { URL.revokeObjectURL(url); reject(new Error('not an image')); };
-    im.src = url;
-  });
-}
-
-$('avFile').addEventListener('change', async e => {
-  const f = e.target.files && e.target.files[0];
-  e.target.value = '';                       // so the same file can be re-picked
-  if (!f) return;
-  if (!/^image\/(png|jpeg|webp)$/.test(f.type)) {
-    note('avNote', 'PNG, JPEG or WebP, please.', true); return;
-  }
-  note('avNote', 'Resizing\u2026', false);
-  let data = null;
-  try { data = await squareDataUrl(f); }
-  catch (err) { note('avNote', 'That file could not be read as a picture.', true); return; }
-  if (!data) { note('avNote', 'That picture will not compress small enough. Try another.', true); return; }
-  setAvatar({ avatar: 'custom', avatar_img: data });
-});
-
-/* ---------- account type ---------------------------------------------------
-   Two wide buttons, the chosen one lit and the other faded, the same way
-   Sojourner offers Wanderer and Globetrotter. Nothing charges for either yet;
-   what the choice buys today is that it is stored against the account rather
-   than the browser, so a game can read it and a new phone inherits it.
-   -------------------------------------------------------------------------- */
-const PLAN_WHY = {
-  free: 'Free keeps everything you play. Your streak follows you to a new phone, your ' +
-        'daily result counts in Analytics, and it is ranked against everyone else playing ' +
-        'that day. What Free does not include is the longer view \u2014 your last twelve ' +
-        'games and your lifetime average \u2014 or making puzzles of your own.',
-  sapien: 'The Sapien option is a paid option \u2014 just <b>$2/mo billed annually</b> \u2014 ' +
-          'which opens up tracking all your results, comparing your results against friends ' +
-          'and others, being able to make up and share games with friends, and more.',
-};
-
-/* Which option the player is reading about. It starts on whatever they are on
-   and is only ever changed by them; PLAN is what they actually have. */
-let planView = 'free';
-
-function paintPlan(user) {
-  const plan = (user && user.plan) === 'sapien' ? 'sapien' : 'free';
-  if (!paintPlan.touched) planView = plan;        // follow the account until they browse
-  [...$('planSet').children].forEach(b => {
-    b.setAttribute('aria-pressed', String(b.dataset.plan === planView));
-    b.querySelector('em').textContent = b.dataset.plan === plan ? 'Current' : '';
-  });
-  $('planWhy').innerHTML = PLAN_WHY[planView] +
-    /* A Sapien grant with an end date says when -- on the Sapien option, where
-       someone looking at what they have would look for it. */
-    (planView === 'sapien' && plan === 'sapien' && user && user.plan_until
-      ? '<br><br><b>Your Sapien access runs through ' + PSUI.untilText(user.plan_until) + '.</b>'
-      : '');
-
-  /* The action belongs to the plan you HAVE, not the one you are reading, so
-     that browsing the other option never changes what the button would do. */
-  $('planActions').innerHTML = plan === 'sapien'
-    ? '<button class="btn ghost" type="button" id="planDownBtn">Downgrade to Free</button>'
-    : '<button class="btn" type="button" id="planUpBtn">Upgrade to Sapien</button>';
-}
-
-$('planSet').addEventListener('click', e => {
-  const b = e.target.closest('button[data-plan]');
-  if (!b) return;
-  planView = b.dataset.plan;
-  paintPlan.touched = true;
-  paintPlan(ME);
-});
-
-$('planActions').addEventListener('click', e => {
-  if (e.target.closest('#planUpBtn')) { openSheet('payWall'); return; }
-  if (e.target.closest('#planDownBtn')) { openSheet('downSheet'); return; }
-});
-
-/* ---------- deleting the account ------------------------------------------
-   DELETE /api/player/me has been in the API all along; the SDK has no wrapper
-   for it, so this calls it directly. It is the only place in the shell that
-   does, which is the right trade for one irreversible call rather than growing
-   the shared client for it. */
-$('delBtn').addEventListener('click', () => {
-  $('delIn').value = '';
-  $('delGo').disabled = true;
-  note('delNote', '', false);
-  openSheet('delSheet');
-});
-$('delIn').addEventListener('input', e => {
-  $('delGo').disabled = e.target.value.trim().toUpperCase() !== 'DELETE';
-});
-$('delGo').addEventListener('click', async () => {
-  $('delGo').disabled = true;
-  let r;
-  try {
-    r = await fetch('/api/player/me', {
-      method: 'DELETE', credentials: 'include', headers: { Accept: 'application/json' },
-    });
-  } catch (e) { r = null; }
-  if (!r || !r.ok) {
-    note('delNote', 'That did not go through. Nothing has been deleted \u2014 try again.', true);
-    $('delGo').disabled = false;
-    return;
-  }
-  /* The server has cleared the cookie; the page still believes it is signed in
-     until told otherwise, and a stale profile on screen after a deletion is
-     alarming in exactly the wrong way. */
-  closeSheets();
-  ME = null;
-  paintSession(null);
-  PSUI.toast('Your account has been deleted.');
-  refresh();
-});
-
-/* Downgrade is confirmed on its own sheet rather than with confirm(), which a
-   browser is free to style, suppress or queue behind another dialog -- not what
-   you want in front of the one irreversible-sounding choice on the screen. */
-$('downYes').addEventListener('click', async () => {
-  const r = await PS.updateMe({ plan: 'free' });
-  closeSheets();
-  if (!r.ok) { PSUI.toast('That did not save.'); return; }
-  paintPlan.touched = false;                       // snap the view back to Free
-  paintSession(r.user);
-  PSUI.toast('You are on the Free plan.');
-});
-
-/* paintStats is gone. The Analytics card is now three empty horizons -- Daily,
-   Last dozen, Lifetime -- built and tiered by packages/ui for every surface
-   alike; the streak numbers this used to write into it come back when those
-   horizons are filled from real data, not before. */
-
-/* ---------- email sign-in -------------------------------------------------- */
-let pending = '';
-
-$('emailForm').addEventListener('submit', async e => {
-  e.preventDefault();
-  const addr = $('emailIn').value.trim();
-  $('emailBtn').disabled = true;
-  $('emailBtn').textContent = 'Sending…';
-  const r = await PS.signInEmail(addr);
-  $('emailBtn').disabled = false;
-  $('emailBtn').textContent = 'Send me a code';
-  if (!r.ok) {
-    note('pfNote', r.error === 'bad_email'
-      ? 'That does not look like an email address.'
-      : 'Could not reach the server. Your games still work — try again later.', true);
-    return;
-  }
-  pending = addr;
-  $('codeAddr').textContent = addr;
-  $('emailForm').hidden = true;
-  $('codeForm').hidden = false;
-  note('pfNote', 'Check your mail. If it does not arrive in a minute, look in spam.');
-  $('codeIn').focus();
-});
-
-$('codeForm').addEventListener('submit', async e => {
-  e.preventDefault();
-  const code = $('codeIn').value.replace(/\D/g, '');
-  $('codeBtn').disabled = true;
-  const r = await PS.verifyEmail(pending, code);
-  $('codeBtn').disabled = false;
-  if (!r.ok || !r.user) {
-    note('pfNote', r.error === 'bad_code'
-      ? 'That code is not six digits.'
-      : 'That code did not work. It may have expired — send a new one.', true);
-    $('codeIn').select();
-    return;
-  }
-  note('pfNote', '');
-  $('codeForm').hidden = true;
-  $('emailForm').hidden = false;
-  $('codeIn').value = '';
-  paintSession(r.user);
-  refresh();
-});
-
-$('backBtn').addEventListener('click', () => {
-  $('codeForm').hidden = true;
-  $('emailForm').hidden = false;
-  note('pfNote', '');
-  $('emailIn').focus();
-});
-$('resendBtn').addEventListener('click', async () => {
-  const r = await PS.signInEmail(pending);
-  note('pfNote', r.ok ? 'Sent again.' : 'Could not send right now.', !r.ok);
-});
-$('googleBtn').addEventListener('click', () => {
-  /* `next`, not `return`. The Worker reads next= (routes/auth.js googleStart)
-     and ignores anything else, so return= meant every Google sign-in landed on
-     the front door no matter which page it started from. */
-  location.href = '/api/auth/google/start?next=' + encodeURIComponent(location.pathname);
-});
-$('signOutBtn').addEventListener('click', async () => {
-  await PS.signOut();
-  paintSession(null);
-  paintStatus({});
-});
-$('saveNameBtn').addEventListener('click', async () => {
-  const btn = $('saveNameBtn');
-  btn.disabled = true;
-  const r = await PS.updateMe({ display_name: $('nameIn').value.trim() });
-  btn.disabled = false;
-  btn.textContent = r && r.ok ? 'Saved' : 'Try again';
-  setTimeout(() => { btn.textContent = 'Save'; }, 1600);
-  if (r && r.ok && r.user) paintSession(r.user);
-});
-
-/* ---------- signed-in devices --------------------------------------------- */
-/* The server keeps the browser's own description of itself (its user-agent)
-   and the country Cloudflare saw. Both are turned into plain words here; the
-   raw string never reaches the screen. */
-function describeUA(ua) {
-  ua = ua || '';
-  let browser = '';
-  if (/Edg(e|A|iOS)?\//.test(ua)) browser = 'Edge';
-  else if (/OPR\/|Opera/.test(ua)) browser = 'Opera';
-  else if (/SamsungBrowser/.test(ua)) browser = 'Samsung Internet';
-  else if (/Firefox\/|FxiOS/.test(ua)) browser = 'Firefox';
-  else if (/Chrome\/|CriOS/.test(ua)) browser = 'Chrome';
-  else if (/Safari\//.test(ua)) browser = 'Safari';
-  let os = '', kind = 'computer';
-  if (/iPhone|iPod/.test(ua)) { os = 'iPhone'; kind = 'phone'; }
-  else if (/iPad/.test(ua)) { os = 'iPad'; kind = 'tablet'; }
-  else if (/Android/.test(ua)) { os = 'Android'; kind = /Mobile/.test(ua) ? 'phone' : 'tablet'; }
-  else if (/CrOS/.test(ua)) os = 'Chromebook';
-  else if (/Windows/.test(ua)) os = 'Windows';
-  else if (/Macintosh|Mac OS X/.test(ua)) os = 'Mac';
-  else if (/Linux/.test(ua)) os = 'Linux';
-  const name = browser && os ? browser + ' on ' + os : (browser || os || 'Unknown device');
-  return { name, kind };
-}
-
-function countryName(cc) {
-  if (!cc || !/^[A-Z]{2}$/.test(cc) || cc === 'XX' || cc === 'T1') return '';
-  try { return new Intl.DisplayNames(undefined, { type: 'region' }).of(cc) || cc; }
-  catch (e) { return cc; }
-}
-
-function whenUsed(sec) {
-  if (!sec) return '';
-  const d = Math.max(0, Date.now() / 1000 - sec);
-  if (d < 600) return 'Active now';
-  if (d < 3600) return 'Used ' + Math.round(d / 60) + ' minutes ago';
-  if (d < 86400) { const h = Math.round(d / 3600); return 'Used ' + h + ' hour' + (h > 1 ? 's' : '') + ' ago'; }
-  const days = Math.floor(d / 86400);
-  if (days === 1) return 'Used yesterday';
-  if (days < 30) return 'Used ' + days + ' days ago';
-  return 'Last used ' + new Date(sec * 1000).toLocaleDateString(undefined,
-    { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-const DEV_ICON = {
-  phone:    '<svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
-  tablet:   '<svg viewBox="0 0 24 24"><rect x="4.5" y="2.5" width="15" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
-  computer: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16v4"/></svg>',
-};
-
-/* DELETE has no wrapper in the shared client, same as account deletion. */
-async function devApi(method, path) {
-  try {
-    const r = await fetch('/api' + path, {
-      method, credentials: 'include', headers: { Accept: 'application/json' },
-    });
-    const j = await r.json().catch(() => null);
-    return j && j.ok ? { ok: true, data: j.data } : { ok: false, status: r.status };
-  } catch (e) { return { ok: false, offline: true }; }
-}
-
-async function loadDevices() {
-  if (!ME) return;
-  const r = await devApi('GET', '/auth/devices');
-  if (!ME) return;
-  if (!r.ok) {
-    $('devList').innerHTML = '<p class="sethint">' + (r.offline
-      ? 'Your devices will show here when you\u2019re back online.'
-      : 'Your devices could not be loaded just now.') + '</p>';
-    $('devAllRow').hidden = true;
-    return;
-  }
-  DEVICES = ((r.data && r.data.devices) || []).slice()
-    .sort((a, b) => (b.current - a.current) || (b.last_used_at - a.last_used_at));
-  paintDevices();
-}
-
-function paintDevices() {
-  const list = $('devList');
-  list.textContent = '';
-  DEVICES.forEach(d => {
-    const who = describeUA(d.ua);
-    const row = document.createElement('div');
-    row.className = 'devrow';
-    const ic = document.createElement('div');
-    ic.className = 'ic';
-    ic.innerHTML = DEV_ICON[who.kind];
-    const dn = document.createElement('div');
-    dn.className = 'dn';
-    dn.appendChild(document.createTextNode(who.name));
-    if (d.current) {
-      const here = document.createElement('span');
-      here.className = 'here';
-      here.textContent = 'This device';
-      dn.appendChild(here);
-    }
-    const em = document.createElement('em');
-    em.textContent = [d.current ? 'Active now' : whenUsed(d.last_used_at), countryName(d.country)]
-      .filter(Boolean).join(' \u00b7 ');
-    dn.appendChild(em);
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn ghost';
-    btn.textContent = 'Sign out';
-    btn.setAttribute('aria-label', 'Sign out ' + who.name + (d.current ? ' (this device)' : ''));
-    btn.addEventListener('click', () => signOutDevice(d, btn));
-    row.append(ic, dn, btn);
-    list.appendChild(row);
-  });
-  $('devAllRow').hidden = DEVICES.filter(d => !d.current).length < 2;
-}
-
-async function signOutDevice(d, btn) {
-  /* This device signs out the ordinary way, so the page clears itself too. */
-  if (d.current) { $('signOutBtn').click(); return; }
-  if (btn) btn.disabled = true;
-  const r = await devApi('DELETE', '/auth/devices/' + encodeURIComponent(d.id));
-  if (!r.ok && r.status !== 404) {
-    if (btn) btn.disabled = false;
-    note('devNote', r.offline ? 'You\u2019re offline. Try again when you\u2019re connected.'
-                              : 'That did not go through. Try again.', true);
-    return false;
-  }
-  DEVICES = DEVICES.filter(x => x.id !== d.id);
-  paintDevices();
-  note('devNote', 'Signed out. That device will need to sign in again.', false);
-  return true;
-}
-
-$('devAllBtn').addEventListener('click', async () => {
-  const btn = $('devAllBtn');
-  btn.disabled = true;
-  const others = DEVICES.filter(d => !d.current);
-  let failed = 0;
-  for (const d of others) {
-    const r = await devApi('DELETE', '/auth/devices/' + encodeURIComponent(d.id));
-    if (r.ok || r.status === 404) DEVICES = DEVICES.filter(x => x.id !== d.id); else failed++;
-  }
-  btn.disabled = false;
-  paintDevices();
-  note('devNote', failed
-    ? 'Some devices could not be signed out. Try again.'
-    : 'Every other device is signed out. Only this one is still signed in.', !!failed);
+document.addEventListener('ps:user', e => {
+  ME = e.detail || null;
+  $('frOut').hidden = !!ME;
+  $('frIn').hidden = !ME;
+  if (!ME) paintStatus({});
 });
 
 /* ---------- friends -------------------------------------------------------- */

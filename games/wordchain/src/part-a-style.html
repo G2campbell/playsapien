@@ -1075,6 +1075,117 @@
   font-variant-numeric:tabular-nums}
 .dayrow .btn.dayb small{display:block; font-family:var(--f-mono); font-size:11px;
   font-weight:400; letter-spacing:.02em; text-transform:none; opacity:.75}
+
+/* ------------------------------------------------------ who is here ----
+   The strip at the top-left of Analytics, Friends, Settings and Profile:
+   face, name over email, a hairline, then the card's title; Close stays top
+   right; a hairline under the whole row. The face, the two lines of text and
+   the hairline are all 30px tall -- the height the 23px title occupies -- so
+   the row reads as one line of type. ui.js fills [data-ps-who]. The text is
+   the part that gives way on a narrow phone (ellipsis), never the title. */
+.sh-head.ps-head{align-items:center; gap:10px; padding-bottom:14px; margin-bottom:18px;
+  border-bottom:1px solid var(--line)}
+.ps-head h2{line-height:30px; white-space:nowrap; flex:none}
+.ps-head .donebtn{flex:none}
+.ps-head + .sh-status{margin-top:0}
+.ps-who{display:flex; align-items:center; gap:10px; min-width:0; flex:0 1 auto}
+.ps-who:empty{display:none}
+.ps-who-av{width:30px; height:30px; font-size:30px}
+.ps-who-av.anon svg{width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.7;
+  stroke-linecap:round; stroke-linejoin:round; opacity:.75}
+.ps-who-tx{display:flex; flex-direction:column; justify-content:center; height:30px;
+  min-width:0; max-width:200px; line-height:1.18}
+.ps-who-tx b, .ps-who-tx span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.ps-who-tx b{font-size:13px; font-weight:600; color:var(--fg)}
+.ps-who-tx span{font-size:11px; color:var(--fg-3)}
+.ps-who-rule{width:1px; height:30px; background:var(--line-2); flex:none}
+
+/* --------------------------------------------------------- profile ----
+   The Profile card, shared by every surface (bar.html). Section rules, the
+   subtitle (.pf-sub) and the sub-subtitle (.setlabel) are set here rather
+   than borrowed from a surface, so the card looks like itself everywhere and
+   takes only its colours from the game it is opened in. */
+.pfsec{padding:0 0 20px; margin:0 0 20px; border-bottom:1px solid var(--line)}
+.pfsec:last-of-type{border-bottom:0; padding-bottom:4px; margin-bottom:0}
+.pf-sub{font-family:var(--f-disp); font-weight:700; font-size:15.5px; line-height:1.25;
+  letter-spacing:-.006em; color:var(--fg); margin:0 0 12px}
+#pfIn .setlabel{margin:0 0 8px}
+
+/* Signed In > FREE, and the one button that changes it -- right-aligned. */
+.pf-planrow{display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap;
+  gap:10px 16px; margin:0 0 12px}
+.pf-state{display:inline-flex; align-items:center; gap:3px; margin:0}
+.pf-state .chev{width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:2;
+  stroke-linecap:round; stroke-linejoin:round; opacity:.55}
+.pf-state b{font-weight:inherit; letter-spacing:.05em}
+.pf-planbtn .btn{--btn-width:auto; width:auto; white-space:nowrap; --btn-pad:10px 18px; --btn-size:14px}
+/* Reserved height: the two plans' words differ in length, and the hover swap
+   must not make the card jump under the pointer. */
+.planwhy{font-size:14px; line-height:1.62; color:var(--fg-2); margin:0; min-height:4.86em}
+.planwhy b{color:var(--fg)}
+.planwhy.peek{color:var(--fg-3); font-style:italic}
+
+/* The three avatar categories: a picture over its name. */
+.avcats{display:flex; gap:16px; flex-wrap:wrap; margin:4px 0 20px}
+.avcat{display:flex; flex-direction:column; align-items:center; gap:7px; width:92px}
+.avcat-pic{position:relative; width:92px; height:92px; padding:0; border:0; border-radius:50%;
+  background:none; cursor:pointer; color:inherit; display:block}
+.avcat-pic:focus-visible{outline:2px solid var(--accent); outline-offset:3px}
+.avcat-pic .psav{width:100%; height:100%; font-size:92px; transition:opacity .15s}
+.avcat.on .avcat-pic .psav{box-shadow:0 0 0 3px var(--sheet-bg, var(--bg-raise)), 0 0 0 5px var(--accent)}
+.avcat-name{font-size:12.5px; color:var(--fg-2); text-align:center}
+.avcat.on .avcat-name{color:var(--fg); font-weight:600}
+.avcat-pic.add .psav{background:transparent; border:2px dashed var(--line-2); box-sizing:border-box;
+  color:var(--fg-3)}
+.avcat-pic.add:hover .psav{color:var(--fg); border-color:var(--fg-3)}
+.avcat-pic.add svg{width:44px; height:44px; fill:none; stroke:currentColor; stroke-width:1.6;
+  stroke-linecap:round}
+/* Your Image, once there is one: hover (or a tap, which focuses it) fades the
+   picture and offers three pills. */
+.avcat-ops{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; gap:4px; opacity:0; pointer-events:none; transition:opacity .15s}
+.avcat-ops button{font-family:var(--f-body); font-size:10px; font-weight:700; letter-spacing:.08em;
+  line-height:1; padding:5px 0; width:68px; border-radius:99px; cursor:pointer;
+  border:1px solid var(--line-2); background:var(--bg-raise); color:var(--fg)}
+.avcat-ops button:hover, .avcat-ops button:focus-visible{background:var(--fg); color:var(--bg-raise);
+  border-color:var(--fg); outline:none}
+@media (hover:hover){
+  .avcat-img:hover .avcat-ops{opacity:1; pointer-events:auto}
+  .avcat-img:hover .psav{opacity:.16}
+}
+.avcat-img:focus-within .avcat-ops{opacity:1; pointer-events:auto}
+.avcat-img:focus-within .psav{opacity:.16}
+
+/* Every face in a category (the picker, over the Profile card). */
+.avgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(56px,1fr)); gap:12px; margin:0 0 6px}
+.avgrid.big{grid-template-columns:repeat(auto-fill,minmax(74px,1fr))}
+.avgrid button{padding:0; background:none; cursor:pointer; aspect-ratio:1;
+  border:2px solid transparent; border-radius:50%}
+.avgrid .psav{width:100%; height:100%; font-size:46px}
+.avgrid button[aria-pressed="true"]{border-color:var(--accent)}
+.avgrid button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+/* Signed-in devices: the same row shape as a friends list. */
+.devlist{margin:2px 0 0}
+.devlist .sethint{margin:10px 0 0}
+.devrow{display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--line)}
+.devrow:last-child{border-bottom:0}
+.devrow .ic{width:34px; height:34px; border-radius:9px; flex:none; display:grid; place-items:center;
+  background:var(--bg-sink); color:var(--fg-2)}
+.devrow .ic svg{width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.7;
+  stroke-linecap:round; stroke-linejoin:round}
+.devrow .dn{flex:1; min-width:0; font-size:14.5px; color:var(--fg)}
+.devrow .dn em{display:block; font-style:normal; font-size:12.5px; color:var(--fg-2)}
+.devrow .dn .here{display:inline-block; margin-left:7px; padding:1px 7px; border-radius:99px;
+  font-size:11px; font-weight:600; letter-spacing:.02em; vertical-align:2px;
+  color:var(--accent); background:color-mix(in srgb, var(--accent) 13%, transparent)}
+.devrow .btn{flex:none; white-space:nowrap; --btn-width:auto; width:auto;
+  --btn-pad:7px 12px; --btn-size:13px; --btn-radius:9px}
+#pfIn .btnrow .btn, #delSheet .btnrow .btn, #downSheet .btnrow .btn{--btn-width:auto; width:auto}
+
+/* The one button that destroys something: a ghost in the warning colour. */
+.btn.ghost.danger{color:var(--warn); border-color:color-mix(in srgb, var(--warn) 40%, transparent)}
+.btn.ghost.danger:hover{background:color-mix(in srgb, var(--warn) 10%, transparent)}
 /* ===== END packages/ui/ui.css ===== */
 
 /* ===========================================================================
@@ -2077,6 +2188,8 @@ PSTheme.init('wc-game');
     avatar: avatar,
     avatarTokens: avatarTokens,
     setAvatar: setAvatar,
+    /* The one call a surface makes when it learns who is signed in. */
+    setUser: setUser,
     open: open,
     close: close,
     closeAll: closeAll,
@@ -2117,6 +2230,16 @@ PSTheme.init('wc-game');
   ];
   var AV_COUNT = AV_INK.length;
 
+  /* The Monsters set: pictures, not drawings, served from /avatars/ at the
+     site root (packages/avatars/monsters, copied in by the front door's
+     build). The numbers are the files' own, gaps and all, so a token always
+     names the same picture. */
+  var MONSTERS = ['01','02','03','04','05','06','07','08',
+                  '11','12','13','14','15','16','17','18','19',
+                  '21','22','23','24','25',
+                  '31','32','33','34','35','36','37','38','39',
+                  '41','42','43','44','45','46','47','48','49'];
+
   function avatarTokens() {
     var out = [], i;
     for (i = 1; i <= AV_COUNT; i++) out.push('ps-' + (i < 10 ? '0' : '') + i);
@@ -2144,6 +2267,12 @@ PSTheme.init('wc-game');
     if (token === 'custom' && /^data:image\/(png|jpeg|webp);base64,/.test(img)) {
       return '<img class="psav-img" src="' + escapeAttr(img) + '" alt="' +
              escapeAttr(label) + '">';
+    }
+
+    var mm = /^monster-(\d{2})$/.exec(token);
+    if (mm && MONSTERS.indexOf(mm[1]) >= 0) {
+      return '<img class="psav-img" src="/avatars/' + token + '.webp" alt="' +
+             escapeAttr(label) + '" decoding="async">';
     }
 
     var m = /^ps-(\d{2})$/.exec(token);
@@ -2217,12 +2346,24 @@ PSTheme.init('wc-game');
      player's own face. Called with null on sign-out, which puts the icon back
      -- a bar still showing yesterday's face after signing out is a bug people
      read as "it did not sign me out". */
-  function setAvatar(user) {
-    learnUser(user);                                   // the shell's word is final
+  /* Who is signed in has changed -- signed in, signed out, saved a new face.
+     Everything that shows the player repaints from here: the bar's button,
+     the who-strip on each card, the Profile card. Then the page is told, so
+     a surface with its own signed-in parts (the front door's Friends) can
+     follow without being called by name. */
+  function setUser(user) {
+    learnUser(user);                                   // the newest word is final
+    paintBarAvatar(user);
+    try { document.dispatchEvent(new CustomEvent('ps:user', { detail: user || null })); }
+    catch (e) { /* very old browser: the surface repaints on its next load */ }
+  }
+  function setAvatar(user) { setUser(user); }        // the old name, still exported
+
+  function paintBarAvatar(user) {
     var b = document.getElementById('profileBtn');
     if (!b) return;
     if (b.__icon == null) b.__icon = b.innerHTML;      // keep the original once
-    var on = !!(user && (user.avatar || user.avatar_img));
+    var on = !!(user && user.avatar);
     b.classList.toggle('has-av', on);
     b.innerHTML = on ? avatar(user, { label: 'Your profile' }) : b.__icon;
     /* A face arriving ends the pulse, and remembers it: someone with an avatar
@@ -2256,6 +2397,9 @@ PSTheme.init('wc-game');
   function learnUser(u) {
     ME.user = u || null;
     ME.known = true;
+    paintWho();
+    paintProfile();
+    if (ME.user && UI.isOpen('profileSheet')) loadDevices();
     var w = ME.waiters; ME.waiters = [];
     for (var i = 0; i < w.length; i++) { try { w[i](ME.user); } catch (e) { /* one bad waiter must not stop the rest */ } }
   }
@@ -2398,19 +2542,22 @@ PSTheme.init('wc-game');
      a game that has never heard of the SDK. On success the page reloads: every
      surface already knows how to draw itself for a signed-in player on load,
      and a reload is the one way to be sure all of it agrees. */
-  var gtEmail = '';
-  function gtNote(msg, bad) {
-    var n = document.getElementById('gtNote');
+  /* Two copies of the same card: the gate (ids gt*) and the Profile card's
+     signed-out half (ids pfs*). One function wires either, by prefix. */
+  function siNote(px, msg, bad) {
+    var n = document.getElementById(px + 'Note');
     if (!n) return;
     n.hidden = !msg; n.textContent = msg || '';
     n.classList.toggle('bad', !!bad);
   }
-  function gateReset() {
-    var ef = document.getElementById('gtEmailForm'), cf = document.getElementById('gtCodeForm');
+  function signinReset(px) {
+    var ef = document.getElementById(px + 'EmailForm'), cf = document.getElementById(px + 'CodeForm');
     if (ef) ef.hidden = false;
     if (cf) cf.hidden = true;
-    gtNote('', false);
+    siNote(px, '', false);
   }
+  function gtNote(msg, bad) { siNote('gt', msg, bad); }
+  function gateReset() { signinReset('gt'); }
   function deviceId() {
     try { return localStorage.getItem('ps:device') || ''; } catch (e) { return ''; }
   }
@@ -2427,49 +2574,543 @@ PSTheme.init('wc-game');
       });
     }).catch(function () { return { ok: false, data: null, status: 0 }; });
   }
-  function wireGate() {
-    var ef = document.getElementById('gtEmailForm');
+  function wireSignin(px) {
+    var ef = document.getElementById(px + 'EmailForm');
     if (!ef || ef.__wired) return;
     ef.__wired = true;
-    var cf = document.getElementById('gtCodeForm');
+    var cf = document.getElementById(px + 'CodeForm');
+    var addr = '';
+    var note = function (m, b) { siNote(px, m, b); };
 
     ef.addEventListener('submit', function (e) {
       e.preventDefault();
-      var v = (document.getElementById('gtEmail').value || '').trim().toLowerCase();
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) { gtNote('That does not look like an email address.', true); return; }
-      gtEmail = v;
-      gtNote('Sending…', false);
+      var v = (document.getElementById(px + 'Email').value || '').trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) { note('That does not look like an email address.', true); return; }
+      addr = v;
+      note('Sending…', false);
       api('POST', '/auth/email/start', { email: v }).then(function (r) {
-        if (!r.ok) { gtNote(r.status === 429 ? 'Too many tries. Wait a minute and try again.' : 'That did not send. Try again.', true); return; }
-        gtNote('', false);
-        document.getElementById('gtAddr').textContent = v;
+        if (!r.ok) { note(r.status === 429 ? 'Too many tries. Wait a minute and try again.' : 'That did not send. Try again.', true); return; }
+        note('', false);
+        document.getElementById(px + 'Addr').textContent = v;
         ef.hidden = true; cf.hidden = false;
-        var c = document.getElementById('gtCode'); if (c) { c.value = ''; c.focus(); }
+        var c = document.getElementById(px + 'Code'); if (c) { c.value = ''; c.focus(); }
       });
     });
 
     cf.addEventListener('submit', function (e) {
       e.preventDefault();
-      var code = (document.getElementById('gtCode').value || '').replace(/\D/g, '');
-      if (code.length !== 6) { gtNote('The code is six digits.', true); return; }
-      gtNote('Checking…', false);
-      api('POST', '/auth/email/verify', { email: gtEmail, code: code }).then(function (r) {
-        if (!r.ok) { gtNote('That code did not work. Check it, or ask for a new one.', true); return; }
+      var code = (document.getElementById(px + 'Code').value || '').replace(/\D/g, '');
+      if (code.length !== 6) { note('The code is six digits.', true); return; }
+      note('Checking…', false);
+      api('POST', '/auth/email/verify', { email: addr, code: code }).then(function (r) {
+        if (!r.ok) { note('That code did not work. Check it, or ask for a new one.', true); return; }
         /* Carry this browser's history into the account before reloading --
            what the SDK does after its own sign-in. Best effort: a failure here
-           loses nothing, it is simply retried the next time the SDK runs. */
+           loses nothing, it is simply retried the next time the SDK runs.
+           Then reload: every surface already knows how to draw itself for a
+           signed-in player on load, and a reload is the one way to be sure all
+           of it agrees. */
         var dev = deviceId();
         var after = dev ? api('POST', '/player/claim', { device_ids: [dev] }) : Promise.resolve();
         after.then(function () { location.reload(); });
       });
     });
 
-    var back = document.getElementById('gtBack');
-    if (back) back.addEventListener('click', gateReset);
+    var back = document.getElementById(px + 'Back');
+    if (back) back.addEventListener('click', function () { signinReset(px); });
 
-    var g = document.getElementById('gtGoogle');
+    var g = document.getElementById(px + 'Google');
     if (g) g.addEventListener('click', function () {
       location.href = '/api/auth/google/start?next=' + encodeURIComponent(location.pathname);
+    });
+  }
+  function wireGate() { wireSignin('gt'); wireSignin('pfs'); }
+
+  /* --------------------------------------------------------- who is here ----
+     The strip at the top-left of Analytics, Friends, Settings and Profile, on
+     every surface: the player's face, their name over their email, a hairline,
+     then the card's own title. Any element marked data-ps-who is filled from
+     here, so a card opts in with one empty div and never has to repaint it --
+     a name change or a new avatar reaches every card at once.
+
+     Before the session answers it stays blank rather than guessing "Guest":
+     a signed-in player should not see themselves signed out for a moment. */
+  var PERSON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/>' +
+                   '<path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg>';
+  function paintWho() {
+    var els = document.querySelectorAll('[data-ps-who]');
+    if (!els.length) return;
+    var u = ME.user, known = ME.known, html;
+    if (!known) {
+      html = '<span class="psav ps-who-av"></span>' +
+             '<span class="ps-who-tx"><b>&nbsp;</b><span>&nbsp;</span></span>';
+    } else {
+      html = '<span class="psav ps-who-av' + (u ? '' : ' anon') + '">' +
+               (u ? avatar(u) : PERSON_SVG) + '</span>' +
+             '<span class="ps-who-tx"><b>' +
+               escapeAttr(u ? (u.display_name || u.handle || 'Player') : 'Guest') +
+             '</b><span>' + escapeAttr(u ? (u.email || '') : 'Not signed in') + '</span></span>';
+    }
+    html += '<span class="ps-who-rule" aria-hidden="true"></span>';
+    for (var i = 0; i < els.length; i++) els[i].innerHTML = html;
+  }
+
+  /* ------------------------------------------------------------ profile ----
+     One Profile card for every surface, in packages/ui/bar.html, painted from
+     here. The front door used to own it and each game showed "Nothing here
+     yet"; now a player sees the same card, in the colours of wherever they
+     are, with the same sign-in, the same account type, the same avatar and
+     the same list of devices.
+
+     The avatar and name section is a DRAFT until Save. Picking a face,
+     uploading a picture, deleting it -- none of it is sent until Save, and
+     Cancel puts back what was last saved. That is what makes it safe to look
+     around: nothing changes for friends until the player says so. */
+  var PLAN_TEXT = {
+    free: 'Free keeps everything you play; daily results count in Analytics and are ' +
+          'ranked against others; but no puzzles of your own or history.',
+    sapien: '$2/mo billed annually allowing friends, building and sharing puzzles, ' +
+            'tracking all your results, comparing against just friends, and more.'
+  };
+  var CATS = [
+    { k: 'icons',    name: 'Icons' },
+    { k: 'monsters', name: 'Monsters' },
+    { k: 'custom',   name: 'Your Image' }
+  ];
+  var PF = { uid: null, draft: null, rand: {} };
+
+  function catOf(token) {
+    token = String(token || '');
+    if (/^ps-\d{2}$/.test(token)) return 'icons';
+    if (/^monster-\d{2}$/.test(token)) return 'monsters';
+    if (token === 'custom') return 'custom';
+    return '';
+  }
+  function setOf(k) {
+    if (k === 'monsters') return MONSTERS.map(function (n) { return 'monster-' + n; });
+    return avatarTokens();
+  }
+  function pfSaved() {
+    var u = ME.user || {};
+    return { avatar: u.avatar || '', img: u.avatar_img || '', name: u.display_name || '' };
+  }
+  function pfDirty() {
+    if (!PF.draft) return false;
+    var s = pfSaved(), d = PF.draft;
+    return s.avatar !== d.avatar || s.img !== d.img || s.name !== d.name.trim();
+  }
+  function pfReset() {
+    PF.draft = pfSaved();
+    var n = $('nameIn'); if (n) n.value = PF.draft.name;
+    pfNote('', false);
+  }
+  function pfNote(msg, bad) {
+    var n = $('avNote'); if (!n) return;
+    n.hidden = !msg; n.textContent = msg || ''; n.classList.toggle('bad', !!bad);
+  }
+  function pfButtons() {
+    var dirty = pfDirty();
+    var s = $('pfSave'), c = $('pfCancel');
+    if (s) s.disabled = !dirty;
+    if (c) c.disabled = !dirty;
+  }
+
+  function paintProfile() {
+    var out = $('pfOut'), inn = $('pfIn');
+    if (!out || !inn) return;
+    var u = ME.user;
+    out.hidden = !ME.known ? true : !!u;
+    inn.hidden = !u;
+    if (!u) { PF.uid = null; PF.draft = null; return; }
+    /* A new player, or nothing being edited: follow the account. An edit in
+       progress survives a repaint (a session refresh landing mid-edit must
+       not throw away what the player was doing). */
+    if (PF.uid !== u.id || !pfDirty()) { PF.uid = u.id; pfReset(); }
+    paintPlan();
+    paintCats();
+    pfButtons();
+  }
+
+  /* Signed In > FREE, the one button that changes it, and what the plan is.
+     The button's hover shows the OTHER plan's words in the same place, so
+     the question "what would I get?" is answered where it is asked. */
+  function planWhy(which) {
+    var u = ME.user, plan = planOf(u), el = $('planWhy');
+    if (!el) return;
+    var txt = escapeAttr(PLAN_TEXT[which]);
+    if (which === 'sapien' && plan === 'sapien' && u && u.plan_until) {
+      txt += '<br><b>Your Sapien access runs through ' + escapeAttr(untilText(u.plan_until)) + '.</b>';
+    }
+    el.innerHTML = txt;
+    el.classList.toggle('peek', which !== plan);
+  }
+  function paintPlan() {
+    var plan = planOf(ME.user);
+    var nm = $('pfPlanName'); if (nm) nm.textContent = plan.toUpperCase();
+    var w = $('pfPlanBtn');
+    if (w) {
+      w.innerHTML = plan === 'sapien'
+        ? '<button class="btn ghost" type="button" id="pfDown">Downgrade to Free</button>'
+        : '<button class="btn" type="button" id="pfUp">UPGRADE TO SAPIEN</button>';
+    }
+    planWhy(plan);
+  }
+
+  /* The three category tiles. Each shows the face the player has chosen from
+     it, or else one picked at random once per visit (not on every repaint --
+     a tile that changed face each time it was looked at would read as a bug). */
+  function repFor(k) {
+    var d = PF.draft;
+    if (d && catOf(d.avatar) === k) return d.avatar;
+    if (k === 'monsters' && d && catOf(ME.user && ME.user.avatar) === 'monsters') return ME.user.avatar;
+    if (k === 'icons' && d && catOf(ME.user && ME.user.avatar) === 'icons') return ME.user.avatar;
+    if (!PF.rand[k]) {
+      var s = setOf(k);
+      PF.rand[k] = s[Math.floor(Math.random() * s.length)];
+    }
+    return PF.rand[k];
+  }
+  var PLUS_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+  function paintCats() {
+    var box = $('avCats'), d = PF.draft;
+    if (!box || !d) return;
+    var cur = catOf(d.avatar);
+    box.innerHTML = CATS.map(function (c) {
+      var on = cur === c.k ? ' on' : '';
+      if (c.k !== 'custom') {
+        return '<div class="avcat' + on + '" data-cat="' + c.k + '">' +
+          '<button type="button" class="avcat-pic" data-pick="' + c.k + '" aria-label="' +
+            c.name + ': choose an avatar' + (on ? ' (in use)' : '') + '">' +
+            '<span class="psav">' + avatar({ avatar: repFor(c.k) }) + '</span></button>' +
+          '<span class="avcat-name">' + c.name + '</span></div>';
+      }
+      if (!d.img) {
+        return '<div class="avcat" data-cat="custom">' +
+          '<button type="button" class="avcat-pic add" data-op="add" aria-label="Upload your own picture">' +
+            '<span class="psav">' + PLUS_SVG + '</span></button>' +
+          '<span class="avcat-name">' + c.name + '</span></div>';
+      }
+      return '<div class="avcat avcat-img' + on + '" data-cat="custom">' +
+        '<div class="avcat-pic" tabindex="0" role="group" aria-label="Your image' + (on ? ' (in use)' : '') + '">' +
+          '<span class="psav">' + avatar({ avatar: 'custom', avatar_img: d.img }) + '</span>' +
+          '<span class="avcat-ops">' +
+            '<button type="button" data-op="replace">REPLACE</button>' +
+            '<button type="button" data-op="use">USE</button>' +
+            '<button type="button" data-op="delete">DELETE</button>' +
+          '</span></div>' +
+        '<span class="avcat-name">' + c.name + '</span></div>';
+    }).join('');
+  }
+
+  function openPicker(k) {
+    var grid = $('avPickGrid'), t = $('avPickTitle');
+    if (!grid) return;
+    var c = CATS.filter(function (x) { return x.k === k; })[0];
+    if (t) t.textContent = c ? c.name : 'Choose';
+    var cur = PF.draft ? PF.draft.avatar : '';
+    grid.className = 'avgrid' + (k === 'monsters' ? ' big' : '');
+    grid.innerHTML = setOf(k).map(function (tok, i) {
+      return '<button type="button" data-av="' + tok + '" aria-pressed="' + (tok === cur) + '" ' +
+        'aria-label="' + c.name + ' ' + (i + 1) + '"><span class="psav">' +
+        avatar({ avatar: tok }) + '</span></button>';
+    }).join('');
+    UI.open('avPickSheet', { stack: true });
+  }
+
+  /* The upload never leaves the browser at full size: centre-cropped to a
+     square, drawn at 128px, JPEG, stepped down in quality until it fits the
+     API's 24 KB cap. */
+  var AV_PX = 128, AV_MAX = 24000;
+  function squareDataUrl(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file), im = new Image();
+      im.onload = function () {
+        try {
+          var side = Math.min(im.width, im.height);
+          var c = document.createElement('canvas');
+          c.width = c.height = AV_PX;
+          var g = c.getContext('2d');
+          g.fillStyle = '#fff'; g.fillRect(0, 0, AV_PX, AV_PX);
+          g.drawImage(im, (im.width - side) / 2, (im.height - side) / 2, side, side, 0, 0, AV_PX, AV_PX);
+          var q = 0.82, out = c.toDataURL('image/jpeg', q);
+          while (out.length > AV_MAX && q > 0.3) { q -= 0.12; out = c.toDataURL('image/jpeg', q); }
+          resolve(out.length > AV_MAX ? null : out);
+        } catch (err) { reject(err); }
+        finally { URL.revokeObjectURL(url); }
+      };
+      im.onerror = function () { URL.revokeObjectURL(url); reject(new Error('not an image')); };
+      im.src = url;
+    });
+  }
+
+  /* ---- signed-in devices: every browser signed in to this account ---- */
+  var DEVICES = [];
+  function describeUA(ua) {
+    ua = ua || '';
+    var browser = '';
+    if (/Edg(e|A|iOS)?\//.test(ua)) browser = 'Edge';
+    else if (/OPR\/|Opera/.test(ua)) browser = 'Opera';
+    else if (/SamsungBrowser/.test(ua)) browser = 'Samsung Internet';
+    else if (/Firefox\/|FxiOS/.test(ua)) browser = 'Firefox';
+    else if (/Chrome\/|CriOS/.test(ua)) browser = 'Chrome';
+    else if (/Safari\//.test(ua)) browser = 'Safari';
+    var os = '', kind = 'computer';
+    if (/iPhone|iPod/.test(ua)) { os = 'iPhone'; kind = 'phone'; }
+    else if (/iPad/.test(ua)) { os = 'iPad'; kind = 'tablet'; }
+    else if (/Android/.test(ua)) { os = 'Android'; kind = /Mobile/.test(ua) ? 'phone' : 'tablet'; }
+    else if (/CrOS/.test(ua)) os = 'Chromebook';
+    else if (/Windows/.test(ua)) os = 'Windows';
+    else if (/Macintosh|Mac OS X/.test(ua)) os = 'Mac';
+    else if (/Linux/.test(ua)) os = 'Linux';
+    return { name: browser && os ? browser + ' on ' + os : (browser || os || 'Unknown device'), kind: kind };
+  }
+  function countryName(cc) {
+    if (!cc || !/^[A-Z]{2}$/.test(cc) || cc === 'XX' || cc === 'T1') return '';
+    try { return new Intl.DisplayNames(undefined, { type: 'region' }).of(cc) || cc; }
+    catch (e) { return cc; }
+  }
+  function whenUsed(sec) {
+    if (!sec) return '';
+    var d = Math.max(0, Date.now() / 1000 - sec);
+    if (d < 600) return 'Active now';
+    if (d < 3600) return 'Used ' + Math.round(d / 60) + ' minutes ago';
+    if (d < 86400) { var h = Math.round(d / 3600); return 'Used ' + h + ' hour' + (h > 1 ? 's' : '') + ' ago'; }
+    var days = Math.floor(d / 86400);
+    if (days === 1) return 'Used yesterday';
+    if (days < 30) return 'Used ' + days + ' days ago';
+    return 'Last used ' + new Date(sec * 1000).toLocaleDateString(undefined,
+      { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  var DEV_ICON = {
+    phone:    '<svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
+    tablet:   '<svg viewBox="0 0 24 24"><rect x="4.5" y="2.5" width="15" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
+    computer: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16v4"/></svg>'
+  };
+  function devNote(msg, bad) {
+    var n = $('devNote'); if (!n) return;
+    n.hidden = !msg; n.textContent = msg || ''; n.classList.toggle('bad', !!bad);
+  }
+  function loadDevices() {
+    if (!ME.user || !$('devList')) return;
+    api('GET', '/auth/devices').then(function (r) {
+      if (!ME.user) return;
+      if (!r.ok) {
+        $('devList').innerHTML = '<p class="sethint">' + (r.status === 0
+          ? 'Your devices will show here when you’re back online.'
+          : 'Your devices could not be loaded just now.') + '</p>';
+        $('devAllRow').hidden = true;
+        return;
+      }
+      DEVICES = ((r.data && r.data.devices) || []).slice().sort(function (a, b) {
+        return (b.current - a.current) || (b.last_used_at - a.last_used_at);
+      });
+      paintDevices();
+    });
+  }
+  function paintDevices() {
+    var list = $('devList');
+    if (!list) return;
+    list.textContent = '';
+    DEVICES.forEach(function (d) {
+      var who = describeUA(d.ua);
+      var row = document.createElement('div'); row.className = 'devrow';
+      var ic = document.createElement('div'); ic.className = 'ic'; ic.innerHTML = DEV_ICON[who.kind];
+      var dn = document.createElement('div'); dn.className = 'dn';
+      dn.appendChild(document.createTextNode(who.name));
+      if (d.current) {
+        var here = document.createElement('span'); here.className = 'here'; here.textContent = 'This device';
+        dn.appendChild(here);
+      }
+      var em = document.createElement('em');
+      em.textContent = [d.current ? 'Active now' : whenUsed(d.last_used_at), countryName(d.country)]
+        .filter(Boolean).join(' · ');
+      dn.appendChild(em);
+      var btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'btn ghost'; btn.textContent = 'Sign out';
+      btn.setAttribute('aria-label', 'Sign out ' + who.name + (d.current ? ' (this device)' : ''));
+      btn.addEventListener('click', function () { signOutDevice(d, btn); });
+      row.appendChild(ic); row.appendChild(dn); row.appendChild(btn);
+      list.appendChild(row);
+    });
+    $('devAllRow').hidden = DEVICES.filter(function (d) { return !d.current; }).length < 2;
+  }
+  function signOutDevice(d, btn) {
+    if (d.current) { signOut(); return; }
+    if (btn) btn.disabled = true;
+    api('DELETE', '/auth/devices/' + encodeURIComponent(d.id)).then(function (r) {
+      if (!r.ok && r.status !== 404) {
+        if (btn) btn.disabled = false;
+        devNote(r.status === 0 ? 'You’re offline. Try again when you’re connected.'
+                               : 'That did not go through. Try again.', true);
+        return;
+      }
+      DEVICES = DEVICES.filter(function (x) { return x.id !== d.id; });
+      paintDevices();
+      devNote('Signed out. That device will need to sign in again.', false);
+    });
+  }
+
+  /* The platform SDK (front door only) keeps copies of the account in
+     storage; after a sign-out or a deletion they would put the old account
+     back on screen at the next load if they were left behind. */
+  function dropCachedAccount() {
+    try {
+      ['ps:cache:session', 'ps:cache:me', 'ps:cache:friends', 'ps:cache:notices'].forEach(function (k) {
+        localStorage.removeItem(k);
+      });
+    } catch (e) { /* storage blocked: nothing was cached either */ }
+  }
+  function signOut() {
+    api('POST', '/auth/logout').then(function () {
+      dropCachedAccount();
+      DEVICES = [];
+      setUser(null);
+      toast('Signed out');
+    });
+  }
+
+  function wireProfile() {
+    var sheet = $('profileSheet');
+    if (!sheet || sheet.__wired) return;
+    sheet.__wired = true;
+
+    /* account type */
+    var pw = $('pfPlanBtn');
+    pw.addEventListener('click', function (e) {
+      if (e.target.closest('#pfUp')) UI.open('payWall', { stack: true });
+      else if (e.target.closest('#pfDown')) UI.open('downSheet', { stack: true });
+    });
+    var other = function () { return planOf(ME.user) === 'sapien' ? 'free' : 'sapien'; };
+    pw.addEventListener('mouseover', function (e) { if (e.target.closest('.btn')) planWhy(other()); });
+    pw.addEventListener('mouseout', function (e) { if (e.target.closest('.btn')) planWhy(planOf(ME.user)); });
+    pw.addEventListener('focusin', function () { planWhy(other()); });
+    pw.addEventListener('focusout', function () { planWhy(planOf(ME.user)); });
+
+    var dy = $('downYes');
+    if (dy) dy.addEventListener('click', function () {
+      dy.disabled = true;
+      api('PATCH', '/player/me', { plan: 'free' }).then(function (r) {
+        dy.disabled = false;
+        close();                                   // back to the Profile card
+        if (!r.ok || !(r.data && r.data.user)) { toast('That did not save.'); return; }
+        setUser(r.data.user);
+        toast('You are on the Free plan.');
+      });
+    });
+
+    /* the avatar categories */
+    var cats = $('avCats'), file = $('avFile');
+    cats.addEventListener('click', function (e) {
+      var pick = e.target.closest('[data-pick]');
+      if (pick) { openPicker(pick.getAttribute('data-pick')); return; }
+      var op = e.target.closest('[data-op]');
+      var tile = e.target.closest('.avcat-img');
+      if (!op) {
+        /* A touch screen has no hover: the first tap on the picture shows the
+           three choices, a tap elsewhere on it hides them again. */
+        if (tile) tile.classList.toggle('open');
+        return;
+      }
+      var what = op.getAttribute('data-op');
+      if (what === 'add' || what === 'replace') { file.click(); return; }
+      if (what === 'use') { PF.draft.avatar = 'custom'; }
+      if (what === 'delete') {
+        PF.draft.img = '';
+        if (PF.draft.avatar === 'custom') PF.draft.avatar = '';
+      }
+      paintCats(); pfButtons();
+    });
+    file.addEventListener('change', function () {
+      var f = file.files && file.files[0];
+      file.value = '';                             // the same file can be picked again
+      if (!f) return;
+      if (!/^image\/(png|jpeg|webp)$/.test(f.type)) { pfNote('PNG, JPEG or WebP, please.', true); return; }
+      pfNote('Resizing…', false);
+      squareDataUrl(f).then(function (data) {
+        if (!data) { pfNote('That picture will not compress small enough. Try another.', true); return; }
+        PF.draft.img = data;
+        PF.draft.avatar = 'custom';                // an upload becomes the avatar
+        pfNote('', false);
+        paintCats(); pfButtons();
+      }, function () { pfNote('That file could not be read as a picture.', true); });
+    });
+    var grid = $('avPickGrid');
+    if (grid) grid.addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-av]');
+      if (!b || !PF.draft) return;
+      PF.draft.avatar = b.getAttribute('data-av');
+      close();
+      paintCats(); pfButtons();
+    });
+
+    /* name, save, cancel */
+    $('nameIn').addEventListener('input', function (e) {
+      if (PF.draft) { PF.draft.name = e.target.value; pfButtons(); }
+    });
+    $('pfCancel').addEventListener('click', function () { pfReset(); paintCats(); pfButtons(); });
+    $('pfSave').addEventListener('click', function () {
+      var d = PF.draft, s = pfSaved(), btn = $('pfSave');
+      if (!d) return;
+      var patch = { display_name: d.name.trim(), avatar: d.avatar || null };
+      if (d.img !== s.img) patch.avatar_img = d.img || null;
+      btn.disabled = true;
+      pfNote('Saving…', false);
+      api('PATCH', '/player/me', patch).then(function (r) {
+        if (!r.ok || !(r.data && r.data.user)) {
+          pfNote(r.status === 413 ? 'That picture is too big. Try a smaller one.'
+               : r.status === 0 ? 'You’re offline. Try again when you’re connected.'
+               : 'That did not save. Try again.', true);
+          pfButtons();
+          return;
+        }
+        PF.draft = null;                           // the account is the truth again
+        setUser(r.data.user);
+        pfNote('Saved.', false);
+        setTimeout(function () { if ($('avNote').textContent === 'Saved.') pfNote('', false); }, 1800);
+      });
+    });
+
+    /* devices, sign out, delete */
+    $('devAllBtn').addEventListener('click', function () {
+      var btn = $('devAllBtn'), others = DEVICES.filter(function (d) { return !d.current; }), failed = 0;
+      btn.disabled = true;
+      Promise.all(others.map(function (d) {
+        return api('DELETE', '/auth/devices/' + encodeURIComponent(d.id)).then(function (r) {
+          if (r.ok || r.status === 404) DEVICES = DEVICES.filter(function (x) { return x.id !== d.id; });
+          else failed++;
+        });
+      })).then(function () {
+        btn.disabled = false;
+        paintDevices();
+        devNote(failed ? 'Some devices could not be signed out. Try again.'
+                       : 'Every other device is signed out. Only this one is still signed in.', !!failed);
+      });
+    });
+    $('signOutBtn').addEventListener('click', signOut);
+
+    $('delBtn').addEventListener('click', function () {
+      $('delIn').value = ''; $('delGo').disabled = true;
+      var n = $('delNote'); n.hidden = true; n.textContent = '';
+      UI.open('delSheet', { stack: true });
+    });
+    $('delIn').addEventListener('input', function (e) {
+      $('delGo').disabled = e.target.value.trim().toUpperCase() !== 'DELETE';
+    });
+    $('delGo').addEventListener('click', function () {
+      $('delGo').disabled = true;
+      api('DELETE', '/player/me').then(function (r) {
+        if (!r.ok) {
+          var n = $('delNote');
+          n.hidden = false; n.classList.add('bad');
+          n.textContent = 'That did not go through. Nothing has been deleted — try again.';
+          $('delGo').disabled = false;
+          return;
+        }
+        closeAll();
+        dropCachedAccount();
+        setUser(null);
+        toast('Your account has been deleted.');
+      });
     });
   }
 
@@ -2656,13 +3297,16 @@ PSTheme.init('wc-game');
     if (!bar.__lifted) {
       bar.__lifted = true;
       ['statsSheet', 'addSheet', 'gateSheet', 'friendsGamesSheet',
-       'timedSheet', 'duelSheet', 'payWall'].forEach(function (id) {
+       'timedSheet', 'duelSheet', 'payWall', 'profileSheet', 'avPickSheet',
+       'downSheet', 'delSheet'].forEach(function (id) {
         var el = document.getElementById(id);
         if (el && el.parentNode !== document.body) document.body.appendChild(el);
       });
     }
     offline();
     wireGate();
+    wireProfile();
+    paintWho();
     wirePromo();
     wireAnalytics();
     wireLinks();
@@ -2674,6 +3318,19 @@ PSTheme.init('wc-game');
     if (sb && !sb.__wired) {
       sb.__wired = true;
       sb.addEventListener('click', function () { paintAnalytics(); UI.open('statsSheet'); });
+    }
+
+    /* Profile: the same card on every surface, so it is wired here too. The
+       devices list is fetched on each open -- it is the one part of the card
+       that changes without the player doing anything on this page. */
+    var pb = document.getElementById('profileBtn');
+    if (pb && !pb.__wired) {
+      pb.__wired = true;
+      pb.addEventListener('click', function () {
+        paintProfile();
+        if (ME.user) loadDevices();
+        UI.open('profileSheet');
+      });
     }
 
     /* Add. Only the shell is wired here -- in a game this button is that game's
@@ -2701,7 +3358,7 @@ PSTheme.init('wc-game');
           .then(function (j) {
             var u = j && j.data && j.data.user;
             if (!ME.known) learnUser(u || null);        // the shell may have answered first
-            if (u) setAvatar(u);
+            if (u) setUser(u);
           })
           .catch(function () { if (!ME.known) learnUser(null); });
       } catch (e) { if (!ME.known) learnUser(null); }

@@ -142,7 +142,7 @@
      signed out reaches this sheet at all: the bar's gate stops them first. -->
 <section class="sheet" id="statsSheet" role="dialog" aria-modal="true" aria-labelledby="statsTitle" hidden>
   <div class="sheet-in">
-    <div class="sh-head"><h2 id="statsTitle">Analytics</h2>
+    <div class="sh-head ps-head"><div class="ps-who" data-ps-who></div><h2 id="statsTitle">Analytics</h2>
       <button class="donebtn" type="button" data-sheet-close>Close</button></div>
     <p class="sh-status" id="anWhat">&nbsp;</p>
 
@@ -336,7 +336,156 @@
       <button class="btn ghost" type="button" data-sheet-close>Back</button>
     </div>
   </div>
-</section><!-- ===== END packages/ui/bar.html ===== -->
+</section>
+<!-- Profile. One card for every surface -- the front door and each game --
+     painted by ui.js (wireProfile / paintProfile). Signed out, it is the
+     sign-in card; signed in, it is the account type, the avatar and name,
+     and the devices signed in to the account. -->
+<section class="sheet" id="profileSheet" role="dialog" aria-modal="true" aria-labelledby="profileTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head ps-head"><div class="ps-who" data-ps-who></div><h2 id="profileTitle">Profile</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+
+    <!-- signed out -->
+    <div id="pfOut" hidden>
+      <p class="pf-lead">We send a six-digit code to your email &mdash; enter the code;
+         no passwords to manage.</p>
+      <form id="pfsEmailForm" class="pf-mailrow" autocomplete="on">
+        <label class="ui-sr" for="pfsEmail">Your email address</label>
+        <input class="fld" type="email" id="pfsEmail" name="email" inputmode="email"
+               autocomplete="email" placeholder="you@example.com" required>
+        <button class="btn" type="submit" id="pfsEmailBtn">Send me a code</button>
+      </form>
+      <form id="pfsCodeForm" hidden autocomplete="off">
+        <p class="sethint" style="margin:0 0 9px">Six digits, sent to <b id="pfsAddr"></b>.
+          It expires in ten minutes.</p>
+        <div class="pf-mailrow">
+          <label class="ui-sr" for="pfsCode">Six-digit code</label>
+          <input class="fld code" type="text" id="pfsCode" name="one-time-code" inputmode="numeric"
+                 autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required>
+          <button class="btn" type="submit" id="pfsCodeBtn">Sign in</button>
+        </div>
+        <p class="an-how" style="margin-top:8px">
+          <button class="inlink" type="button" id="pfsBack">Use a different address</button></p>
+      </form>
+      <div class="ui-note" id="pfsNote" hidden></div>
+
+      <div class="pf-rule"><span>or</span></div>
+
+    <button class="oauth" type="button" id="pfsGoogle">
+      <span class="lead">Login with:</span>
+      <svg viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.83.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+      <span>Google</span>
+    </button>
+
+      <div class="pf-rule bare"></div>
+
+      <p class="pf-legal">By signing in, you confirm that you have read and accepted the
+        <a href="/terms/">Terms</a> and <a href="/privacy/">Privacy Policy</a>.</p>
+    </div>
+
+    <!-- signed in -->
+    <div id="pfIn" hidden>
+      <!-- Account type. The button's hover shows the other plan's words in
+           #planWhy; pressing it opens the upgrade or the downgrade card ON TOP
+           of this one, so closing either comes back here. -->
+      <section class="pfsec">
+        <div class="pf-planrow">
+          <span class="pf-sub pf-state">Signed In<svg class="chev" viewBox="0 0 24 24"
+            aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><b id="pfPlanName">FREE</b></span>
+          <span class="pf-planbtn" id="pfPlanBtn"></span>
+        </div>
+        <p class="planwhy" id="planWhy"></p>
+      </section>
+
+      <!-- Avatar and display name: a draft until Save; Cancel puts back the
+           last saved version. -->
+      <section class="pfsec">
+        <h3 class="pf-sub">Avatar and Display Name</h3>
+        <span class="setlabel">Choose Avatar</span>
+        <div class="avcats" id="avCats" role="group" aria-label="Avatar categories"></div>
+        <!-- accept is a hint, not a guarantee; the handler checks the type. -->
+        <input type="file" id="avFile" accept="image/png,image/jpeg,image/webp" hidden>
+
+        <label class="setlabel" for="nameIn">Display Name</label>
+        <input class="fld" type="text" id="nameIn" maxlength="32" placeholder="Your name">
+        <div class="btnrow">
+          <button class="btn" type="button" id="pfSave" disabled>Save</button>
+          <button class="btn ghost" type="button" id="pfCancel" disabled>Cancel</button>
+        </div>
+        <div class="ui-note" id="avNote" hidden></div>
+      </section>
+
+      <!-- Each browser signed in is one session on the server
+           (GET /api/auth/devices); sign out any of them from here. -->
+      <section class="pfsec">
+        <h3 class="pf-sub">Signed-in devices</h3>
+        <p class="sethint" style="margin:0 0 4px">Signed in somewhere you don’t recognise, or on a device you no longer have? Sign it out here.</p>
+        <div class="devlist" id="devList" aria-live="polite"></div>
+        <div class="btnrow" id="devAllRow" hidden>
+          <button class="btn ghost" type="button" id="devAllBtn">Sign out all other devices</button>
+        </div>
+        <div class="ui-note" id="devNote" hidden></div>
+      </section>
+
+      <div class="btnrow" style="margin-top:20px">
+        <button class="btn ghost" type="button" id="signOutBtn">Sign out</button>
+        <button class="btn ghost danger" type="button" id="delBtn">Delete account</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Every face in one avatar category, opened over the Profile card. Close
+     without picking changes nothing. -->
+<section class="sheet" id="avPickSheet" role="dialog" aria-modal="true" aria-labelledby="avPickTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="avPickTitle">Choose</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <div class="avgrid" id="avPickGrid"></div>
+  </div>
+</section>
+
+<!-- Downgrade, confirmed on its own card over the Profile card rather than
+     with confirm(): Keep Sapien and Close both lead back to the Profile. -->
+<section class="sheet" id="downSheet" role="dialog" aria-modal="true" aria-labelledby="downTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="downTitle">Downgrade to Free?</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p>On the Free plan you can still play each day’s puzzle, but you will
+       <b>lose access to your game score history</b> — past days, streaks and
+       comparisons with friends all stop being visible.</p>
+    <p class="hint">Nothing is deleted. Your history is kept, and it comes back if you
+       return to Sapien.</p>
+    <div class="btnrow">
+      <button class="btn" type="button" id="downYes">Downgrade to Free</button>
+      <button class="btn ghost" type="button" data-sheet-close>Keep Sapien</button>
+    </div>
+  </div>
+</section>
+
+<!-- Deleting the account: typed confirmation, over the Profile card. -->
+<section class="sheet" id="delSheet" role="dialog" aria-modal="true" aria-labelledby="delTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="delTitle">Delete your account?</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p>This removes your account, your email address, your sign-in methods, your sessions,
+       your results, your streaks, your friendships, your invite codes and your notices.
+       It is a real deletion from the database, not a flag, and <b>it cannot be undone</b>.</p>
+    <p class="hint">The one exception is the moderation record of any puzzle submission that
+       was rejected on safety grounds, which is kept with its author removed.
+       <a href="/privacy/">The privacy page</a> explains why.</p>
+    <label class="setlabel" for="delIn">Type DELETE to confirm</label>
+    <input class="fld" type="text" id="delIn" autocomplete="off" autocapitalize="characters"
+           spellcheck="false" placeholder="DELETE">
+    <div class="btnrow">
+      <button class="btn" type="button" id="delGo" disabled>Delete for ever</button>
+      <button class="btn ghost" type="button" data-sheet-close>Keep my account</button>
+    </div>
+    <div class="ui-note" id="delNote" hidden></div>
+  </div>
+</section>
+<!-- ===== END packages/ui/bar.html ===== -->
 
   <button class="quitbtn" id="quitBtn" hidden>&times;&nbsp; Quit round</button>
 
@@ -475,7 +624,7 @@
   <div class="scrim" id="scrim"></div>
 
   <div class="sheet" id="settingsSheet" role="dialog" aria-modal="true" aria-labelledby="setTitle" hidden>
-    <div class="sh-head"><h2 id="setTitle">Settings</h2><button class="donebtn" id="setDone">Done</button></div>
+    <div class="sh-head ps-head"><div class="ps-who" data-ps-who></div><h2 id="setTitle">Settings</h2><button class="donebtn" id="setDone">Done</button></div>
 
     <div class="setrow">
       <div class="col">
@@ -607,17 +756,10 @@
   </div>
 
   <div class="sheet" id="friendsSheet" role="dialog" aria-modal="true" aria-labelledby="friendsTitle" hidden>
-    <div class="sh-head"><h2 id="friendsTitle">Friends</h2><button class="donebtn" id="friendsDone">Close</button></div>
+    <div class="sh-head ps-head"><div class="ps-who" data-ps-who></div><h2 id="friendsTitle">Friends</h2><button class="donebtn" id="friendsDone">Close</button></div>
     <p class="soon">Coming soon.</p>
     <p class="sethint">Follow the people you play against, compare today&rsquo;s run, and keep a
       private league going. Shared with Word Chain, so a friend is a friend across both games.</p>
-  </div>
-
-  <div class="sheet" id="profileSheet" role="dialog" aria-modal="true" aria-labelledby="profileTitle" hidden>
-    <div class="sh-head"><h2 id="profileTitle">Profile</h2><button class="donebtn" id="profDone">Close</button></div>
-    <p class="soon">Coming soon.</p>
-    <p class="sethint">A profile will let you put a name on the leaderboard, keep your run of
-      daily scores, and pick up where you left off on another device.</p>
   </div>
 
   <div class="sheet" id="learnSheet" role="dialog" aria-modal="true" aria-labelledby="lnName" hidden>
