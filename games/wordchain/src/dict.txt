@@ -2677,6 +2677,7 @@ aplomb
 apm
 apn
 apnea
+apnoea
 apo
 apocalypse
 apocalyptic
@@ -4965,6 +4966,7 @@ basta
 bastard
 bastards
 baste
+baster
 basterds
 basti
 bastian
@@ -5518,6 +5520,7 @@ benadryl
 benazir
 bench
 benched
+bencher
 benches
 benching
 benchmark
@@ -5823,6 +5826,7 @@ bhabhi
 bhagat
 bhagavad
 bhai
+bhaji
 bhakti
 bhangra
 bharat
@@ -7106,6 +7110,7 @@ bourdain
 bourg
 bourgeois
 bourgeoisie
+bourguignon
 bourke
 bourne
 bournemouth
@@ -8044,6 +8049,7 @@ bumped
 bumper
 bumpers
 bumping
+bumpkin
 bumps
 bumpy
 bums
@@ -11602,6 +11608,7 @@ combats
 combatting
 combe
 combed
+comber
 combi
 combination
 combinations
@@ -13472,6 +13479,7 @@ crappy
 craps
 crash
 crashed
+crasher
 crashers
 crashes
 crashing
@@ -15199,6 +15207,7 @@ degeneration
 degenerative
 degeneres
 degli
+degradable
 degradation
 degrade
 degraded
@@ -18288,6 +18297,7 @@ eckert
 eckhardt
 eckhart
 eckstein
+eclair
 eclampsia
 eclectic
 eclecticism
@@ -22183,6 +22193,7 @@ flock
 flocked
 flocking
 flocks
+floe
 flog
 flogged
 flogging
@@ -22354,6 +22365,7 @@ foetus
 fog
 fogarty
 fogel
+fogey
 fogg
 fogged
 foggy
@@ -22447,6 +22459,7 @@ foodstuffs
 fook
 fool
 fooled
+foolery
 foolhardy
 foolin
 fooling
@@ -23835,6 +23848,7 @@ gazebo
 gazed
 gazelle
 gazelles
+gazer
 gazes
 gazeta
 gazette
@@ -25479,6 +25493,7 @@ grt
 gru
 grub
 grubb
+grubber
 grubbing
 grubby
 gruber
@@ -25765,6 +25780,7 @@ guyana
 guyanese
 guys
 guzman
+guzzler
 guzzling
 gv
 gw
@@ -34961,6 +34977,7 @@ louise
 louisiana
 louisville
 lounge
+lounger
 lounges
 lounging
 loup
@@ -35697,6 +35714,7 @@ majlis
 major
 majorca
 majored
+majorette
 majoring
 majorities
 majority
@@ -36384,6 +36402,7 @@ mash
 masha
 mashable
 mashed
+masher
 mashing
 mashup
 mashups
@@ -46129,6 +46148,7 @@ pret
 pretax
 preteen
 pretence
+pretences
 pretend
 pretended
 pretender
@@ -47948,6 +47968,7 @@ raquel
 rar
 rara
 rare
+rarebit
 rarefied
 rarely
 rarer
@@ -49049,6 +49070,7 @@ relativity
 relaunch
 relaunched
 relax
+relaxant
 relaxation
 relaxed
 relaxes
@@ -51131,6 +51153,7 @@ rustic
 rusting
 rustle
 rustled
+rustler
 rustlers
 rustling
 ruston
@@ -51576,6 +51599,7 @@ sania
 sanitarium
 sanitary
 sanitation
+sanitiser
 sanitize
 sanitized
 sanitizer
@@ -52227,6 +52251,7 @@ scratched
 scratcher
 scratches
 scratching
+scratchings
 scratchy
 scrawl
 scrawled
@@ -53670,6 +53695,7 @@ shriek
 shrieked
 shrieking
 shrieks
+shrift
 shrike
 shrill
 shrimp
@@ -55914,6 +55940,7 @@ squeals
 squeamish
 squeeze
 squeezed
+squeezer
 squeezes
 squeezing
 squelch
@@ -56911,6 +56938,7 @@ striving
 strix
 strobe
 strode
+stroganoff
 stroke
 stroked
 strokes
@@ -57829,6 +57857,7 @@ swahili
 swain
 swallow
 swallowed
+swallower
 swallowing
 swallows
 swam
@@ -57868,6 +57897,7 @@ swathe
 swathes
 swaths
 swatted
+swatter
 swatting
 sway
 swayed
@@ -58967,6 +58997,7 @@ tentacles
 tentative
 tentatively
 tented
+tenterhooks
 tenth
 tenths
 tents
@@ -60828,6 +60859,7 @@ tripods
 tripoli
 tripp
 tripped
+tripper
 trippin
 tripping
 trippy
@@ -64570,6 +64602,7 @@ wh
 wha
 whack
 whacked
+whacker
 whacking
 whale
 whalen
@@ -65104,6 +65137,7 @@ wish
 wishart
 wishbone
 wished
+wisher
 wishers
 wishes
 wishful
@@ -65124,6 +65158,7 @@ witches
 witching
 witchy
 with
+withal
 withdraw
 withdrawal
 withdrawals
@@ -65214,6 +65249,7 @@ wolfe
 wolfenstein
 wolff
 wolfgang
+wolfhound
 wolfie
 wolfman
 wolfpack
@@ -65565,6 +65601,7 @@ wu
 wuhan
 wulf
 wulff
+wurst
 wuss
 wut
 wuthering

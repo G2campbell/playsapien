@@ -14,6 +14,12 @@
     bank.py             the hand-graded chain bank and the level bands
     finalize.py         de-dupes, flags number-strict links, emits gamedata.json + dict.txt
 
+    pairs.json          what can follow each word, "STRONG|WEAK" per head; how a wrong
+                        guess is judged (FIRE ALARM: a real pair, just not today's)
+    pairs-graded.jsonl  its source: 1,888 heads graded by Claude, A-Z sweep, 19 Oct 2026
+    make_pairs.py       pairs-graded.jsonl + old lex + OPEN phrases -> pairs.json
+    pairs-extra-words.txt  words pairs need that were added to dict.txt by hand
+
 ## Rebuilding
 
     python3 build.py              # from anywhere; -> games/wordchain/dist/

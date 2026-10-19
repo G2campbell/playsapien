@@ -12,7 +12,29 @@
 
 var DATA = window.__WC_DATA__, DICT = window.__WC_DICT__;
 var SITE = window.__WC_SITE__ || '';   /* where this copy of the game lives */
-var LEX = DATA.lex, BANK = DATA.chains;
+var PAIRS = DATA.pairs, BANK = DATA.chains;
+/* PAIRS: for each head word, the words that can follow it, as one string
+   "STRONG WORDS|WEAK WORDS" (pairs.json). Strong = a pair anyone would know
+   (FIRE ALARM); weak = real but marginal (FIRE OPAL). Unpacked on first use. */
+var PAIR_CACHE = {};
+function pairsOf(head) {
+  if (PAIR_CACHE[head]) return PAIR_CACHE[head];
+  var raw = PAIRS[head];
+  if (raw == null) return (PAIR_CACHE[head] = null);
+  var parts = raw.split('|'), o = { s: {}, w: {} };
+  (parts[0] || '').split(' ').forEach(function (x) { if (x) o.s[x] = 1; });
+  (parts[1] || '').split(' ').forEach(function (x) { if (x) o.w[x] = 1; });
+  return (PAIR_CACHE[head] = o);
+}
+/* The forms of a guess worth looking up: as typed, and singular/plural
+   (ALARMS -> ALARM, ANT -> ANTS, BERRIES -> BERRY). */
+function guessForms(g) {
+  var f = [g, g + 'S', g + 'ES'];
+  if (/S$/.test(g)) f.push(g.slice(0, -1));
+  if (/ES$/.test(g)) f.push(g.slice(0, -2));
+  if (/IES$/.test(g)) f.push(g.slice(0, -3) + 'Y');
+  return f;
+}
 var $ = function (id) { return document.getElementById(id); };
 
 /* ------------------------------------------------------------------ storage */
@@ -150,15 +172,16 @@ var REPLY = {
   weak: ['No… and I’m not so sure about that one either.', 'Hmm. That’s a stretch even before it’s wrong.',
     'Technically? Maybe. Correctly? No.', 'I’ve heard worse. Not many.',
     'That’s doing a lot of work for a word that isn’t right.'],
-  none: ['Really, since when is {PREV} {GUESS} a thing?! NO.', '{PREV} {GUESS}. Say it out loud. Now don’t.',
-    'Bold. Wrong, but bold.', 'That’s just two words standing near each other.',
-    'No. Not even close enough to argue about.'],
+  none: ['{PREV} {GUESS}? That’s not one I know.', 'Bold. Wrong, but bold.',
+    'Not a pair I’ve heard of — and not my word.', 'Hmm, {PREV} {GUESS}? No.',
+    'No. Try another.'],
+  unsure: ['Not the one I’m thinking of.', 'Not my word.', 'Not it. Try again.'],
   notword: ['Not a word. Try again.'],
   letter: ['Starts with {LETTER}.'],
   number: ['Right word. Wrong number.', 'That’s the word — check the ending.'],
   repeat: ['You’ve guessed that already.', 'Already tried that one.', 'That one’s been and gone.']
 };
-var LOCKOUT = { correct: 0, repeat: 900, strong: 900, notword: 1100, letter: 1100, number: 1100, weak: 1700, none: 2400 };
+var LOCKOUT = { correct: 0, repeat: 900, strong: 900, notword: 1100, letter: 1100, number: 1100, weak: 1700, none: 2000, unsure: 1200 };
 var FLOOR = 450;
 var lastReply = {};
 function pick(bucket, vars) {
@@ -408,9 +431,13 @@ function ensureSampler() {
   }).catch(function () { judge.textContent = off; });
 }
 function localVerdict(prev, guess) {
-  var list = LEX[prev];
-  if (list && list.indexOf(guess) >= 0) return 'strong';
-  if (!list || !list.length) return 'weak';
+  var p = pairsOf(prev);
+  /* A head we know nothing about: say nothing about the pair rather than
+     tell the player their (possibly perfectly good) pair is not a thing. */
+  if (!p) return 'unsure';
+  var f = guessForms(guess), i;
+  for (i = 0; i < f.length; i++) if (p.s[f[i]]) return 'strong';
+  for (i = 0; i < f.length; i++) if (p.w[f[i]]) return 'weak';
   return 'none';
 }
 function askModel(prev, guess) {
