@@ -898,6 +898,24 @@ PSTheme.init('sj-game');
     a.setAttribute('aria-label', shell ? 'About PlaySapien' : 'PlaySapien home');
 
     if (!bar.__guarded) { bar.__guarded = true; document.addEventListener('click', guard, true); }
+
+    /* Lift the bar's own cards to the top of the page. Each surface inlines
+       bar.html wherever its header belongs -- in Word Chain that is INSIDE
+       #home, which is position:fixed with z-index 20 and so is a stacking
+       context of its own. A card in there can never rise above the page-level
+       dimming layer (z 30) however high its own z-index, so the card was dimmed
+       along with everything behind it. At the top level the cards share the
+       dimming layer's context and sit above it, on every surface, including
+       games not written yet. Only these, by id: a game's own sheets are left
+       exactly where the game put them. */
+    if (!bar.__lifted) {
+      bar.__lifted = true;
+      ['statsSheet', 'addSheet', 'gateSheet', 'friendsGamesSheet',
+       'timedSheet', 'duelSheet', 'payWall'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el && el.parentNode !== document.body) document.body.appendChild(el);
+      });
+    }
     wireGate();
     wirePromo();
     wireAnalytics();
@@ -1850,7 +1868,14 @@ PSTheme.init('sj-game');
 .pf-lead{font-size:14.5px; line-height:1.6; color:var(--fg-2); margin:0 0 16px; max-width:46ch}
 .pf-mailrow{display:flex; gap:8px; align-items:center}
 .pf-mailrow .fld{margin:0; flex:1 1 auto; min-width:0}
-.pf-mailrow .btn{flex:none; white-space:nowrap; --btn-radius:10px; --btn-pad:12px 16px}
+.pf-mailrow .btn{flex:none; white-space:nowrap; --btn-radius:10px; --btn-pad:12px 16px;
+  /* The button is as wide as its words, whatever the surface's default. Sojourner
+     sets every button to full width (--btn-width:100%), which is right on its
+     landing page and wrong here: in this row the button took all 518px, the
+     address field shrank to 28px, and the button ran off the card's edge -- the
+     horizontal scroll on a phone. Both the dial and the property, so neither a
+     dial nor a plain width rule from a game can win. */
+  --btn-width:auto; width:auto}
 /* Below this the field and the button together are narrower than the words in
    the button, so the row stacks rather than squeezing the address to nothing. */
 @media (max-width:429px){

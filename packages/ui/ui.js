@@ -685,6 +685,24 @@
     a.setAttribute('aria-label', shell ? 'About PlaySapien' : 'PlaySapien home');
 
     if (!bar.__guarded) { bar.__guarded = true; document.addEventListener('click', guard, true); }
+
+    /* Lift the bar's own cards to the top of the page. Each surface inlines
+       bar.html wherever its header belongs -- in Word Chain that is INSIDE
+       #home, which is position:fixed with z-index 20 and so is a stacking
+       context of its own. A card in there can never rise above the page-level
+       dimming layer (z 30) however high its own z-index, so the card was dimmed
+       along with everything behind it. At the top level the cards share the
+       dimming layer's context and sit above it, on every surface, including
+       games not written yet. Only these, by id: a game's own sheets are left
+       exactly where the game put them. */
+    if (!bar.__lifted) {
+      bar.__lifted = true;
+      ['statsSheet', 'addSheet', 'gateSheet', 'friendsGamesSheet',
+       'timedSheet', 'duelSheet', 'payWall'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el && el.parentNode !== document.body) document.body.appendChild(el);
+      });
+    }
     wireGate();
     wirePromo();
     wireAnalytics();
