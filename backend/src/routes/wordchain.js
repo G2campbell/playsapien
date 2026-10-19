@@ -161,7 +161,10 @@ export async function bank(ctx) {
   if (day > utcDay(ctx.now)) return ERRORS.notFound('That day has not happened yet.');
 
   const row = await first(ctx.db,
-    `SELECT c.id, c.words, c.created_at, u.display_name, u.handle
+    `SELECT c.id, c.words, c.created_at, u.handle,
+            /* A proposed name the author has not yet confirmed can be part of
+               their email address -- it is never put in front of everyone. */
+            CASE WHEN u.name_chosen_at IS NULL THEN NULL ELSE u.display_name END AS display_name
        FROM chains c LEFT JOIN users u ON u.id = c.author_id
       WHERE c.scheduled_for = ? AND c.status = 'approved' AND c.pool = 'daily'`, day);
 

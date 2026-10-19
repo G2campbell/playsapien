@@ -710,6 +710,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (user && ME.user && user.id === ME.user.id && user.trial_available === undefined) {
       user.trial_available = ME.user.trial_available;
     }
+    if (user && ME.user && user.id === ME.user.id && user.name_needed === undefined) {
+      user.name_needed = ME.user.name_needed;
+    }
     learnUser(user);                                   // the newest word is final
     paintBarAvatar(user);
     try { document.dispatchEvent(new CustomEvent('ps:user', { detail: user || null })); }
@@ -759,6 +762,7 @@ document.addEventListener('DOMContentLoaded', function () {
     paintProfile();
     if (ME.user && UI.isOpen('profileSheet')) loadDevices();
     if (UI.isOpen('friendsSheet')) loadFriends(); else paintFriends();
+    askName();
     var w = ME.waiters; ME.waiters = [];
     for (var i = 0; i < w.length; i++) { try { w[i](ME.user); } catch (e) { /* one bad waiter must not stop the rest */ } }
   }
@@ -1707,6 +1711,60 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  /* ------------------------------------------------------------ name ----
+     A new player is asked once to choose a display name. The server has
+     already put a proposal on the account (the start of their email plus a
+     tag, "kai 39K", or the name Google gave) and says name_needed until they
+     save one. "Not now" is fine: they are asked again on a later visit, at
+     most once per visit, and the proposal stands in the meantime. */
+  var NAMEASK = { asked: false };
+  function askName() {
+    var u = ME.user;
+    if (!u || !u.name_needed || NAMEASK.asked || !$('nameSheet')) return;
+    try { if (sessionStorage.getItem('ps:nameAsked') === u.id) return; } catch (e) {}
+    NAMEASK.asked = true;
+    try { sessionStorage.setItem('ps:nameAsked', u.id); } catch (e) {}
+    var show = function (name) {
+      $('nameAskIn').value = name || '';
+      nameAskNote('');
+      UI.open('nameSheet', { stack: true });
+    };
+    /* A proposal is always on the account by the time /auth/session answers;
+       a sign-in response for an older account may not carry one yet. */
+    if (u.display_name) { setTimeout(function () { show(u.display_name); }, 350); return; }
+    api('GET', '/auth/session').then(function (r) {
+      var v = r.ok && r.data && r.data.user;
+      if (v && v.name_needed) show(v.display_name);
+    });
+  }
+  function nameAskNote(msg) {
+    var n = $('nameAskNote');
+    if (n) { n.hidden = !msg; n.textContent = msg || ''; }
+  }
+  function wireNameAsk() {
+    var f = $('nameAskForm');
+    if (!f || f.__wired) return;
+    f.__wired = true;
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var name = ($('nameAskIn').value || '').replace(/\s+/g, ' ').replace(/^ | $/g, '');
+      if (!name) { nameAskNote('Please enter a name.'); return; }
+      var b = $('nameAskSave'); b.disabled = true;
+      api('PATCH', '/player/me', { display_name: name }).then(function (r) {
+        b.disabled = false;
+        if (r.ok && r.data && r.data.user) {
+          close();
+          setUser(r.data.user);
+          toast('Saved. Welcome, ' + r.data.user.display_name + '!');
+          return;
+        }
+        nameAskNote(r.status === 409 ? 'That display name is already taken. Please choose another.'
+                  : r.status === 0 ? 'You\u2019re offline. Try again when you\u2019re connected.'
+                  : 'That did not work. Try again.');
+      });
+    });
+  }
+
   function wirePromo() {
     var f = document.getElementById('promoForm');
     if (!f || f.__wired) return;
@@ -1878,7 +1936,7 @@ document.addEventListener('DOMContentLoaded', function () {
       bar.__lifted = true;
       ['statsSheet', 'addSheet', 'gateSheet', 'friendsGamesSheet',
        'timedSheet', 'duelSheet', 'payWall', 'profileSheet', 'avPickSheet',
-       'downSheet', 'delSheet', 'friendsSheet'].forEach(function (id) {
+       'downSheet', 'delSheet', 'friendsSheet', 'nameSheet'].forEach(function (id) {
         var el = document.getElementById(id);
         if (el && el.parentNode !== document.body) document.body.appendChild(el);
       });
@@ -1890,6 +1948,7 @@ document.addEventListener('DOMContentLoaded', function () {
     paintWho();
     wirePromo();
     wireTrial();
+    wireNameAsk();
     wireAnalytics();
     wireLinks();
 
@@ -3131,7 +3190,9 @@ document.addEventListener('DOMContentLoaded', function () {
   color:var(--accent); background:color-mix(in srgb, var(--accent) 13%, transparent)}
 .devrow .btn{flex:none; white-space:nowrap; --btn-width:auto; width:auto;
   --btn-pad:7px 12px; --btn-size:13px; --btn-radius:9px}
-#pfIn .btnrow .btn, #delSheet .btnrow .btn, #downSheet .btnrow .btn{--btn-width:auto; width:auto}
+#pfIn .btnrow .btn, #delSheet .btnrow .btn, #downSheet .btnrow .btn, #nameSheet .btnrow .btn{--btn-width:auto; width:auto}
+#nameSheet .fld{width:100%; margin:6px 0 12px}
+#nameSheet .hint{margin:0 0 14px}
 
 /* The one button that destroys something: a ghost in the warning colour. */
 .btn.ghost.danger{color:var(--warn); border-color:color-mix(in srgb, var(--warn) 40%, transparent)}
@@ -4070,6 +4131,25 @@ footer a:hover{opacity:1}
 
 <!-- Downgrade, confirmed on its own card over the Profile card rather than
      with confirm(): Keep Sapien and Close both lead back to the Profile. -->
+<section class="sheet" id="nameSheet" role="dialog" aria-modal="true" aria-labelledby="nameAskTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="nameAskTitle">Choose your display name</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p>This is the name your friends will see, and the name on any puzzle you make.
+       We have suggested one &mdash; change it to anything you like, then press Save.</p>
+    <form id="nameAskForm" novalidate>
+      <label class="setlabel" for="nameAskIn">Display Name</label>
+      <input class="fld" type="text" id="nameAskIn" maxlength="32" autocomplete="nickname" placeholder="Your name">
+      <p class="pf-err" id="nameAskNote" role="alert" hidden></p>
+      <p class="hint">It does not have to be your real name, and you can change it later in Profile.</p>
+      <div class="btnrow">
+        <button class="btn" type="submit" id="nameAskSave">Save</button>
+        <button class="btn ghost" type="button" data-sheet-close>Not now</button>
+      </div>
+    </form>
+  </div>
+</section>
+
 <section class="sheet" id="downSheet" role="dialog" aria-modal="true" aria-labelledby="downTitle" hidden>
   <div class="sheet-in">
     <div class="sh-head"><h2 id="downTitle">Downgrade to Free?</h2>

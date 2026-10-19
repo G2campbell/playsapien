@@ -162,7 +162,7 @@ test('admin promotes a chain to daily, schedules it, and the bank serves it', as
   const queue = await call(h.env, 'GET', '/api/admin/queue', { headers: adminHeaders(access) });
   assert.equal(queue.status, 200);
   assert.equal(queue.data.pending.length, 1);
-  assert.equal(queue.data.pending[0].author.name, '');
+  assert.match(queue.data.pending[0].author.name, /^kai \d{2}[A-Z]$/);   // the proposed name
 
   const tomorrow = utcDay(T0 + DAY);
   const decided = await call(h.env, 'POST', '/api/admin/chains/' + chainId, {
@@ -195,7 +195,7 @@ test('admin promotes a chain to daily, schedules it, and the bank serves it', as
   const bank = await call(h.env, 'GET', '/api/wordchain/bank/' + tomorrow);
   assert.equal(bank.status, 200);
   assert.deepEqual(bank.data.chain.words, CHAIN);
-  assert.equal(bank.data.chain.author, null, 'no display name has been set yet');
+  assert.equal(bank.data.chain.author, null, 'the author has not chosen a name yet');
 });
 
 test('an unscheduled daily approval picks a free slot in the next ten days', async () => {

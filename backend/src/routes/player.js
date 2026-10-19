@@ -14,7 +14,7 @@ import { streakStatements, emptyStreak, PLATFORM } from '../lib/streaks.js';
 import { clearedCookie } from '../middleware/session.js';
 import { shapeUser } from './auth.js';
 import { TRIAL_SECONDS, trialKey, trialAvailable } from '../lib/trial.js';
-import { nameTaken } from '../lib/names.js';
+import { nameTaken, settleName } from '../lib/names.js';
 
 /* GET /api/player/me -> profile + all streaks */
 export async function me(ctx) {
@@ -29,6 +29,7 @@ export async function me(ctx) {
       ...ctx.user,
       avatar_img: (img && img.avatar_img) || null,
       trial_available: await trialAvailable(ctx.db, ctx.env, ctx.user.email),
+      ...(await settleName(ctx.db, ctx.user)),
     },
     streaks: await readStreaks(ctx.db, ctx.user.id),
     today: utcDay(ctx.now),
@@ -81,6 +82,9 @@ export async function updateMe(ctx) {
       }
     }
     sets.push('display_name = ?'); params.push(name);
+    /* Saving a name -- even the proposed one, unchanged -- is choosing it,
+       which ends the first-sign-in question. An empty name is not a choice. */
+    if (name) { sets.push('name_chosen_at = ?'); params.push(ctx.now); }
   }
 
   if ('avatar' in patch) {
@@ -161,7 +165,7 @@ export async function updateMe(ctx) {
   const row = await first(ctx.db,
     `SELECT id, handle, display_name, email, email_verified, avatar,
             avatar_img, plan, plan_since, plan_until, created_at,
-            tz, strikes, blocked_at FROM users WHERE id = ?`, ctx.user.id);
+            tz, strikes, blocked_at, name_chosen_at FROM users WHERE id = ?`, ctx.user.id);
   return ok({ user: shapeUser(row, ctx.now) });
 }
 
@@ -204,7 +208,7 @@ export async function startTrial(ctx) {
   const row = await first(ctx.db,
     `SELECT id, handle, display_name, email, email_verified, avatar,
             avatar_img, plan, plan_since, plan_until, created_at,
-            tz, strikes, blocked_at FROM users WHERE id = ?`, ctx.user.id);
+            tz, strikes, blocked_at, name_chosen_at FROM users WHERE id = ?`, ctx.user.id);
   return ok({ user: { ...shapeUser(row, ctx.now), trial_available: false }, trial_until: until });
 }
 
@@ -284,7 +288,7 @@ export async function redeemCode(ctx) {
   const row = await first(ctx.db,
     `SELECT id, handle, display_name, email, email_verified, avatar,
             avatar_img, plan, plan_since, plan_until, created_at,
-            tz, strikes, blocked_at FROM users WHERE id = ?`, ctx.user.id);
+            tz, strikes, blocked_at, name_chosen_at FROM users WHERE id = ?`, ctx.user.id);
   return ok({ user: shapeUser(row, ctx.now), granted_until: until });
 }
 

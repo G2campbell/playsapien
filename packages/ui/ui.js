@@ -479,6 +479,9 @@
     if (user && ME.user && user.id === ME.user.id && user.trial_available === undefined) {
       user.trial_available = ME.user.trial_available;
     }
+    if (user && ME.user && user.id === ME.user.id && user.name_needed === undefined) {
+      user.name_needed = ME.user.name_needed;
+    }
     learnUser(user);                                   // the newest word is final
     paintBarAvatar(user);
     try { document.dispatchEvent(new CustomEvent('ps:user', { detail: user || null })); }
@@ -528,6 +531,7 @@
     paintProfile();
     if (ME.user && UI.isOpen('profileSheet')) loadDevices();
     if (UI.isOpen('friendsSheet')) loadFriends(); else paintFriends();
+    askName();
     var w = ME.waiters; ME.waiters = [];
     for (var i = 0; i < w.length; i++) { try { w[i](ME.user); } catch (e) { /* one bad waiter must not stop the rest */ } }
   }
@@ -1476,6 +1480,60 @@
     });
   }
 
+  /* ------------------------------------------------------------ name ----
+     A new player is asked once to choose a display name. The server has
+     already put a proposal on the account (the start of their email plus a
+     tag, "kai 39K", or the name Google gave) and says name_needed until they
+     save one. "Not now" is fine: they are asked again on a later visit, at
+     most once per visit, and the proposal stands in the meantime. */
+  var NAMEASK = { asked: false };
+  function askName() {
+    var u = ME.user;
+    if (!u || !u.name_needed || NAMEASK.asked || !$('nameSheet')) return;
+    try { if (sessionStorage.getItem('ps:nameAsked') === u.id) return; } catch (e) {}
+    NAMEASK.asked = true;
+    try { sessionStorage.setItem('ps:nameAsked', u.id); } catch (e) {}
+    var show = function (name) {
+      $('nameAskIn').value = name || '';
+      nameAskNote('');
+      UI.open('nameSheet', { stack: true });
+    };
+    /* A proposal is always on the account by the time /auth/session answers;
+       a sign-in response for an older account may not carry one yet. */
+    if (u.display_name) { setTimeout(function () { show(u.display_name); }, 350); return; }
+    api('GET', '/auth/session').then(function (r) {
+      var v = r.ok && r.data && r.data.user;
+      if (v && v.name_needed) show(v.display_name);
+    });
+  }
+  function nameAskNote(msg) {
+    var n = $('nameAskNote');
+    if (n) { n.hidden = !msg; n.textContent = msg || ''; }
+  }
+  function wireNameAsk() {
+    var f = $('nameAskForm');
+    if (!f || f.__wired) return;
+    f.__wired = true;
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var name = ($('nameAskIn').value || '').replace(/\s+/g, ' ').replace(/^ | $/g, '');
+      if (!name) { nameAskNote('Please enter a name.'); return; }
+      var b = $('nameAskSave'); b.disabled = true;
+      api('PATCH', '/player/me', { display_name: name }).then(function (r) {
+        b.disabled = false;
+        if (r.ok && r.data && r.data.user) {
+          close();
+          setUser(r.data.user);
+          toast('Saved. Welcome, ' + r.data.user.display_name + '!');
+          return;
+        }
+        nameAskNote(r.status === 409 ? 'That display name is already taken. Please choose another.'
+                  : r.status === 0 ? 'You\u2019re offline. Try again when you\u2019re connected.'
+                  : 'That did not work. Try again.');
+      });
+    });
+  }
+
   function wirePromo() {
     var f = document.getElementById('promoForm');
     if (!f || f.__wired) return;
@@ -1647,7 +1705,7 @@
       bar.__lifted = true;
       ['statsSheet', 'addSheet', 'gateSheet', 'friendsGamesSheet',
        'timedSheet', 'duelSheet', 'payWall', 'profileSheet', 'avPickSheet',
-       'downSheet', 'delSheet', 'friendsSheet'].forEach(function (id) {
+       'downSheet', 'delSheet', 'friendsSheet', 'nameSheet'].forEach(function (id) {
         var el = document.getElementById(id);
         if (el && el.parentNode !== document.body) document.body.appendChild(el);
       });
@@ -1659,6 +1717,7 @@
     paintWho();
     wirePromo();
     wireTrial();
+    wireNameAsk();
     wireAnalytics();
     wireLinks();
 

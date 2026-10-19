@@ -10,7 +10,7 @@
    used up its draws gets a longer tag. */
 
 import { randomBytes } from './crypto.js';
-import { first } from './db.js';
+import { first, run } from './db.js';
 
 const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';   // 24: no I, no O
 const MAX = 40;                                // cleanDisplayName's cap
@@ -40,4 +40,43 @@ export async function uniqueDisplayName(db, name, excludeId) {
     if (!(await nameTaken(db, candidate, excludeId))) return candidate;
   }
   return name.slice(0, MAX - 7).trim() + ' ' + tag(5);
+}
+
+/* ---------- the first-sign-in name ----------
+
+   A new player is asked to choose a display name (ui.js, the name card). The
+   card opens with a proposal already filled in so that most people only have
+   to press Save: for an email sign-up, the part of the address before the "@"
+   with a random tag ("kai 39K"); for a Google sign-up, the name Google gave
+   (tagged only if taken). Until they save, the proposal is what others see,
+   so nobody ever shows up as a blank "Player". */
+export function nameFromEmail(email) {
+  const local = String(email || '').split('@')[0].split('+')[0];
+  return local.replace(/[^\p{L}\p{N}._-]/gu, '').slice(0, 24);
+}
+
+export async function suggestName(db, email, excludeId) {
+  const base = nameFromEmail(email) || 'Player';
+  for (let attempt = 0; attempt < 24; attempt++) {
+    const candidate = base + ' ' + tag(attempt < 16 ? 2 : 3);
+    if (!(await nameTaken(db, candidate, excludeId))) return candidate;
+  }
+  return base + ' ' + tag(5);
+}
+
+/* Read the player's name state, filling in a proposal if they have no name at
+   all (an account made before names were proposed). Returns what /auth/session
+   and /player/me add to the user: { display_name, name_needed }. */
+export async function settleName(db, user) {
+  const row = await first(db, 'SELECT display_name, name_chosen_at FROM users WHERE id = ?', user.id);
+  if (!row) return {};
+  if (row.name_chosen_at != null) return { display_name: row.display_name || '', name_needed: false };
+  let name = row.display_name || '';
+  if (!name) {
+    name = await suggestName(db, user.email, user.id);
+    await run(db,
+      "UPDATE users SET display_name = ? WHERE id = ? AND (display_name IS NULL OR display_name = '')",
+      name, user.id);
+  }
+  return { display_name: name, name_needed: true };
 }

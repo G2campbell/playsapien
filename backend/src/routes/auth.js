@@ -18,7 +18,7 @@
 import { ok, err, ERRORS, readJson } from '../lib/http.js';
 import { effectivePlan, planStarted } from '../lib/plan.js';
 import { trialAvailable } from '../lib/trial.js';
-import { uniqueDisplayName } from '../lib/names.js';
+import { uniqueDisplayName, suggestName, settleName } from '../lib/names.js';
 import { claimEmailInvites } from './friends.js';
 import { first, run, all, isUniqueViolation, MINUTE } from '../lib/db.js';
 import { newId } from '../lib/id.js';
@@ -385,7 +385,7 @@ export async function upsertUserForIdentity(ctx, { provider, subject, email, ema
   const existing = await first(ctx.db,
     `SELECT u.id, u.handle, u.display_name, u.email, u.email_verified, u.avatar,
             u.avatar_img, u.plan, u.plan_since, u.plan_until,
-            u.created_at, u.tz, u.strikes, u.blocked_at
+            u.created_at, u.tz, u.strikes, u.blocked_at, u.name_chosen_at
        FROM identities i JOIN users u ON u.id = i.user_id
       WHERE i.provider = ? AND i.subject = ? AND u.deleted_at IS NULL`, provider, subject);
 
@@ -419,7 +419,7 @@ export async function upsertUserForIdentity(ctx, { provider, subject, email, ema
     const byEmail = await first(ctx.db,
       `SELECT id, handle, display_name, email, email_verified, avatar,
               avatar_img, plan, plan_since, plan_until, created_at,
-              tz, strikes, blocked_at
+              tz, strikes, blocked_at, name_chosen_at
          FROM users WHERE email = ? AND deleted_at IS NULL`, email);
     if (byEmail) {
       await ctx.db.batch([
@@ -441,9 +441,13 @@ export async function upsertUserForIdentity(ctx, { provider, subject, email, ema
   const row = {
     id,
     handle: null,
-    /* The Google name, or -- if someone already has it -- that name with a
-       short random tag ("John Smith 39K"). See lib/names.js. */
-    display_name: await uniqueDisplayName(ctx.db, displayName || '', id),
+    /* A proposal the player is asked to confirm or change on first sign-in
+       (name_chosen_at stays NULL until they do). From Google: the Google
+       name, tagged if someone already has it ("John Smith 39K"). From an
+       email code: the part before the "@" with a tag ("kai 39K"). */
+    display_name: displayName
+      ? await uniqueDisplayName(ctx.db, displayName, id)
+      : (email ? await suggestName(ctx.db, email, id) : ''),
     email: email || null,
     email_verified: emailVerified ? 1 : 0,
     avatar: null,
@@ -455,6 +459,7 @@ export async function upsertUserForIdentity(ctx, { provider, subject, email, ema
     tz: null,
     strikes: 0,
     blocked_at: null,
+    name_chosen_at: null,
   };
   await ctx.db.batch([
     ctx.db.prepare(
@@ -505,6 +510,10 @@ export function shapeUser(row, now = Math.floor(Date.now() / 1000)) {
     tz: row.tz,
     strikes: row.strikes || 0,
     blocked: row.blocked_at != null,
+    /* True until the player has saved a display name themselves. Left out
+       when the row was read without the column, so a caller cannot mistake
+       "not asked" for "needs asking". */
+    name_needed: 'name_chosen_at' in row ? row.name_chosen_at == null : undefined,
   };
 }
 
@@ -536,6 +545,8 @@ export async function sessionInfo(ctx) {
       avatar_img: (img && img.avatar_img) || null,
       /* Whether this inbox can still start the one free Sapien trial. */
       trial_available: await trialAvailable(ctx.db, ctx.env, user.email),
+      /* display_name (a proposal, if they have none) and name_needed. */
+      ...(await settleName(ctx.db, user)),
     };
   }
   return ok({ user, today: utcDay(ctx.now) });
