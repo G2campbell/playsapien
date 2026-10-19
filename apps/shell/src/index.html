@@ -675,6 +675,12 @@ document.addEventListener('DOMContentLoaded', function () {
     return 'account';
   }
   function labelFor(t) {
+    /* A control can name itself for the gate's message, which beats guessing
+       from its text -- "starting a challenge" reads better in that sentence
+       than "New 1v1 challenge" would, and a button carrying a badge has the
+       badge's number in its textContent. */
+    var explicit = t.getAttribute('data-gate-label');
+    if (explicit) return explicit;
     if (t.getAttribute('data-go') === 'friends') return 'Friends’ games';
     if (t.id === 'addBtn') return isShell() ? 'Suggest a game' : 'making puzzles';
     return GATE_LABEL[t.id] || (t.textContent || '').replace(/^\s*Play\s+/i, '').trim();
@@ -1867,6 +1873,25 @@ document.addEventListener('DOMContentLoaded', function () {
 .promo .fld{text-transform:uppercase; letter-spacing:.06em}
 .promo .fld::placeholder{text-transform:none; letter-spacing:0}
 
+/* ------------------------------------------------- friend challenges ----- */
+/* The count of games waiting on you, on the 1v1 button. Hidden at zero rather
+   than shown as "0": a badge saying nothing is waiting is a notification about
+   the absence of notifications. */
+.btn.chal{position:relative; overflow:visible}
+.turnbadge{
+  position:absolute; top:-7px; right:-7px; min-width:22px; height:22px;
+  display:grid; place-items:center; padding:0 6px; box-sizing:border-box;
+  border-radius:999px; background:var(--accent); color:var(--fg-on-accent);
+  font-family:var(--f-mono); font-size:11px; font-weight:600; line-height:1;
+  box-shadow:0 0 0 2px var(--bg);
+}
+.chal-list{margin:0 0 16px}
+.chal-list:empty::after{
+  content:"Nothing here yet. A challenge a friend sends you will be waiting here.";
+  display:block; padding:18px; border-radius:11px; text-align:center;
+  border:1px dashed var(--line-2); color:var(--fg-3); font-size:13.5px; line-height:1.6;
+}
+
 /* ------------------------------------------------------------ the gate ----- */
 .gate-msg{
   margin:0 0 18px; padding:12px 14px; border-radius:11px;
@@ -2686,14 +2711,58 @@ footer a:hover{opacity:1}
   </div>
 </section>
 
-<!-- Friends' games: puzzles friends have made and sent. The sending does not
-     exist yet, so the only honest state is the empty one. -->
+<!-- Sojourner still has a single "Play Friends' Games" button and no notion of
+     a timed or a 1v1 challenge, so it keeps this generic list. Word Chain's
+     button was replaced by the two below; when Sojourner grows challenges of
+     its own, this sheet goes the same way. Removing it while partD.js still
+     opened it would have left a button that silently did nothing -- PSUI.open
+     returns quietly when the id is not on the page. -->
 <section class="sheet" id="friendsGamesSheet" role="dialog" aria-modal="true" aria-labelledby="fgTitle" hidden>
   <div class="sheet-in">
     <div class="sh-head"><h2 id="fgTitle">Friends&rsquo; games</h2>
       <button class="donebtn" type="button" data-sheet-close>Close</button></div>
     <p class="sethint">No puzzles from friends yet. When a friend makes one and sends it
       to you, it will be waiting here.</p>
+  </div>
+</section>
+
+<!-- The two friend-challenge lists. Same shape, two kinds of game:
+
+       Timed     one puzzle sent to several friends at once; when everyone has
+                 finished, the group sees the times ranked.
+       1v1       two players alternate on one chain. Right word, go again;
+                 miss, and the turn passes. No clock.
+
+     Both lists open to any account -- a free player must always be able to see
+     and play what a friend sent them. STARTING one is Sapien, gated on the
+     button, so the moment a free player wants to start is the moment they are
+     told what Sapien is for.
+
+     Empty until the server side exists; the shape is here so that what fills
+     it has somewhere to go. -->
+<section class="sheet" id="timedSheet" role="dialog" aria-modal="true" aria-labelledby="timedTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="timedTitle">Timed friend challenges</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p class="sh-status">Same puzzle, everyone&rsquo;s time ranked</p>
+    <div class="chal-list" id="timedList"></div>
+    <div class="btnrow">
+      <button class="btn" type="button" id="timedNew" data-gate="sapien"
+              data-gate-label="starting a challenge">New timed challenge</button>
+    </div>
+  </div>
+</section>
+
+<section class="sheet" id="duelSheet" role="dialog" aria-modal="true" aria-labelledby="duelTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="duelTitle">1v1 friend challenges</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p class="sh-status">Take turns &middot; right word, go again</p>
+    <div class="chal-list" id="duelList"></div>
+    <div class="btnrow">
+      <button class="btn" type="button" id="duelNew" data-gate="sapien"
+              data-gate-label="starting a challenge">New 1v1 challenge</button>
+    </div>
   </div>
 </section>
 

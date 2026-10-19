@@ -657,6 +657,12 @@ PSTheme.init('sj-game');
     return 'account';
   }
   function labelFor(t) {
+    /* A control can name itself for the gate's message, which beats guessing
+       from its text -- "starting a challenge" reads better in that sentence
+       than "New 1v1 challenge" would, and a button carrying a badge has the
+       badge's number in its textContent. */
+    var explicit = t.getAttribute('data-gate-label');
+    if (explicit) return explicit;
     if (t.getAttribute('data-go') === 'friends') return 'Friends’ games';
     if (t.id === 'addBtn') return isShell() ? 'Suggest a game' : 'making puzzles';
     return GATE_LABEL[t.id] || (t.textContent || '').replace(/^\s*Play\s+/i, '').trim();
@@ -1889,6 +1895,25 @@ PSTheme.init('sj-game');
 .promo .setlabel{display:block; margin:0 0 8px}
 .promo .fld{text-transform:uppercase; letter-spacing:.06em}
 .promo .fld::placeholder{text-transform:none; letter-spacing:0}
+
+/* ------------------------------------------------- friend challenges ----- */
+/* The count of games waiting on you, on the 1v1 button. Hidden at zero rather
+   than shown as "0": a badge saying nothing is waiting is a notification about
+   the absence of notifications. */
+.btn.chal{position:relative; overflow:visible}
+.turnbadge{
+  position:absolute; top:-7px; right:-7px; min-width:22px; height:22px;
+  display:grid; place-items:center; padding:0 6px; box-sizing:border-box;
+  border-radius:999px; background:var(--accent); color:var(--fg-on-accent);
+  font-family:var(--f-mono); font-size:11px; font-weight:600; line-height:1;
+  box-shadow:0 0 0 2px var(--bg);
+}
+.chal-list{margin:0 0 16px}
+.chal-list:empty::after{
+  content:"Nothing here yet. A challenge a friend sends you will be waiting here.";
+  display:block; padding:18px; border-radius:11px; text-align:center;
+  border:1px dashed var(--line-2); color:var(--fg-3); font-size:13.5px; line-height:1.6;
+}
 
 /* ------------------------------------------------------------ the gate ----- */
 .gate-msg{

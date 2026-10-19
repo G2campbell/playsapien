@@ -248,14 +248,58 @@
   </div>
 </section>
 
-<!-- Friends' games: puzzles friends have made and sent. The sending does not
-     exist yet, so the only honest state is the empty one. -->
+<!-- Sojourner still has a single "Play Friends' Games" button and no notion of
+     a timed or a 1v1 challenge, so it keeps this generic list. Word Chain's
+     button was replaced by the two below; when Sojourner grows challenges of
+     its own, this sheet goes the same way. Removing it while partD.js still
+     opened it would have left a button that silently did nothing -- PSUI.open
+     returns quietly when the id is not on the page. -->
 <section class="sheet" id="friendsGamesSheet" role="dialog" aria-modal="true" aria-labelledby="fgTitle" hidden>
   <div class="sheet-in">
     <div class="sh-head"><h2 id="fgTitle">Friends&rsquo; games</h2>
       <button class="donebtn" type="button" data-sheet-close>Close</button></div>
     <p class="sethint">No puzzles from friends yet. When a friend makes one and sends it
       to you, it will be waiting here.</p>
+  </div>
+</section>
+
+<!-- The two friend-challenge lists. Same shape, two kinds of game:
+
+       Timed     one puzzle sent to several friends at once; when everyone has
+                 finished, the group sees the times ranked.
+       1v1       two players alternate on one chain. Right word, go again;
+                 miss, and the turn passes. No clock.
+
+     Both lists open to any account -- a free player must always be able to see
+     and play what a friend sent them. STARTING one is Sapien, gated on the
+     button, so the moment a free player wants to start is the moment they are
+     told what Sapien is for.
+
+     Empty until the server side exists; the shape is here so that what fills
+     it has somewhere to go. -->
+<section class="sheet" id="timedSheet" role="dialog" aria-modal="true" aria-labelledby="timedTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="timedTitle">Timed friend challenges</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p class="sh-status">Same puzzle, everyone&rsquo;s time ranked</p>
+    <div class="chal-list" id="timedList"></div>
+    <div class="btnrow">
+      <button class="btn" type="button" id="timedNew" data-gate="sapien"
+              data-gate-label="starting a challenge">New timed challenge</button>
+    </div>
+  </div>
+</section>
+
+<section class="sheet" id="duelSheet" role="dialog" aria-modal="true" aria-labelledby="duelTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="duelTitle">1v1 friend challenges</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p class="sh-status">Take turns &middot; right word, go again</p>
+    <div class="chal-list" id="duelList"></div>
+    <div class="btnrow">
+      <button class="btn" type="button" id="duelNew" data-gate="sapien"
+              data-gate-label="starting a challenge">New 1v1 challenge</button>
+    </div>
   </div>
 </section>
 
@@ -301,9 +345,18 @@
   <div class="homebtns">
     <button class="btn" id="dailyBtn">Play Daily Game</button>
     <button class="btn ghost" id="practiceBtn">Practice</button>
-    <!-- data-gate: the shared bar layer shows the sign-in card to anyone signed
-         out before this game ever sees the click. -->
-    <button class="btn ghost" id="friendsGamesBtn" data-gate="account">Play Friends&rsquo; Games</button>
+    <!-- The two challenge screens replace the old "Play Friends' Games": a
+         puzzle a friend made for you IS a challenge they sent you, and one
+         list of them beats two.
+
+         data-gate="account": the shared bar layer shows the sign-in card to
+         anyone signed out before this game sees the click. Opening the lists
+         needs only an account; STARTING a challenge needs Sapien, and that is
+         gated on the button inside each sheet, not here -- a free player can
+         always see and play what a friend has sent them. -->
+    <button class="btn ghost" id="timedBtn" data-gate="account">Timed Friend Challenges</button>
+    <button class="btn ghost chal" id="duelBtn" data-gate="account">1v1 Friend Challenges<span
+      class="turnbadge" id="duelBadge" hidden aria-hidden="true">0</span></button>
   </div>
   <div class="home-foot">
     <div class="d1" id="homeDate">&nbsp;</div>

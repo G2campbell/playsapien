@@ -444,6 +444,12 @@
     return 'account';
   }
   function labelFor(t) {
+    /* A control can name itself for the gate's message, which beats guessing
+       from its text -- "starting a challenge" reads better in that sentence
+       than "New 1v1 challenge" would, and a button carrying a badge has the
+       badge's number in its textContent. */
+    var explicit = t.getAttribute('data-gate-label');
+    if (explicit) return explicit;
     if (t.getAttribute('data-go') === 'friends') return 'Friends’ games';
     if (t.id === 'addBtn') return isShell() ? 'Suggest a game' : 'making puzzles';
     return GATE_LABEL[t.id] || (t.textContent || '').replace(/^\s*Play\s+/i, '').trim();

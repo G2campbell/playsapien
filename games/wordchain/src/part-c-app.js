@@ -897,7 +897,23 @@ $('dailyBtn').addEventListener('click', function () {
   else startGame('daily');
 });
 $('practiceBtn').addEventListener('click', function () { startGame('practice'); });
-$('friendsGamesBtn').addEventListener('click', function () { PSUI.open('friendsGamesSheet'); });
+$('timedBtn').addEventListener('click', function () { PSUI.open('timedSheet'); });
+$('duelBtn').addEventListener('click', function () { PSUI.open('duelSheet'); });
+
+/* The badge on 1v1: how many games are waiting on THIS player's move. Fed by
+   the server when the feature is wired; the number is hidden rather than shown
+   as 0, because a badge reading zero is a notification that there is nothing to
+   notify you about. */
+function paintTurnBadge(n) {
+  var b = $('duelBadge');
+  if (!b) return;
+  b.textContent = n > 9 ? '9+' : String(n);
+  b.hidden = !n;
+  b.setAttribute('aria-label', n === 1 ? '1 game awaiting your move'
+                                       : n + ' games awaiting your move');
+  b.setAttribute('aria-hidden', n ? 'false' : 'true');
+}
+window.PSWC_setTurns = paintTurnBadge;      /* until the server feeds it */
 $('aboutBtn').addEventListener('click', function () { PSUI.open('aboutSheet'); });
 $('friendsBtn').addEventListener('click', function () { PSUI.open('friendsSheet'); });
 $('settingsBtn').addEventListener('click', function () { paintSettings(); PSUI.open('settingsSheet'); });
