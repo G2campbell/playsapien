@@ -1049,10 +1049,18 @@
 .psbar-nav{ display:flex; align-items:center; gap:2px; flex:none }
 
 @media (max-width:420px){
-  .psbar{ gap:6px; padding-left:10px; padding-right:8px }
-  .psbar-mark{ width:36px }
-  .psbar-name{ font-size:15.5px }
+  .psbar{ gap:6px; padding-left:10px; padding-right:6px }
+  .psbar-mark{ width:34px }
+  .psbar-brand{ gap:7px }
+  .psbar-name{ font-size:15px }
   .psbar-nav{ gap:0 }
+  /* Six icons and the wordmark on a phone: each button gives up a few pixels
+     (38 -> 34, the glyph stays the same size) so the row never meets the name. */
+  .psbar .iconbtn{ --icon-btn:34px }
+  .psbar .iconbtn.has-av > *{ width:28px; height:28px }
+}
+@media (max-width:374px){
+  .psbar .iconbtn{ --icon-btn:32px }
 }
 /* Below this the wordmark would push the icons off the edge; the mark alone
    still identifies the platform and still goes home. */
@@ -1200,6 +1208,17 @@
   border:1px solid var(--line-2); background:var(--bg-sink)}
 .trialbox p{margin:0 0 12px}
 .trialbox .btn{--btn-width:auto; width:auto}
+
+/* ------------------------------------------------------- page edges ----
+   Nothing may make a page wider than the phone. A single decoration that
+   bleeds a few pixels past the edge is enough for iOS Safari to let the whole
+   page pan sideways -- which also makes the fixed top bar appear to slide. So
+   the page clips anything horizontal at its own edge ("clip", not "hidden":
+   it does not turn the page into a scroll box), and a page that fits does
+   not rubber-band when it is dragged. */
+html, body{ overflow-x:clip; max-width:100% }
+@supports not (overflow-x:clip){ body{ overflow-x:hidden } }
+html, body{ overscroll-behavior-y:none }
 /* ===== END packages/ui/ui.css ===== */
 
 /* ===========================================================================
@@ -1300,10 +1319,17 @@ body{
 /* ======================= HOME ======================= */
 #home{
   position:fixed; top:0; left:0; right:0; height:var(--vh); z-index:20; background:var(--clay);
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  padding:calc(env(safe-area-inset-top) + 28px) 22px calc(env(safe-area-inset-bottom) + 28px);
-  text-align:center; overflow-y:auto;
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+  /* The top padding clears the fixed bar (it lives inside #home), so the chain
+     icon and the title can never slide under it, however short the window. */
+  padding:calc(env(safe-area-inset-top) + var(--bar-h) + 14px) 22px calc(env(safe-area-inset-bottom) + 18px);
+  text-align:center; overflow-y:auto; overscroll-behavior:none;
 }
+/* Centred when there is room, top-aligned when there is not: auto margins on
+   the first and last blocks do what justify-content:center does, without
+   pushing the top of the content above the scrollable area on a short screen. */
+#home > .brand-mark{ margin-top:auto }
+#home > .home-foot{ margin-bottom:auto }
 /* ui.css owns .corner's anatomy (a flex row at --corner-gap). Where it sits is
    this game's business, and ui.css says so: on the home screen it floats in the
    top-right safe area. */

@@ -2847,10 +2847,18 @@ PSTheme.init('sj-game');
 .psbar-nav{ display:flex; align-items:center; gap:2px; flex:none }
 
 @media (max-width:420px){
-  .psbar{ gap:6px; padding-left:10px; padding-right:8px }
-  .psbar-mark{ width:36px }
-  .psbar-name{ font-size:15.5px }
+  .psbar{ gap:6px; padding-left:10px; padding-right:6px }
+  .psbar-mark{ width:34px }
+  .psbar-brand{ gap:7px }
+  .psbar-name{ font-size:15px }
   .psbar-nav{ gap:0 }
+  /* Six icons and the wordmark on a phone: each button gives up a few pixels
+     (38 -> 34, the glyph stays the same size) so the row never meets the name. */
+  .psbar .iconbtn{ --icon-btn:34px }
+  .psbar .iconbtn.has-av > *{ width:28px; height:28px }
+}
+@media (max-width:374px){
+  .psbar .iconbtn{ --icon-btn:32px }
 }
 /* Below this the wordmark would push the icons off the edge; the mark alone
    still identifies the platform and still goes home. */
@@ -2998,6 +3006,17 @@ PSTheme.init('sj-game');
   border:1px solid var(--line-2); background:var(--bg-sink)}
 .trialbox p{margin:0 0 12px}
 .trialbox .btn{--btn-width:auto; width:auto}
+
+/* ------------------------------------------------------- page edges ----
+   Nothing may make a page wider than the phone. A single decoration that
+   bleeds a few pixels past the edge is enough for iOS Safari to let the whole
+   page pan sideways -- which also makes the fixed top bar appear to slide. So
+   the page clips anything horizontal at its own edge ("clip", not "hidden":
+   it does not turn the page into a scroll box), and a page that fits does
+   not rubber-band when it is dragged. */
+html, body{ overflow-x:clip; max-width:100% }
+@supports not (overflow-x:clip){ body{ overflow-x:hidden } }
+html, body{ overscroll-behavior-y:none }
 /* ===== END packages/ui/ui.css ===== */
 
 /* ---------------------------------------------------------------------------
@@ -3366,6 +3385,14 @@ a.st-src:hover{border-bottom-color:var(--good)}
 .emblem{margin:0; padding:30px 0 26px; display:flex; flex-direction:column;
   align-items:center; gap:16px}
 .emblem img{display:block; width:100%; max-width:330px; height:auto}
+/* On a phone the whole landing page should fit one screen: the emblem is the
+   part that can give, so it scales with the screen's HEIGHT as well as its
+   width, and the space around it tightens. */
+@media (max-width:600px), (max-height:720px){
+  .emblem{padding:12px 0 12px}
+  .emblem img{max-width:min(300px, 32vh, 32dvh)}
+  #introView .tagline{margin-bottom:16px}
+}
 .emblem .brandline{margin:0}
 /* Stacked and centred, all one width -- and that width is the longest line among
    them, not the column. A single max-content grid track does both at once. */
@@ -3515,7 +3542,10 @@ p.sj-note{font-family:var(--f-mono); font-size:12.5px; color:var(--fg-3); line-h
   --icon-fg:var(--stage-fg-2); --icon-fg-on:var(--stage-fg); --icon-wash:var(--stage-wash)}
 #app.paged .corner{
   --icon-fg:var(--fg-2); --icon-fg-on:var(--fg); --icon-wash:var(--chrome-wash)}
-#introView .wrap{padding-top:calc(env(safe-area-inset-top) + 62px)}
+#introView .wrap{padding-top:calc(env(safe-area-inset-top) + var(--bar-h) + 10px);
+  padding-bottom:calc(env(safe-area-inset-bottom) + 16px)}
+#introView .setline{margin-bottom:0}
+.full{overscroll-behavior:none}
 /* Audit S7: neither game offered a way back to the platform -- homeBtn returns
    to this game's own intro, and nothing linked to playsapien.com. This does,
    from a bar that stays visible mid-round. The href is relative so it resolves
