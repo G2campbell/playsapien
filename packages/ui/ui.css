@@ -756,3 +756,28 @@ html, body{ overscroll-behavior-y:none }
 .frsec .sethint{margin:4px 0 6px}
 .frblocked summary{cursor:pointer; font-size:13.5px; color:var(--fg-2); padding:6px 0}
 .frpaused{margin:14px 0 0}
+/* Friends card (20 Oct): sections split by hairlines (.pfsec), the hint runs
+   the full width over the box AND the button, and every list collapses. */
+#friendsSheet .sethint.frhint{max-width:none; margin:0 0 10px}
+#friendsSheet .frcode{margin:6px 0 0}
+#frInvites .frsec{margin-top:0}
+.frlist{margin:0; border-top:1px solid var(--line)}
+.frlist:first-child{border-top:0}
+#frSent .frlist{margin-top:14px; border-top:0}
+.frlist > summary{display:flex; align-items:center; gap:8px; list-style:none; cursor:pointer;
+  padding:10px 0; font-family:var(--f-mono); font-size:12px; font-weight:600; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--fg-2)}
+.frlist > summary::-webkit-details-marker{display:none}
+.frlist > summary small{font-weight:400; color:var(--fg-3); letter-spacing:.06em}
+.frarrow{width:0; height:0; border-style:solid; border-width:5px 0 5px 7px;
+  border-color:transparent transparent transparent currentColor; transition:transform .15s ease; flex:none}
+.frlist[open] > summary .frarrow{transform:rotate(90deg)}
+.frtrash{margin-left:auto; display:grid; place-items:center; width:30px; height:30px; padding:0;
+  border:0; border-radius:8px; background:transparent; color:var(--fg-3); cursor:pointer}
+.frtrash:hover, .frtrash:focus-visible{color:var(--err); background:var(--bg-2, transparent)}
+.frlist > .frrow:first-of-type{padding-top:4px}
+.frlist > .sethint{margin:0 0 12px}
+.fraddgrp{display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:0 0 12px 46px}
+.fraddgrp .fld{flex:1 1 180px; min-width:0; margin:0}
+.fraddgrp .btn{flex:none; --btn-width:auto; width:auto; --btn-pad:8px 12px; --btn-size:13px; --btn-radius:9px}
+@media (max-width:420px){ .fraddgrp{padding-left:0} .fraddgrp .fld{flex-basis:100%} }

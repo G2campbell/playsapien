@@ -23,6 +23,7 @@ import { DAY } from './lib/db.js';
 import * as auth from './routes/auth.js';
 import * as player from './routes/player.js';
 import * as friends from './routes/friends.js';
+import * as groups from './routes/groups.js';
 import * as play from './routes/play.js';
 import * as wordchain from './routes/wordchain.js';
 import * as admin from './routes/admin.js';
@@ -58,6 +59,10 @@ const ROUTES = [
   ['GET',    '/api/invites/stop',                friends.stopInviteEmails],
   ['POST',   '/api/player/friends/:id/block',    friends.blockFriend],
   ['DELETE', '/api/player/friends/:id',          friends.removeFriend],
+  ['GET',    '/api/player/groups',               groups.listGroups],
+  ['POST',   '/api/player/groups/add',           groups.addToGroup],
+  ['DELETE', '/api/player/groups/:id/members/:member', groups.removeFromGroup],
+  ['DELETE', '/api/player/groups/:id',           groups.deleteGroup],
 
   ['GET',    '/api/player/me',                   player.me],
   ['PATCH',  '/api/player/me',                   player.updateMe],

@@ -525,7 +525,6 @@
   <div class="sheet-in">
     <div class="sh-head ps-head"><div class="ps-who" data-ps-who></div><h2 id="friendsTitle">Friends</h2>
       <button class="donebtn" type="button" data-sheet-close>Close</button></div>
-    <p class="sh-status">Across every game</p>
 
     <div id="frOut" hidden>
       <p class="empty">Friends need an account, so there is something for a friend to be
@@ -535,24 +534,52 @@
     </div>
 
     <div id="frIn" hidden>
-      <h3 class="pf-sub">Invite a friend</h3>
-      <p class="sethint" style="margin:0 0 10px">Type their email address or their invite code. If they
-        already play, the invite appears on their Friends card; if not, we email them an invitation.</p>
-      <form id="frAddForm" class="pf-mailrow" autocomplete="off">
-        <label class="ui-sr" for="frAddIn">Email address or invite code</label>
-        <input class="fld" type="text" id="frAddIn" inputmode="email" autocapitalize="off"
-               autocorrect="off" spellcheck="false" placeholder="Email or invite code">
-        <button class="btn" type="submit" id="frAddBtn">Invite</button>
-      </form>
-      <div class="ui-note" id="frNote" hidden></div>
+      <!-- Invites waiting for an answer: only when there are any, first, because
+           they are the one thing on the card that asks something of the player. -->
+      <div id="frInvites" aria-live="polite"></div>
 
-      <div class="frcode">
-        <div class="col"><span class="setlabel">Your invite code</span>
-          <code id="frCode">&middot;&middot;&middot;&middot;&middot;&middot;&middot;&middot;</code></div>
-        <button class="btn ghost" type="button" id="frCopy">Copy invite link</button>
+      <div class="pfsec">
+        <h3 class="pf-sub">Invite a friend</h3>
+        <p class="sethint frhint">Type their email address or their invite code. If they already
+          play, the invite appears on their Friends card; if not, we email them an invitation.</p>
+        <form id="frAddForm" class="pf-mailrow" autocomplete="off">
+          <label class="ui-sr" for="frAddIn">Email address or invite code</label>
+          <input class="fld" type="text" id="frAddIn" inputmode="email" autocapitalize="off"
+                 autocorrect="off" spellcheck="false" placeholder="Email or invite code">
+          <button class="btn" type="submit" id="frAddBtn">Invite</button>
+        </form>
+        <div class="ui-note" id="frNote" hidden></div>
+        <div id="frSent"></div>
       </div>
 
-      <div id="frLists" aria-live="polite"></div>
+      <div class="pfsec">
+        <h3 class="pf-sub">Share your code</h3>
+        <div class="frcode">
+          <div class="col"><span class="setlabel">Your invite code</span>
+            <code id="frCode">&middot;&middot;&middot;&middot;&middot;&middot;&middot;&middot;</code></div>
+          <button class="btn ghost" type="button" id="frCopy">Share invite link</button>
+        </div>
+      </div>
+
+      <div class="pfsec">
+        <h3 class="pf-sub">Friends</h3>
+        <div id="frLists" aria-live="polite"></div>
+        <datalist id="frGroupNames"></datalist>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Deleting a friend group: confirmed first. The friends stay friends. -->
+<section class="sheet" id="grpDelSheet" role="dialog" aria-modal="true" aria-labelledby="grpDelTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="grpDelTitle">Delete this group?</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p>Delete the group <b id="grpDelName"></b>? Everyone in it stays your friend; only the
+       list goes. This cannot be undone.</p>
+    <div class="btnrow">
+      <button class="btn" type="button" id="grpDelYes">Delete group</button>
+      <button class="btn ghost" type="button" data-sheet-close>Keep it</button>
     </div>
   </div>
 </section>

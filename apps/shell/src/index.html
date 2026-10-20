@@ -944,7 +944,8 @@ document.addEventListener('DOMContentLoaded', function () {
       body: body === undefined ? undefined : JSON.stringify(body)
     }).then(function (r) {
       return r.json().catch(function () { return null; }).then(function (j) {
-        return { ok: r.ok && !(j && j.ok === false), data: j && j.data, status: r.status };
+        return { ok: r.ok && !(j && j.ok === false), data: j && j.data, status: r.status,
+                 error: (j && j.error) || null };
       });
     }).catch(function () { return { ok: false, data: null, status: 0 }; });
   }
@@ -1533,7 +1534,7 @@ document.addEventListener('DOMContentLoaded', function () {
      allowed (routes/friends.js); this shows the lists and sends the taps.
      An invite typed as an email address always reports "Sent." -- the server
      never says whether that address belongs to a player. */
-  var FR = { data: null, busy: false };
+  var FR = { data: null, busy: false, open: {}, adding: null, deleting: null };
   function frNote(msg, bad) {
     var n = $('frNote'); if (!n) return;
     n.hidden = !msg; n.textContent = msg || ''; n.classList.toggle('bad', !!bad);
@@ -1552,13 +1553,31 @@ document.addEventListener('DOMContentLoaded', function () {
     return '<section class="frsec"><h3 class="pf-sub">' + title +
       (small ? ' <small>' + small + '</small>' : '') + '</h3>' + body + '</section>';
   }
+  var TRASH = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" ' +
+    'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/>' +
+    '<path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg>';
+  /* One collapsible list: ALL, each group, Blocked. Which are open is kept in
+     FR.open across repaints (ALL starts open, the rest closed). */
+  function frList(key, title, count, rows, empty, trash) {
+    var open = FR.open[key] != null ? FR.open[key] : key === 'all';
+    return '<details class="frlist" data-list="' + escapeAttr(key) + '"' + (open ? ' open' : '') + '>' +
+      '<summary><span class="frarrow" aria-hidden="true"></span><span class="frtitle">' + title + '</span>' +
+      '<small>' + count + '</small>' +
+      (trash ? '<button type="button" class="frtrash" data-grpdel="' + escapeAttr(trash.id) + '" ' +
+        'data-name="' + escapeAttr(trash.name) + '" aria-label="Delete the group ' + escapeAttr(trash.name) +
+        '" title="Delete this group">' + TRASH + '</button>' : '') +
+      '</summary>' + (rows || '<p class="sethint">' + empty + '</p>') + '</details>';
+  }
   function paintFriends() {
-    var out = $('frOut'), inn = $('frIn'), box = $('frLists');
+    var out = $('frOut'), inn = $('frIn'), box = $('frLists'), invBox = $('frInvites'), sentBox = $('frSent');
     if (!out || !inn) return;
     out.hidden = !!ME.user || !ME.known; inn.hidden = !ME.user;
     if (!ME.user || !box) return;
     var d = FR.data;
-    if (!d) { box.innerHTML = '<p class="sethint" style="margin-top:16px">Loading…</p>'; return; }
+    if (!d) { box.innerHTML = '<p class="sethint">Loading…</p>'; return; }
+
+    /* Invites waiting for an answer, at the top of the card. */
     var h = '';
     if (d.paused_until) {
       h += '<div class="ui-note bad frpaused">Several of your recent invites were declined, so ' +
@@ -1584,29 +1603,59 @@ document.addEventListener('DOMContentLoaded', function () {
             frBtn('block', f.id, 'Block', true), true);
         }).join('');
       }
-      h += frSection('Invites for you', q.used + ' of ' + q.cap, body);
+      h += '<div class="pfsec">' + frSection('Invites for you', q.used + ' of ' + q.cap, body) + '</div>';
     }
-    var acc = d.accepted || [];
-    h += frSection('Friends', acc.length ? String(acc.length) : '', acc.length
-      ? acc.map(function (f) {
-          return frRow(f, '', frBtn('remove', f.id, 'Remove', true) + frBtn('block', f.id, 'Block', true));
-        }).join('')
-      : '<p class="sethint">No friends yet. Invite someone above, or send them your invite link.</p>');
+    if (invBox) invBox.innerHTML = h;
+
+    /* Invites this player sent, under the invite box. */
     var sent = d.outgoing || [];
-    if (sent.length) {
-      h += frSection('Invites you sent', '', sent.map(function (f) {
-        return frRow(f, 'Waiting for them', frBtn('cancel', f.id, 'Cancel', true));
-      }).join(''));
+    if (sentBox) {
+      sentBox.innerHTML = sent.length ? frList('sent', 'Invites you sent', String(sent.length),
+        sent.map(function (f) { return frRow(f, 'Waiting for them', frBtn('cancel', f.id, 'Cancel', true)); }).join(''),
+        '') : '';
     }
+
+    /* The lists: ALL, then each group A-Z, then Blocked. */
+    var acc = d.accepted || [], byId = {};
+    acc.forEach(function (f) { byId[f.id] = f; });
+    var groups = (d.groups || []).slice().sort(function (a, b) {
+      return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : a.name.toLowerCase() > b.name.toLowerCase() ? 1 : 0;
+    });
+    var L = frList('all', 'All', String(acc.length), acc.map(function (f) {
+      var row = frRow(f, '', frBtn('block', f.id, 'Block', true) + frBtn('remove', f.id, 'Remove', true) +
+        '<button type="button" class="btn ghost" data-fradd="' + escapeAttr(f.id) + '" data-gate="sapien" ' +
+        'data-gate-label="friend groups">Add</button>');
+      if (FR.adding === f.id) {
+        row += '<form class="fraddgrp" data-for="' + escapeAttr(f.id) + '" autocomplete="off">' +
+          '<label class="ui-sr" for="frGrpIn">Name of group</label>' +
+          '<input class="fld" id="frGrpIn" list="frGroupNames" maxlength="30" ' +
+          'placeholder="Name of (existing or new) group">' +
+          '<button class="btn" type="submit">Add</button>' +
+          '<button class="btn ghost" type="button" data-fraddcancel>Cancel</button></form>';
+      }
+      return row;
+    }).join(''), 'No friends yet. Invite someone above, or share your code.');
+    groups.forEach(function (g) {
+      var members = g.members.filter(function (id) { return byId[id]; });
+      L += frList('g:' + g.id, escapeAttr(g.name), String(members.length), members.map(function (id) {
+        return frRow(byId[id], '', '<button type="button" class="btn ghost" data-grprm="' + escapeAttr(g.id) +
+          '" data-id="' + escapeAttr(id) + '" title="Take out of this group (they stay your friend)">Remove</button>');
+      }).join(''), 'Nobody in this group yet. Use Add under All.', { id: g.id, name: g.name });
+    });
     var bl = d.blocked || [];
-    h += '<section class="frsec"><details class="frblocked"><summary>Blocked' +
-      (bl.length ? ' (' + bl.length + ')' : '') + '</summary>' +
-      (bl.length ? bl.map(function (f) { return frRow(f, 'Blocked', frBtn('unblock', f.id, 'Unblock', true)); }).join('')
-                 : '<p class="sethint">Nobody. A blocked player cannot invite you or see you, and is never told.</p>') +
-      '</details></section>';
-    box.innerHTML = h;
-    var blk = box.querySelector('.frblocked');
-    if (blk && FR.openBlocked) blk.open = true;
+    L += frList('blocked', 'Blocked', String(bl.length),
+      bl.map(function (f) { return frRow(f, 'Blocked', frBtn('unblock', f.id, 'Unblock', true)); }).join(''),
+      'Nobody. A blocked player cannot invite you or see you, and is never told.');
+    box.innerHTML = L;
+
+    var dl = $('frGroupNames');
+    if (dl) dl.innerHTML = groups.map(function (g) { return '<option value="' + escapeAttr(g.name) + '">'; }).join('');
+    var gi = $('frGrpIn');
+    if (gi && FR.focusAdd) { FR.focusAdd = false; try { gi.focus(); } catch (e) {} }
+
+    /* Analytics compares against the same groups. */
+    GROUPS = groups.map(function (g) { return { id: g.id, name: g.name }; });
+    paintGroups();
   }
   function loadFriends() {
     if (!ME.user) { paintFriends(); return; }
@@ -1614,7 +1663,7 @@ document.addEventListener('DOMContentLoaded', function () {
       var c = $('frCode');
       if (c && r[0].ok && r[0].data && r[0].data.code) c.textContent = r[0].data.code;
       if (r[1].ok) FR.data = r[1].data;
-      else if (!FR.data) FR.data = { accepted: [], incoming: [], later: [], outgoing: [], blocked: [] };
+      else if (!FR.data) FR.data = { accepted: [], incoming: [], later: [], outgoing: [], blocked: [], groups: [] };
       paintFriends();
     });
   }
@@ -1627,6 +1676,10 @@ document.addEventListener('DOMContentLoaded', function () {
     remove:  { m: 'DELETE', p: '',         t: 'Removed.' },
     cancel:  { m: 'DELETE', p: '',         t: 'Invite cancelled.' }
   };
+  function groupName(id) {
+    var g = ((FR.data && FR.data.groups) || []).filter(function (x) { return x.id === id; })[0];
+    return g ? g.name : 'the group';
+  }
   function wireFriends() {
     var f = $('frAddForm');
     if (!f || f.__wired) return;
@@ -1655,22 +1708,109 @@ document.addEventListener('DOMContentLoaded', function () {
           : 'That invite code did not work.', true);
       });
     });
+
+    /* Share: on a phone this opens the share sheet (Messages, Mail, Copy...);
+       where there is none, the link is copied instead. */
     $('frCopy').addEventListener('click', function () {
       var c = ($('frCode').textContent || '').trim();
       if (!/^[A-Z0-9]{8}$/i.test(c)) { toast('Your code has not loaded yet'); return; }
       var link = location.origin + '/?f=' + c;
-      var done = function () { toast('Invite link copied'); };
-      try { navigator.clipboard.writeText(link).then(done, function () { toast(link); }); }
-      catch (e) { toast(link); }
+      var copy = function () {
+        try { navigator.clipboard.writeText(link).then(function () { toast('Invite link copied'); },
+          function () { toast(link); }); }
+        catch (e) { toast(link); }
+      };
+      if (navigator.share) {
+        navigator.share({ title: 'PlaySapien', text: 'Be my friend on PlaySapien. My invite code is ' + c + '.', url: link })
+          .catch(function (err) { if (!err || err.name !== 'AbortError') copy(); });
+      } else copy();
     });
-    $('frLists').addEventListener('click', function (e) {
+
+    var lists = $('frLists'), sentBox = $('frSent');
+    /* Remember which lists are open, so a repaint does not snap them shut. */
+    function trackToggle(root) {
+      root.addEventListener('toggle', function (e) {
+        var dt = e.target;
+        if (dt && dt.classList && dt.classList.contains('frlist')) FR.open[dt.getAttribute('data-list')] = dt.open;
+      }, true);
+    }
+    trackToggle(lists); if (sentBox) trackToggle(sentBox);
+
+    function onAction(e) {
+      /* The trash can sits in a list's summary: delete, do not toggle. */
+      var t = e.target.closest('[data-grpdel]');
+      if (t) {
+        e.preventDefault(); e.stopPropagation();
+        FR.deleting = t.getAttribute('data-grpdel');
+        $('grpDelName').textContent = '“' + t.getAttribute('data-name') + '”';
+        UI.open('grpDelSheet', { stack: true });
+        return;
+      }
+      var add = e.target.closest('[data-fradd]');
+      if (add) {
+        var who = add.getAttribute('data-fradd');
+        FR.adding = FR.adding === who ? null : who; FR.focusAdd = true;
+        paintFriends(); return;
+      }
+      if (e.target.closest('[data-fraddcancel]')) { FR.adding = null; paintFriends(); return; }
+      var rm = e.target.closest('[data-grprm]');
+      if (rm) {
+        rm.disabled = true;
+        var gid = rm.getAttribute('data-grprm'), nm = groupName(gid);
+        api('DELETE', '/player/groups/' + encodeURIComponent(gid) + '/members/' +
+            encodeURIComponent(rm.getAttribute('data-id'))).then(function (r) {
+          toast(r.ok ? 'Removed from ' + nm + '.' : 'That did not go through. Try again.');
+          loadFriends();
+        });
+        return;
+      }
       var b = e.target.closest('[data-fr]'); if (!b) return;
       var a = FR_ACT[b.getAttribute('data-fr')]; if (!a) return;
       b.disabled = true;
-      FR.openBlocked = b.getAttribute('data-fr') === 'unblock';
+      if (b.getAttribute('data-fr') === 'unblock') FR.open.blocked = true;
       api(a.m, '/player/friends/' + encodeURIComponent(b.getAttribute('data-id')) + a.p,
           a.m === 'POST' ? {} : undefined).then(function (r) {
         toast(r.ok ? a.t : 'That did not go through. Try again.');
+        loadFriends();
+      });
+    }
+    lists.addEventListener('click', onAction);
+    if (sentBox) sentBox.addEventListener('click', onAction);
+    var inv = $('frInvites'); if (inv) inv.addEventListener('click', onAction);
+
+    /* Add to a group: an existing name, or a new one, which makes the group. */
+    lists.addEventListener('submit', function (e) {
+      var form = e.target.closest('.fraddgrp'); if (!form) return;
+      e.preventDefault();
+      var name = ($('frGrpIn').value || '').replace(/\s+/g, ' ').replace(/^ | $/g, '');
+      if (!name) { toast('Type a group name.'); return; }
+      var friendId = form.getAttribute('data-for');
+      [].forEach.call(form.querySelectorAll('button'), function (x) { x.disabled = true; });
+      api('POST', '/player/groups/add', { name: name, friend_id: friendId }).then(function (r) {
+        if (r.ok) {
+          FR.adding = null;
+          FR.open['g:' + r.data.group.id] = true;
+          toast('Added to ' + r.data.group.name + '.');
+          loadFriends(); return;
+        }
+        [].forEach.call(form.querySelectorAll('button'), function (x) { x.disabled = false; });
+        if (r.status === 403) { UI.open('payWall', { stack: true }); return; }
+        var code = r.error && r.error.code;
+        toast(code === 'reserved_name' ? 'That name is already used on this card. Choose another.'
+            : code === 'too_many_groups' ? 'You have the most groups allowed. Delete one first.'
+            : code === 'group_full' ? 'That group is full.'
+            : r.status === 0 ? 'You’re offline. Try again when you’re connected.'
+            : 'That did not go through. Try again.');
+      });
+    });
+
+    $('grpDelYes').addEventListener('click', function () {
+      var id = FR.deleting; if (!id) { close(); return; }
+      var nm = groupName(id), btn = $('grpDelYes');
+      btn.disabled = true;
+      api('DELETE', '/player/groups/' + encodeURIComponent(id)).then(function (r) {
+        btn.disabled = false; FR.deleting = null; close();
+        toast(r.ok ? 'Deleted ' + nm + '.' : 'That did not go through. Try again.');
         loadFriends();
       });
     });
@@ -1961,7 +2101,7 @@ document.addEventListener('DOMContentLoaded', function () {
       bar.__lifted = true;
       ['statsSheet', 'addSheet', 'gateSheet', 'friendsGamesSheet',
        'timedSheet', 'duelSheet', 'payWall', 'profileSheet', 'avPickSheet',
-       'downSheet', 'delSheet', 'friendsSheet', 'nameSheet'].forEach(function (id) {
+       'downSheet', 'delSheet', 'friendsSheet', 'nameSheet', 'grpDelSheet'].forEach(function (id) {
         var el = document.getElementById(id);
         if (el && el.parentNode !== document.body) document.body.appendChild(el);
       });
@@ -3272,6 +3412,31 @@ html, body{ overscroll-behavior-y:none }
 .frsec .sethint{margin:4px 0 6px}
 .frblocked summary{cursor:pointer; font-size:13.5px; color:var(--fg-2); padding:6px 0}
 .frpaused{margin:14px 0 0}
+/* Friends card (20 Oct): sections split by hairlines (.pfsec), the hint runs
+   the full width over the box AND the button, and every list collapses. */
+#friendsSheet .sethint.frhint{max-width:none; margin:0 0 10px}
+#friendsSheet .frcode{margin:6px 0 0}
+#frInvites .frsec{margin-top:0}
+.frlist{margin:0; border-top:1px solid var(--line)}
+.frlist:first-child{border-top:0}
+#frSent .frlist{margin-top:14px; border-top:0}
+.frlist > summary{display:flex; align-items:center; gap:8px; list-style:none; cursor:pointer;
+  padding:10px 0; font-family:var(--f-mono); font-size:12px; font-weight:600; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--fg-2)}
+.frlist > summary::-webkit-details-marker{display:none}
+.frlist > summary small{font-weight:400; color:var(--fg-3); letter-spacing:.06em}
+.frarrow{width:0; height:0; border-style:solid; border-width:5px 0 5px 7px;
+  border-color:transparent transparent transparent currentColor; transition:transform .15s ease; flex:none}
+.frlist[open] > summary .frarrow{transform:rotate(90deg)}
+.frtrash{margin-left:auto; display:grid; place-items:center; width:30px; height:30px; padding:0;
+  border:0; border-radius:8px; background:transparent; color:var(--fg-3); cursor:pointer}
+.frtrash:hover, .frtrash:focus-visible{color:var(--err); background:var(--bg-2, transparent)}
+.frlist > .frrow:first-of-type{padding-top:4px}
+.frlist > .sethint{margin:0 0 12px}
+.fraddgrp{display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:0 0 12px 46px}
+.fraddgrp .fld{flex:1 1 180px; min-width:0; margin:0}
+.fraddgrp .btn{flex:none; --btn-width:auto; width:auto; --btn-pad:8px 12px; --btn-size:13px; --btn-radius:9px}
+@media (max-width:420px){ .fraddgrp{padding-left:0} .fraddgrp .fld{flex-basis:100%} }
 /* ===== END packages/ui/ui.css ===== */
 /* ===========================================================================
    PlaySapien -- the platform landing page.
@@ -4222,7 +4387,6 @@ footer a:hover{opacity:1}
   <div class="sheet-in">
     <div class="sh-head ps-head"><div class="ps-who" data-ps-who></div><h2 id="friendsTitle">Friends</h2>
       <button class="donebtn" type="button" data-sheet-close>Close</button></div>
-    <p class="sh-status">Across every game</p>
 
     <div id="frOut" hidden>
       <p class="empty">Friends need an account, so there is something for a friend to be
@@ -4232,24 +4396,52 @@ footer a:hover{opacity:1}
     </div>
 
     <div id="frIn" hidden>
-      <h3 class="pf-sub">Invite a friend</h3>
-      <p class="sethint" style="margin:0 0 10px">Type their email address or their invite code. If they
-        already play, the invite appears on their Friends card; if not, we email them an invitation.</p>
-      <form id="frAddForm" class="pf-mailrow" autocomplete="off">
-        <label class="ui-sr" for="frAddIn">Email address or invite code</label>
-        <input class="fld" type="text" id="frAddIn" inputmode="email" autocapitalize="off"
-               autocorrect="off" spellcheck="false" placeholder="Email or invite code">
-        <button class="btn" type="submit" id="frAddBtn">Invite</button>
-      </form>
-      <div class="ui-note" id="frNote" hidden></div>
+      <!-- Invites waiting for an answer: only when there are any, first, because
+           they are the one thing on the card that asks something of the player. -->
+      <div id="frInvites" aria-live="polite"></div>
 
-      <div class="frcode">
-        <div class="col"><span class="setlabel">Your invite code</span>
-          <code id="frCode">&middot;&middot;&middot;&middot;&middot;&middot;&middot;&middot;</code></div>
-        <button class="btn ghost" type="button" id="frCopy">Copy invite link</button>
+      <div class="pfsec">
+        <h3 class="pf-sub">Invite a friend</h3>
+        <p class="sethint frhint">Type their email address or their invite code. If they already
+          play, the invite appears on their Friends card; if not, we email them an invitation.</p>
+        <form id="frAddForm" class="pf-mailrow" autocomplete="off">
+          <label class="ui-sr" for="frAddIn">Email address or invite code</label>
+          <input class="fld" type="text" id="frAddIn" inputmode="email" autocapitalize="off"
+                 autocorrect="off" spellcheck="false" placeholder="Email or invite code">
+          <button class="btn" type="submit" id="frAddBtn">Invite</button>
+        </form>
+        <div class="ui-note" id="frNote" hidden></div>
+        <div id="frSent"></div>
       </div>
 
-      <div id="frLists" aria-live="polite"></div>
+      <div class="pfsec">
+        <h3 class="pf-sub">Share your code</h3>
+        <div class="frcode">
+          <div class="col"><span class="setlabel">Your invite code</span>
+            <code id="frCode">&middot;&middot;&middot;&middot;&middot;&middot;&middot;&middot;</code></div>
+          <button class="btn ghost" type="button" id="frCopy">Share invite link</button>
+        </div>
+      </div>
+
+      <div class="pfsec">
+        <h3 class="pf-sub">Friends</h3>
+        <div id="frLists" aria-live="polite"></div>
+        <datalist id="frGroupNames"></datalist>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Deleting a friend group: confirmed first. The friends stay friends. -->
+<section class="sheet" id="grpDelSheet" role="dialog" aria-modal="true" aria-labelledby="grpDelTitle" hidden>
+  <div class="sheet-in">
+    <div class="sh-head"><h2 id="grpDelTitle">Delete this group?</h2>
+      <button class="donebtn" type="button" data-sheet-close>Close</button></div>
+    <p>Delete the group <b id="grpDelName"></b>? Everyone in it stays your friend; only the
+       list goes. This cannot be undone.</p>
+    <div class="btnrow">
+      <button class="btn" type="button" id="grpDelYes">Delete group</button>
+      <button class="btn ghost" type="button" data-sheet-close>Keep it</button>
     </div>
   </div>
 </section>

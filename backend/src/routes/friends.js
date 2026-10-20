@@ -24,6 +24,7 @@ import { noticeStatement } from './player.js';
 import { hmacSign } from '../lib/crypto.js';
 import { normaliseTrialEmail } from '../lib/trial.js';
 import { DAY } from '../lib/db.js';
+import { groupsFor, unGroupStatements } from './groups.js';
 
 /* How many pending invites a player sees at once. More can arrive, but they
    wait, unseen, until the player makes room by accepting, rejecting or
@@ -101,6 +102,8 @@ export async function listFriends(ctx) {
     blocked,
     queue: { used: shown.length, cap: QUEUE_CAP, waiting: Math.max(0, waitingOnMe.length - QUEUE_CAP) },
     paused_until: await pausedUntil(ctx.db, me, ctx.now),
+    /* The player's own friend groups (groups.js), alphabetical. */
+    groups: await groupsFor(ctx.db, me),
   });
 }
 
@@ -304,6 +307,8 @@ export async function removeFriend(ctx) {
     a, b);
   const changed = res && res.meta ? res.meta.changes : 0;
   if (!changed) return ERRORS.notFound('You are not connected to that player.');
+  /* No longer friends: out of each other's groups too. */
+  await ctx.db.batch(unGroupStatements(ctx.db, ctx.user.id, ctx.params.id));
   return ok({ removed: ctx.params.id });
 }
 
@@ -341,6 +346,7 @@ export async function blockFriend(ctx) {
        responded_at = CASE WHEN friendships.state = 'blocked' THEN friendships.responded_at ELSE excluded.responded_at END,
        state = 'blocked', later_at = NULL`,
     a, b, ctx.user.id, ctx.now, ctx.now, ctx.user.id);
+  await ctx.db.batch(unGroupStatements(ctx.db, ctx.user.id, them));
 
   return ok({ state: 'blocked', id: them });
 }
