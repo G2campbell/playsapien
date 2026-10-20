@@ -12,7 +12,36 @@
 
 var DATA = window.__WC_DATA__, DICT = window.__WC_DICT__;
 var SITE = window.__WC_SITE__ || '';   /* where this copy of the game lives */
-var PAIRS = DATA.pairs, BANK = DATA.chains;
+var PAIRS = DATA.pairs;
+/* The chains. The page carries them scrambled, one string per chain (build.py
+   scramble_bank), so no day's answer can be read out of the page source -- the whole
+   bank, every future day included, used to be plain text. bank(i) unscrambles one on
+   demand. This is a screen, not a lock: the game has to read them, so anyone who opens
+   the developer tools can too. The page's copy of the data is also dropped from window. */
+var BANK_KEY = 'wordchain-bank-v1';          // must match build.py (it checks)
+var BANK_RAW = DATA.bank, BANK_CACHE = [];
+var BANK = { length: BANK_RAW.length };      // how many chains there are
+try { delete window.__WC_DATA__; } catch (e) { window.__WC_DATA__ = undefined; }
+function wcFnv(s) {
+  var h = 2166136261 >>> 0;
+  for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+function wcStream(seed) {                    // xorshift32; build.py _stream() is the same
+  var x = seed >>> 0 || 1;
+  return function () {
+    x = (x ^ (x << 13)) >>> 0; x = (x ^ (x >>> 17)) >>> 0; x = (x ^ (x << 5)) >>> 0;
+    return x & 255;
+  };
+}
+function bank(i) {
+  if (!BANK_CACHE[i]) {
+    var raw = atob(BANK_RAW[i]), next = wcStream(wcFnv(BANK_KEY + '|' + i)), out = '';
+    for (var k = 0; k < raw.length; k++) out += String.fromCharCode(raw.charCodeAt(k) ^ next());
+    BANK_CACHE[i] = JSON.parse(out);
+  }
+  return BANK_CACHE[i];
+}
 /* PAIRS: for each head word, the words that can follow it, as one string
    "STRONG WORDS|WEAK WORDS" (pairs.json). Strong = a pair anyone would know
    (FIRE ALARM); weak = real but marginal (FIRE OPAL). Unpacked on first use. */
@@ -344,7 +373,7 @@ function dayIndex() { return Math.floor(Date.now() / 86400000); }
 var CAL = DATA.calendar || { start: 0, legacy: BANK.length };
 function idxForDay(d) { return PSWordChain.idxForDay(CAL, BANK.length, d); }
 function dailyIdx() { return idxForDay(dayIndex()); }
-function dailyChain() { return BANK[dailyIdx()]; }
+function dailyChain() { return bank(dailyIdx()); }
 /* Earlier days, for the day row. The keys are local dates, the same as
    todayKey() (so audit S1 above applies to them too), and the chain is the
    one the bank served that day, counted back from today's exactly as
@@ -353,7 +382,7 @@ function keyAgo(n) {
   var d = new Date(); d.setDate(d.getDate() - n);
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
-function chainAgo(n) { return BANK[idxForDay(dayIndex() - n)]; }
+function chainAgo(n) { return bank(idxForDay(dayIndex() - n)); }
 /* A past day counts as done if it was played on the day or played later. */
 function pastDone(key) { return store('daily:' + key) || store('past:' + key); }
 function longDay(key) {
@@ -370,7 +399,7 @@ function practiceChain() {
   for (i = 0; i < played; i++) if (CAL.legacy + i !== d) pool.push(CAL.legacy + i);
   var at = store('practiceAt') || 0;
   store('practiceAt', at + 1);
-  return BANK[pool[at % pool.length]];
+  return bank(pool[at % pool.length]);
 }
 
 /* ------------------------------------------------------------------ persistence */

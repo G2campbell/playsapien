@@ -21,6 +21,7 @@ leaves alone.
 """
 
 import argparse
+import base64
 import io
 import json
 import re
@@ -89,6 +90,49 @@ def read(path, what, hint=None):
     return io.open(path, encoding='utf-8').read()
 
 
+def _fnv(s):
+    h = 2166136261
+    for ch in s.encode('utf-8'):
+        h = ((h ^ ch) * 16777619) & 0xFFFFFFFF
+    return h
+
+
+def _stream(seed):
+    """Key bytes: xorshift32 from a seed. part-c-app.js wcStream() is the same."""
+    x = seed or 1
+    while True:
+        x = (x ^ (x << 13)) & 0xFFFFFFFF
+        x = (x ^ (x >> 17)) & 0xFFFFFFFF
+        x = (x ^ (x << 5)) & 0xFFFFFFFF
+        yield x & 255
+
+
+def _scramble(key, i, obj):
+    raw = json.dumps(obj, separators=(",", ":")).encode('ascii')
+    ks = _stream(_fnv(key + '|' + str(i)))
+    return base64.b64encode(bytes(b ^ next(ks) for b in raw)).decode('ascii')
+
+
+def _unscramble(key, i, text):
+    raw = base64.b64decode(text)
+    ks = _stream(_fnv(key + '|' + str(i)))
+    return json.loads(bytes(b ^ next(ks) for b in raw).decode('ascii'))
+
+
+def scramble_bank(chains, app_js):
+    """One scrambled string per chain, keyed by its position. The key lives in
+    part-c-app.js (BANK_KEY) and must match; both ends are checked here."""
+    m = re.search(r"var BANK_KEY = '([^']+)'", app_js)
+    if not m:
+        sys.exit("part-c-app.js has no BANK_KEY, so the game could not read the chains")
+    key = m.group(1)
+    out = [_scramble(key, i, c) for i, c in enumerate(chains)]
+    for i, c in enumerate(chains):                  # the round trip, on this side
+        if _unscramble(key, i, out[i]) != c:
+            sys.exit("chain %d does not survive scrambling" % i)
+    return out
+
+
 def compose(src, site, style):
     """Return (hosted_html, artifact_html, notes)."""
     notes = []
@@ -102,10 +146,18 @@ def compose(src, site, style):
                             'the follow-on word list; it is checked in'))
     notes.append('pairs %d heads' % len(pairs))
     # calendar: which chain each day plays (make_bank.py; part-c-app.js idxForDay)
-    slim = {"pairs": pairs, "calendar": data.get("calendar"), "chains": [
+    chains = [
         {"level": c["level"], "words": c["words"],
          "links": [{"numberStrict": l["numberStrict"], "alt": l["alt"]} for l in c["links"]]}
-        for c in data["chains"]]}
+        for c in data["chains"]]
+    # The chains are NOT shipped as readable text: every future day's answer would be
+    # one "view source" and a search away. They go out scrambled (scramble_bank below)
+    # and the game unscrambles one when it needs it. This is a screen, not a lock --
+    # the game has to be able to read them, so a developer with the page open can --
+    # but nothing in the source reads as a word list. See part-c-app.js bank().
+    slim = {"pairs": pairs, "calendar": data.get("calendar"),
+            "bank": scramble_bank(chains, read(src + 'part-c-app.js', 'part-c-app.js'))}
+    notes.append('chains %d, scrambled' % len(chains))
 
     words = read(src + 'dict.txt', 'the word list dict.txt', DICT_HINT).split('\n')
     words = [w for w in words if 2 <= len(w) <= 18]

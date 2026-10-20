@@ -278,6 +278,17 @@ the backend must be redeployed with it; until then the server answers 503
 
 ## 7. Word Chain specifics
 
+- **The bank is scrambled in the shipped page** (Kai asked that it not be easy to see). The
+  built page carries each chain as one scrambled string (`build.py` `scramble_bank`, XOR with
+  an xorshift32 stream keyed by `BANK_KEY` and the chain's position, then base64); the game
+  unscrambles one on demand (`bank(i)` in `part-c-app.js`) and removes `window.__WC_DATA__`.
+  View-source shows no words from any chain. It is a screen, not a lock: the game must read the
+  chains, so a developer with the page open still can. `BANK_KEY` must match in both files
+  (the build checks that and the round trip). Nothing else reads the shipped chains; the
+  server uses `gamedata.json` directly. Not hidden: the `pairs` list (what can follow each
+  word) and the word list, which are not answers; and an *unfinished* daily is kept in
+  `localStorage` with its words so it can be resumed (a player with devtools could read it).
+
 - **The bank.** `src/gamedata.json` → `chains` holds the 34 original hand-graded
   chains (made by `bank.py` + `finalize.py`) **followed by 390 new chains in
   calendar order**, from `src/chains-2026-10.jsonl` via `src/make_bank.py`.
