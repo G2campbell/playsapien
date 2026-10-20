@@ -131,42 +131,163 @@ var SET = Object.assign({ gentle: false, motion: false }, store('set') || {});
 delete SET.theme;
 function saveSet() { store('set', SET); }
 
-/* ------------------------------------------------------------------ inflection */
-function plural(w) {
-  if (/(S|X|Z|CH|SH)$/.test(w)) return w + 'ES';
-  if (/[^AEIOU]Y$/.test(w)) return w.slice(0, -1) + 'IES';
-  return w + 'S';
-}
-function singular(w) {
-  if (/IES$/.test(w) && w.length > 4) return w.slice(0, -3) + 'Y';
-  if (/(SS|XE|ZE|CHE|SHE)S$/.test(w)) return w.slice(0, -2);
-  if (/S$/.test(w) && !/SS$/.test(w)) return w.slice(0, -1);
-  return null;
-}
-function numberForms(w) {
-  var s = new Set([w]); s.add(plural(w));
-  var sg = singular(w); if (sg) { s.add(sg); s.add(plural(sg)); }
-  return s;
-}
-function sameLemma(a, b) {
-  if (a === b) return true;
-  var fa = numberForms(a), fb = numberForms(b), hit = false;
-  fa.forEach(function (x) { if (fb.has(x)) hit = true; });
-  return hit;
-}
-function lev(a, b) {
-  if (Math.abs(a.length - b.length) > 1) return 9;
-  var m = a.length, n = b.length, prev = [], cur = [], i, j;
-  for (j = 0; j <= n; j++) prev[j] = j;
-  for (i = 1; i <= m; i++) {
-    cur[0] = i;
-    for (j = 1; j <= n; j++) {
-      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-    }
-    prev = cur.slice();
+/* ------------------------------------------------------------------ rules
+   Inflection, "is this guess the answer", the Lifeline costs and the calendar live in
+   packages/scoring/wordchain.cjs, inlined here, because the server runs the very same
+   code to check a finished daily (option D). */
+/* ===== BEGIN packages/scoring/wordchain.cjs (inlined verbatim — do not edit here) ===== */
+/* Word Chain's rules that the server needs to check -- the one copy.
+
+   Option D (docs/notes/offline-and-score-integrity.md), stage 2. Word Chain has
+   no points: the result is a running clock, plus a penalty for every Lifeline
+   (hint) taken. So what the game sends is not a score but a record of how the
+   chain was solved, and the server checks three things from it:
+
+     - every word was either typed correctly or revealed in full by Lifelines,
+       judged by the very same rule the game uses (guessCorrect below);
+     - the Lifelines taken, from which the penalty is worked out here, not
+       believed;
+     - which chain it was, from the day, by the same calendar the game reads.
+
+   The TIME is not in this file. It cannot be: the browser measures it, and a
+   browser can say anything. The server stamps the start (a signed token handed
+   out when the game begins) and the finish (when the result arrives), and ranks
+   on that. See routes/play.js.
+
+   Like packages/scoring/sojourner.cjs this is ES5 with no DOM, clock or network,
+   inlined into games/wordchain/src/part-c-app.js between marker comments
+   (packages/tokens/sync-inline.mjs keeps it identical) and imported by the
+   Worker (backend/src/lib/wordchain.js). It is moved, not rewritten, from
+   part-c-app.js: the inflection helpers, the correctness test from classify(),
+   the calendar and the Lifeline costs. */
+var PSWordChain = (function () {
+  "use strict";
+
+  /* ------------------------------------------------------------ inflection */
+  function plural(w) {
+    if (/(S|X|Z|CH|SH)$/.test(w)) return w + 'ES';
+    if (/[^AEIOU]Y$/.test(w)) return w.slice(0, -1) + 'IES';
+    return w + 'S';
   }
-  return prev[n];
-}
+  function singular(w) {
+    if (/IES$/.test(w) && w.length > 4) return w.slice(0, -3) + 'Y';
+    if (/(SS|XE|ZE|CHE|SHE)S$/.test(w)) return w.slice(0, -2);
+    if (/S$/.test(w) && !/SS$/.test(w)) return w.slice(0, -1);
+    return null;
+  }
+  function numberForms(w) {
+    var s = new Set([w]); s.add(plural(w));
+    var sg = singular(w); if (sg) { s.add(sg); s.add(plural(sg)); }
+    return s;
+  }
+  function sameLemma(a, b) {
+    if (a === b) return true;
+    var fa = numberForms(a), fb = numberForms(b), hit = false;
+    fa.forEach(function (x) { if (fb.has(x)) hit = true; });
+    return hit;
+  }
+  function lev(a, b) {
+    if (Math.abs(a.length - b.length) > 1) return 9;
+    var m = a.length, n = b.length, prev = [], cur = [], i, j;
+    for (j = 0; j <= n; j++) prev[j] = j;
+    for (i = 1; i <= m; i++) {
+      cur[0] = i;
+      for (j = 1; j <= n; j++) {
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      }
+      prev = cur.slice();
+    }
+    return prev[n];
+  }
+
+  /* Is this guess the answer? Exact; or the same word in another number, unless
+     this link is number-strict ("right word, wrong number"); or one letter out
+     and not itself a word (a typo is forgiven, a different word is not).
+     `isWord` is the game's dictionary. */
+  function guessCorrect(guess, answer, link, isWord) {
+    if (guess === answer) return true;
+    if (sameLemma(guess, answer)) return !(link && link.numberStrict);
+    return lev(guess, answer) === 1 && !isWord(guess);
+  }
+
+  /* --------------------------------------------------------------- lifelines */
+  /* The first Lifeline on a word costs 15 seconds, the second 25, the third 40.
+     Each reveals one more letter; a word can be bought in full only if it is
+     short enough for three. */
+  var HINT_COST = [15, 25, 40];
+  var MAX_HINTS = 3;
+  function hintsCost(h) {
+    var s = 0;
+    for (var k = 0; k < h; k++) s += HINT_COST[Math.min(k, 2)];
+    return s;
+  }
+
+  /* ---------------------------------------------------------------- calendar */
+  /* One chain a day for everyone. The bank is the original hand-made chains
+     (cal.legacy of them) followed by the new ones in calendar order. Days before
+     cal.start keep the old rotation; from cal.start each day takes the next new
+     chain. `d` is the UTC day number (days since 1970-01-01). */
+  function idxForDay(cal, bankLength, d) {
+    var L = cal.legacy, n = bankLength - L;
+    if (!cal.start || n <= 0 || d < cal.start) return ((d % L) + L) % L;
+    return L + (d - cal.start) % n;
+  }
+  function dayNumber(dayKey) {
+    var p = dayKey.split('-');
+    return Math.floor(Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000);
+  }
+  function dayKeyOf(dayNum) {
+    return new Date(dayNum * 86400000).toISOString().slice(0, 10);
+  }
+
+  /* The record of a daily, replayed.
+
+       moves = { v:1,
+                 finals:[null, 'ARM', 'CHAIR', ...],   // the guess that was accepted, per word
+                 hints: [0, 0, 1, ...] }               // Lifelines taken, per word
+
+     Index 0 is the word the game gives; every other word was either typed (a
+     final guess) or bought in full (no final guess, and exactly as many
+     Lifelines as it takes to show every letter).
+
+     `data` is the game's gamedata.json ({chains, calendar}). Returns
+     { ok:true, chain, words, hints, penaltyMs } or { ok:false, error }. */
+  function verify(data, moves, dayKey, isWord) {
+    function fail(code) { return { ok: false, error: code }; }
+    if (!moves || typeof moves !== 'object' || moves.v !== 1) return fail('bad_moves');
+    var bank = data.chains, idx = idxForDay(data.calendar, bank.length, dayNumber(dayKey));
+    var chain = bank[idx], words = chain.words, links = chain.links, n = words.length;
+    if (!Array.isArray(moves.finals) || moves.finals.length !== n) return fail('bad_moves');
+    if (!Array.isArray(moves.hints) || moves.hints.length !== n) return fail('bad_moves');
+
+    var totalHints = 0, penalty = 0;
+    for (var i = 1; i < n; i++) {
+      var h = moves.hints[i], g = moves.finals[i], len = words[i].length;
+      if (typeof h !== 'number' || h !== Math.floor(h) || h < 0 || h > MAX_HINTS) return fail('bad_moves');
+      if (g === null) {
+        /* Bought in full: the last Lifeline is the one that completes it. */
+        if (h !== len - 1) return fail('not_solved');
+      } else {
+        if (typeof g !== 'string' || !/^[A-Z]{1,40}$/.test(g)) return fail('bad_moves');
+        /* A word already shown in full needs no guess, and the game moves on. */
+        if (h > len - 2) return fail('bad_moves');
+        if (!guessCorrect(g, words[i], links[i - 1], isWord)) return fail('not_solved');
+      }
+      totalHints += h; penalty += hintsCost(h);
+    }
+    if (moves.finals[0] !== null || moves.hints[0] !== 0) return fail('bad_moves');
+    return { ok: true, chain: idx, words: words, hints: totalHints, penaltyMs: penalty * 1000 };
+  }
+
+  return {
+    plural: plural, singular: singular, numberForms: numberForms, sameLemma: sameLemma, lev: lev,
+    guessCorrect: guessCorrect, HINT_COST: HINT_COST, MAX_HINTS: MAX_HINTS, hintsCost: hintsCost,
+    idxForDay: idxForDay, dayNumber: dayNumber, dayKeyOf: dayKeyOf, verify: verify
+  };
+})();
+if (typeof module !== 'undefined' && module.exports) module.exports = PSWordChain;
+/* ===== END packages/scoring/wordchain.cjs ===== */
+var sameLemma = PSWordChain.sameLemma, lev = PSWordChain.lev;
 
 /* ------------------------------------------------------------------ replies */
 var REPLY = {
@@ -218,11 +339,7 @@ function dayIndex() { return Math.floor(Date.now() / 86400000); }
    CAL.start, each day takes the next new chain, and the calendar only wraps round
    after all of them (390 days). */
 var CAL = DATA.calendar || { start: 0, legacy: BANK.length };
-function idxForDay(d) {
-  var L = CAL.legacy, n = BANK.length - L;
-  if (!CAL.start || n <= 0 || d < CAL.start) return ((d % L) + L) % L;
-  return L + (d - CAL.start) % n;
-}
+function idxForDay(d) { return PSWordChain.idxForDay(CAL, BANK.length, d); }
 function dailyIdx() { return idxForDay(dayIndex()); }
 function dailyChain() { return BANK[dailyIdx()]; }
 /* Earlier days, for the day row. The keys are local dates, the same as
@@ -265,7 +382,8 @@ function save() {
     mode: S.mode, words: S.words, links: S.links, i: S.i, revealed: S.revealed,
     hintsThisWord: S.hintsThisWord, hintCount: S.hintCount, penaltyMs: S.penaltyMs,
     baseMs: baseMs(), tried: S.tried, wrongThisWord: S.wrongThisWord,
-    perWord: S.perWord, wordMs: S.wordMs, day: S.mode === 'past' ? S.day : todayKey()
+    perWord: S.perWord, wordMs: S.wordMs, day: S.mode === 'past' ? S.day : todayKey(),
+    finals: S.finals, run: S.run, utcDay: S.utcDay
   });
 }
 function loadHeld(mode) {
@@ -279,7 +397,8 @@ function loadHeld(mode) {
     penaltyMs: g.penaltyMs || 0, frozenMs: 0, t0: Date.now() - (g.baseMs || 0),
     perWord: g.perWord || [], wordMs: g.wordMs || [], wordT0: Date.now(),
     tried: g.tried || [], wrongThisWord: g.wrongThisWord || 0,
-    locked: false, done: false, pausedAt: 0, day: g.day
+    locked: false, done: false, pausedAt: 0, day: g.day,
+    finals: g.finals || [], run: g.run || null, utcDay: g.utcDay || null
   };
 }
 /* One circle per word, sized by that word's share of the total time, so the row
@@ -312,6 +431,66 @@ function recordResult(r) {
 }
 function dailyDone() { return store('daily:' + todayKey()); }
 
+/* ------------------------------------------------------------------ the platform
+   A daily is ranked on TIME, and the browser's clock cannot be trusted with that. So
+   when a fresh daily begins the game asks the server for a start stamp (a signed
+   token); when the daily ends it sends how the chain was solved and the server
+   stamps the finish, adds the Lifeline penalty itself, and ranks the difference.
+   Nothing here may ever hold up play: /sdk.js is loaded only when there is something
+   to ask or send, a failure is silent, and a daily played with no stamp (offline, or
+   the server down) simply is not ranked -- it still counts for the player's own
+   record. Past days and practice never come here. */
+var psReady = null;
+function loadPS() {
+  if (!psReady) {
+    psReady = import('/sdk.js').then(function (m) {
+      var PS = m['default'];
+      try { PS.init(); } catch (e) {}
+      return PS;
+    })['catch'](function () { return null; });
+  }
+  return psReady;
+}
+function beginRun(g) {
+  if (!g.utcDay) return;
+  loadPS().then(function (PS) {
+    if (!PS || g.run) return null;
+    return PS.startRun('wordchain', g.utcDay);
+  }).then(function (r) {
+    if (r && r.token && !g.run && g.utcDay === r.day) { g.run = r.token; if (S === g) save(); }
+  });
+}
+/* How the chain was solved: per word, the guess that was accepted (null when the word
+   was bought in full with Lifelines) and how many Lifelines went on it. */
+function movesOf(g) {
+  var finals = [], hints = [];
+  for (var k = 0; k < g.words.length; k++) {
+    finals.push(k === 0 ? null : (g.finals[k] || null));
+    hints.push(k === 0 ? 0 : (g.perWord[k] || 0));
+  }
+  return { v: 1, finals: finals, hints: hints };
+}
+function markSent(dayKey) {
+  var d = store('daily:' + dayKey);
+  if (d) { d.sent = true; store('daily:' + dayKey, d); }
+}
+function sendDaily(dayKey, send, total) {
+  return loadPS().then(function (PS) {
+    if (!PS) return false;
+    PS.saveResult({ game: 'wordchain', day: send.utcDay, mode: 'daily', score: send.links,
+      maxScore: 7, durationMs: total, moves: send.moves, run: send.run });
+    markSent(dayKey);
+    return true;
+  });
+}
+/* Today's and yesterday's finished dailies that never reached the platform client. */
+function resendUnsent() {
+  [todayKey(), keyAgo(1)].forEach(function (k) {
+    var d = store('daily:' + k);
+    if (d && d.send && !d.sent) sendDaily(k, d.send, d.total);
+  });
+}
+
 /* ------------------------------------------------------------------ starting */
 function startGame(mode, past) {
   /* One past day can be held at a time; starting a different one drops it. */
@@ -328,8 +507,10 @@ function startGame(mode, past) {
       revealed: c.words.map(function (w, k) { return k === 0 ? w.length : 1; }),
       hintsThisWord: 0, hintCount: 0, penaltyMs: 0, frozenMs: 0, perWord: [], wordMs: [],
       wrongThisWord: 0, tried: [], t0: Date.now(), wordT0: Date.now(),
-      locked: false, done: false
+      locked: false, done: false, finals: [], run: null,
+      utcDay: PSWordChain.dayKeyOf(dayIndex())      // the day the chain was drawn for
     };
+    if (mode === 'daily') beginRun(S);
   }
   typed = '';
   $('mode').textContent = mode === 'daily' ? 'Daily' : mode === 'past' ? 'Daily \u00b7 ' + longDay(S.day) : 'Practice';
@@ -406,7 +587,7 @@ function setThinking() {
   m.innerHTML = '<span class="thinking"><i></i><i></i><i></i></span>';
 }
 
-var HINT_COST = [15, 25, 40];
+var HINT_COST = PSWordChain.HINT_COST;
 function nextCost() { return HINT_COST[Math.min(S.hintsThisWord, 2)]; }
 function updateHintBtn() {
   $('hintBtn').disabled = S.done || S.hintsThisWord >= 3 || S.locked;
@@ -477,9 +658,11 @@ function askModel(prev, guess) {
 function classify(guess) {
   var answer = S.words[S.i], prev = S.words[S.i - 1], link = S.links[S.i - 1];
   if (!guess) return Promise.resolve({ b: null });
-  if (guess === answer) return Promise.resolve({ b: 'correct' });
-  if (sameLemma(guess, answer)) return Promise.resolve({ b: link.numberStrict ? 'number' : 'correct' });
-  if (lev(guess, answer) === 1 && !DICT.has(guess)) return Promise.resolve({ b: 'correct' });
+  if (PSWordChain.guessCorrect(guess, answer, link, function (w) { return DICT.has(w); })) {
+    return Promise.resolve({ b: 'correct' });
+  }
+  /* the right word in the wrong number, on a link that insists on the number */
+  if (sameLemma(guess, answer)) return Promise.resolve({ b: 'number' });
   if (S.tried.indexOf(guess) >= 0) return Promise.resolve({ b: 'repeat' });
   /* a non-word is a non-word first: telling someone their invented string starts with
      the wrong letter is true but useless */
@@ -511,6 +694,7 @@ function submit() {
       if (!b) { unlock(); return; }
 
       if (b === 'correct') {
+        S.finals[S.i] = guess;                 // what the server replays
         typed = ''; setMsg(pick('correct'), 'good'); advance();
         setTimeout(function () { if (S && !S.done) setMsg('', null); }, 750);
         unlock(); return;
@@ -569,10 +753,17 @@ function finish() {
   drop('game:' + S.mode);
   /* the full record, not just the time: the home screen shares this hours later, by
      which point `last` may be a practice run */
-  if (S.mode === 'daily') store('daily:' + todayKey(), {
-    mode: 'daily', day: todayKey(), total: total, hints: S.hintCount,
-    words: S.words, perWord: S.perWord, wordMs: S.wordMs
-  });
+  if (S.mode === 'daily') {
+    var sendable = S.utcDay ? {
+      utcDay: S.utcDay, run: S.run, links: S.words.length - 1,
+      moves: movesOf(S)
+    } : null;
+    store('daily:' + todayKey(), {
+      mode: 'daily', day: todayKey(), total: total, hints: S.hintCount,
+      words: S.words, perWord: S.perWord, wordMs: S.wordMs, send: sendable
+    });
+    if (sendable) sendDaily(todayKey(), sendable, total);
+  }
   /* A past day is kept under its own key: it shows as played in the day row,
      and it is never mistaken for a daily -- not for the streak, not for the
      best daily time, and not for that day's ranking once results are sent. */
@@ -996,6 +1187,7 @@ document.addEventListener('keydown', function (e) {
   if (/^[a-zA-Z]$/.test(e.key)) { e.preventDefault(); var k = e.key.toUpperCase(); hit(k); press(k); }
 });
 
+setTimeout(resendUnsent, 4000);
 HELD.daily = loadHeld('daily');
 HELD.practice = loadHeld('practice');
 HELD.past = loadHeld('past');

@@ -119,7 +119,7 @@ test('the server decides the score: a result with moves ignores the number sent 
   assert.equal(res.data.streaks.find((s) => s.game === 'sojourner').current, 1);
 });
 
-test('tampered moves, a bad day, practice and other games are refused', async () => {
+test('tampered moves, a bad day and practice are refused', async () => {
   const h = makeEnv();
   const kai = await signIn(h, 'kai@example.com');
 
@@ -133,9 +133,10 @@ test('tampered moves, a bad day, practice and other games are refused', async ()
   const practice = await post(h, kai, { moves: perfectMoves(), mode: 'practice' });
   assert.equal(practice.error.code, 'bad_mode');
 
+  /* Word Chain takes moves too, but these are not a solved chain. */
   const wc = await call(h.env, 'POST', '/api/play/result', { cookie: kai.cookie,
     body: { game: 'wordchain', day: TODAY, mode: 'daily', moves: { v: 1 } } });
-  assert.equal(wc.error.code, 'no_moves');
+  assert.equal(wc.error.code, 'bad_moves');
 
   const huge = perfectMoves(); huge.junk = 'x'.repeat(5000);
   assert.equal((await post(h, kai, { moves: huge })).error.code, 'moves_too_large');

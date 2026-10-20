@@ -75,6 +75,7 @@ const ROUTES = [
   ['POST',   '/api/player/notices/read',         player.readNotices],
 
   ['POST',   '/api/play/result',                 play.submitResult],
+  ['POST',   '/api/play/run',                    play.startRun],
   ['GET',    '/api/player/analytics',            analytics.analytics],
   ['GET',    '/api/play/standings',              play.standings],
   ['GET',    '/api/play/day/:day',               play.readDay],

@@ -33,6 +33,7 @@ const TARGETS = [
    it, so the browser and the server cannot disagree about a pick or a score. */
 const SCRIPT_SOURCES = [
   { rel: 'packages/scoring/sojourner.cjs', target: 'games/sojourner/src/partD.js' },
+  { rel: 'packages/scoring/wordchain.cjs', target: 'games/wordchain/src/part-c-app.js' },
 ];
 
 for (const target of TARGETS) {

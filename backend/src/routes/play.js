@@ -28,20 +28,26 @@ import {
 import { streakStatements } from '../lib/streaks.js';
 import { acceptedFriendIds } from './friends.js';
 import { sojournerEngine } from '../lib/sojourner.js';
+import { replayWordchain, signRun } from '../lib/wordchain.js';
 
 /* Games whose moves the server can replay (option D). Each takes the moves, the
-   day and the game's own fingerprint of the map it was built from, and returns
-   either { error } or the score the SERVER worked out. The score a client claims
-   alongside its moves is never read. */
+   day and some context -- { key, run, now, claimedMs, env } -- and resolves to
+   { error }, or to what the SERVER worked out: the score, the detail to keep,
+   whether the result is RANKED, and (for a game ranked on time) the duration.
+   The score and time a client claims alongside its moves are never believed. */
 const REPLAYERS = {
-  sojourner(moves, day, key) {
+  async sojourner(moves, day, x) {
     const eng = sojournerEngine();
-    if (key !== undefined && key !== null && key !== eng.keyHash()) return { error: 'key_mismatch' };
+    if (x.key !== undefined && x.key !== null && x.key !== eng.keyHash()) return { error: 'key_mismatch' };
     const v = eng.verify(moves, day);
     if (!v.ok) return { error: v.error };
-    return { score: v.total, detail: { rounds: v.rounds, sprint: v.sprint } };
+    return { score: v.total, detail: { rounds: v.rounds, sprint: v.sprint }, ranked: true };
   },
+  /* Ranked on time. Whether it ranks depends on the run stamp: see lib/wordchain.js. */
+  wordchain: replayWordchain,
 };
+/* Games that are ranked on time ask for a start stamp first. */
+const RUN_GAMES = ['wordchain'];
 const MAX_MOVES_BYTES = 4000;
 
 /* POST /api/play/result */
@@ -49,6 +55,28 @@ export async function submitResult(ctx) {
   const body = await readJson(ctx.req);
   if (body.bad || body.tooLarge) return ERRORS.invalid('Send a JSON result.');
   return await recordResult(ctx, asObject(body.value));
+}
+
+/* POST /api/play/run { game, day } -> { token, day, started_at }
+
+   The START stamp for a game ranked on time. Nothing is stored: the token is the
+   stamp (lib/wordchain.js), so there is nothing to clean up and no way to fill a
+   table by asking. Open to a signed-out player too, because a daily can be played
+   without an account and claimed later. */
+export async function startRun(ctx) {
+  const body = await readJson(ctx.req);
+  if (body.bad || body.tooLarge) return ERRORS.invalid('Send { game, day }.');
+  const input = asObject(body.value);
+  if (!RUN_GAMES.includes(input.game)) {
+    return err('no_runs', 'That game is not ranked on time.', 400);
+  }
+  const day = String(input.day || '');
+  if (!isDay(day)) return err('bad_day', 'day must be YYYY-MM-DD.', 400);
+  if (!isSubmittableDay(day, ctx.now)) {
+    return err('stale_day', 'That day is not open (today or yesterday, UTC).', 400,
+      { headers: { 'x-server-day': utcDay(ctx.now) } });
+  }
+  return ok({ token: await signRun(ctx.env, day, ctx.now), day, started_at: ctx.now });
 }
 
 /* POST /api/sojourner/score -- the legacy alias.
@@ -105,19 +133,13 @@ async function recordResult(ctx, input) {
   let score = input.score, replay = null, movesJson = null;
   if (sentMoves) {
     if (mode !== 'daily') return err('bad_mode', 'Only a daily game is replayed.', 400);
-    const replayer = REPLAYERS[game];
-    if (!replayer) return err('no_moves', game + ' does not take moves.', 400);
+    if (!REPLAYERS[game]) return err('no_moves', game + ' does not take moves.', 400);
     movesJson = JSON.stringify(input.moves);
     if (movesJson.length > MAX_MOVES_BYTES) return err('moves_too_large', 'Those moves are too long.', 400);
-    replay = replayer(input.moves, day, input.key);
-    if (replay.error === 'key_mismatch') {
-      /* Not a refusal: the game and this Worker were built from different maps,
-         usually for the few minutes between one being deployed and the other.
-         A 5xx, so the game's queue keeps the result and tries again. */
-      return err('key_mismatch', 'The server is catching up with the game. Try again soon.', 503);
+    if (input.run !== undefined && input.run !== null &&
+        (typeof input.run !== 'string' || input.run.length > 200)) {
+      return err('bad_run', 'That run stamp is not one this server made.', 400);
     }
-    if (replay.error) return err(replay.error, 'Those moves do not replay.', 400);
-    score = replay.score;
   } else {
     if (!Number.isInteger(score) || score < 0 || score > max) {
       return err('bad_score', 'score must be a whole number from 0 to ' + max + '.', 400);
@@ -140,6 +162,25 @@ async function recordResult(ctx, input) {
       return err('bad_duration', 'duration_ms is not plausible.', 400);
     }
     durationMs = Math.round(d);
+  }
+
+  /* The replay, now that the time the game claims is known and has been checked
+     for sanity. */
+  if (sentMoves) {
+    replay = await REPLAYERS[game](input.moves, day, {
+      key: input.key, run: input.run, now: ctx.now, claimedMs: durationMs, env: ctx.env,
+    });
+    if (replay.error === 'key_mismatch') {
+      /* Not a refusal: the game and this Worker were built from different maps,
+         usually for the few minutes between one being deployed and the other.
+         A 5xx, so the game's queue keeps the result and tries again. */
+      return err('key_mismatch', 'The server is catching up with the game. Try again soon.', 503);
+    }
+    if (replay.error) return err(replay.error, 'Those moves do not replay.', 400);
+    score = replay.score;
+    /* A game ranked on time has its duration decided by the replay: the server's
+       own stamps when they hold, otherwise the player's own clock. */
+    if (replay.durationMs !== undefined) durationMs = replay.durationMs;
   }
 
   let detail = null;
@@ -168,7 +209,8 @@ async function recordResult(ctx, input) {
      the unique index below, because two tabs finishing at the same instant will
      race past this read. Neither alone is enough. */
   const existing = await findExisting(ctx.db, { userId, deviceId, game, day, mode });
-  if (existing && !(replay && !existing.verified)) return duplicate(existing);
+  const ranked = !!(replay && replay.ranked);
+  if (existing && !(ranked && !existing.verified)) return duplicate(existing);
 
   /* The device row has to exist before a result can reference it. Created on
      first sight rather than by a separate endpoint: the client mints the id, so
@@ -183,7 +225,7 @@ async function recordResult(ctx, input) {
       deviceId, userId, ctx.now, userId ? ctx.now : null);
   }
 
-  const verified = replay ? 1 : 0;
+  const verified = ranked ? 1 : 0;
   let id = newId('r');
   try {
     if (existing) {

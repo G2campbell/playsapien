@@ -1738,7 +1738,7 @@
     var what = document.getElementById('anWhat');
     if (what) {
       what.textContent = isShell()
-        ? 'Intellisense score · every game'
+        ? 'Intellisense score · games scored in points'
         : (document.title || 'This game').split(/[·|—-]/)[0].trim() + ' · this game';
     }
     /* Free: Daily only. The other two horizons stay visible as headings, so a
@@ -1792,6 +1792,10 @@
     return n + (s[(v - 20) % 10] || s[v] || s[0]);
   }
   function anNum(you) {
+    if (you.unit === 'time') {                              // a game ranked on time: m:ss
+      var t = Math.round(you.value);
+      return Math.floor(t / 60) + ':' + ('0' + (t % 60)).slice(-2);
+    }
     return you.max === 100 ? (Math.round(you.value * 10) / 10) + '%'
       : Math.round(you.value) + ' / ' + you.max;
   }

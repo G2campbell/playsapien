@@ -306,6 +306,9 @@ export function createClient() {
        out the score itself, so the score above is only the game's own record.
        `key` is the game's fingerprint of the map it was built from. */
     if (r.moves != null) { rec.moves = r.moves; if (r.key != null) rec.key = r.key; }
+    /* A game ranked on time asks for a start stamp when it begins (startRun) and
+       sends it back here: the server measures the time itself, from that stamp. */
+    if (r.run != null) rec.run = r.run;
     if (!rec.game) return Promise.resolve({ ok: false, source: 'local', synced: false, queued: false, error: 'no_game', result: rec });
 
     store.setJSON(resultKey(rec.game, rec.day, rec.mode), rec);
@@ -321,6 +324,18 @@ export function createClient() {
       enqueue('POST', '/play/result', rec);
       return { ok: false, source: 'local', synced: false, queued: true, error: res.error, result: rec };
     })();
+  }
+
+  /**
+   * Ask the server to stamp the start of a run, for a game that is ranked on time
+   * (Word Chain). Resolves to { ok, token, day }; `token` is null on any failure.
+   * Never queued and never retried: a stamp requested late would start the clock
+   * late, so a run that could not get one is simply not ranked.
+   */
+  async function startRun(game, day = dayKey()) {
+    const r = await call('POST', '/play/run', { game, day });
+    if (!r.ok) return { ok: false, token: null, day, error: r.error };
+    return { ok: true, token: r.data?.token ?? null, day: r.data?.day ?? day, error: null };
   }
 
   async function today(day = dayKey()) {
@@ -375,7 +390,7 @@ export function createClient() {
     me, notices, readNotices,
     friends, addFriend, friendCode, rotateFriendCode,
     updateMe,
-    saveResult, today, leaderboard, standings,
+    saveResult, startRun, today, leaderboard, standings,
 
     // escape hatches, mostly for the games' own offline paths and for tests
     localResult, localResultsFor,

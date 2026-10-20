@@ -79,6 +79,7 @@ mail app's browser instead of the tab you were playing in.
 | `packages/ui/` | **The shared chrome**: `bar.html` (top bar plus all shared sheets: Analytics, gate, upgrade/payWall, Profile, Friends and confirm cards), `ui.css` and `ui.js` (sheets, sign-in, profile, friends, avatars, gate, toasts). |
 | `packages/tokens/` | Design tokens (`tokens.css`), the theme script (`theme.js`) and the checkers: `sync-inline.mjs`, `check-inline.mjs` and `check-contrast.mjs`. |
 | `packages/sdk/` | Offline-first client (`PS`): sessions, day key, a result queue. Bundled to `deploy/sdk.js` with esbuild. `saveResult` can carry a game's `moves` and map `key`. |
+| `packages/scoring/wordchain.cjs` | **Word Chain's rules the server checks**: inflection, "is this guess the answer", Lifeline costs, the calendar, `verify(data, moves, day, isWord)`. Inlined into `part-c-app.js`; the Worker imports it (`backend/src/lib/wordchain.js`, which also holds the run stamp). |
 | `packages/scoring/sojourner.cjs` | **Sojourner's rules in one file**: daily picks, country rounds, sprint bag, scoring curve, `verify(moves, day)`. The game runs it inlined into `partD.js`; the Worker imports it (`backend/src/lib/sojourner.js`). See §6 and §8. |
 | `packages/offline/sw.js` | One service worker, copied into every surface by its `build.sh`. |
 | `packages/avatars/{monsters,robots,animals}/` | 192px `.webp` avatar pictures, served at `/avatars/` by the shell build. The originals are in Kai's OneDrive (`Game Apps/Avatars/`). |
@@ -92,17 +93,18 @@ mail app's browser instead of the tab you were playing in.
 
 Every surface is a standalone file with no shared runtime, so the canonical
 `packages/tokens/{tokens.css,theme.js}` and `packages/ui/{ui.css,ui.js,bar.html}`
-are **copied into 15 places** (and the Sojourner engine into a 16th) between marker comments
+are **copied into 15 places** (and the two scoring engines into a 16th and 17th) between marker comments
 (`/* ===== BEGIN … ===== */` or `<!-- ===== BEGIN … ===== -->`). Those places are
 the shell's `index.html`, Sojourner's `partA`/`partB`, Word Chain's
 `part-a-style`/`part-b-body`, and the template. The 16th is `packages/scoring/sojourner.cjs`
-inside `games/sojourner/src/partD.js`. Edit the canonical file, never the inlined copy.
+inside `games/sojourner/src/partD.js`, the 17th is `packages/scoring/wordchain.cjs` inside
+`games/wordchain/src/part-c-app.js`. Edit the canonical file, never the inlined copy.
 
 **After editing any canonical file, run:**
 
 ```sh
 node packages/tokens/sync-inline.mjs     # copies canonical → all surfaces
-node packages/tokens/check-inline.mjs    # must say "16 inlined copies checked — all in sync"
+node packages/tokens/check-inline.mjs    # must say "17 inlined copies checked — all in sync"
 ```
 
 CI fails if they drift. Never hand-edit the inlined copy inside a surface. Edit the
@@ -138,7 +140,7 @@ editing.** A CRLF `build.sh` dies with `set: Illegal option -`.
 ## 4. Running and testing locally
 
 ```sh
-# Backend (needs Node 22). 124 tests, no Cloudflare account needed.
+# Backend (needs Node 22). 139 tests, no Cloudflare account needed.
 cd backend && npm install && npm test
 npx wrangler dev                      # local Worker + local D1 (optional)
 
@@ -220,8 +222,9 @@ the hostname with the shell.
 **State (20 Oct 2026):** commit `f40799a` (friend groups, migration **0007**) is
 live and checked by Kai. Later commits are committed but **not yet pushed or
 deployed**: `780d916` (friends see each other's uploaded avatars), `e09cb28`
-(Analytics) and the option D stage 1 commit (Sojourner sends moves, the server
-replays them; **migration 0008**).
+(Analytics), option D stage 1 (Sojourner sends moves, the server replays them;
+**migration 0008**) and option D stage 2 (Word Chain, ranked on server-kept time;
+no further migration). Both stages deploy together with the steps below.
 
 **Deploy order matters for option D.** Backend first, then `git push`:
 
@@ -344,12 +347,30 @@ the backend must be redeployed with it; until then the server answers 503
    - Rankings (friends' leaderboards, standings, Analytics) read **verified** rows
      only. `key` is a fingerprint of the map data (only fields scoring reads); a
      mismatch is a retryable 503.
-   - **Word Chain is stage 2, not built.** Decided (Kai, 20 Oct): rank on **time,
-     lowest wins**, with a server-stamped start and finish, so only runs played
-     online can rank; offline runs count for the player's own record. Word Chain's
-     platform `score` is the count of links solved (7) and the clock travels in
-     `duration_ms`. Analytics' "higher is better, score ÷ max" measure does not fit
-     a time: stage 2 has to give Word Chain its own measure there.
+   - **Word Chain (stage 2, built 20 Oct): ranked on time, lowest wins, and the
+     SERVER keeps the clock.** When a fresh daily starts the game calls
+     `POST /api/play/run` and gets a signed token (day + the server's moment; nothing
+     stored). At the end it sends `{v:1, finals:[accepted guess per word|null],
+     hints:[Lifelines per word]}` plus the token through `PS.saveResult`. The Worker
+     replays the chain with the same engine, works out the Lifeline penalty itself
+     (15+25+40 s per word) and ranks **(finish − start) + penalty**: the game's own
+     clock is ignored. Platform `score` is the 7 links solved; the ranked time is
+     `results.duration_ms`.
+   - A valid daily that cannot be timed fairly is stored **unranked** (own record and
+     streak only): no token (offline or server down), another day's token, under 10 s,
+     over an hour, or the game claiming more playing time than the server saw (a held-back
+     start; 5 s of network delay is allowed). A chain that was not actually solved is refused.
+   - **Pausing does not stop the ranked clock.** The game's own clock still stops when the
+     window loses focus or the player pauses (so the time on the result screen can be lower
+     than the ranked one). That is deliberate: it closes "look the answer up in another tab for
+     free". The result screen does not yet say so; consider a line of copy.
+   - The server uses the game's own `gamedata.json` calendar for the daily chain. If the game
+     ever fetches its daily from the database bank (`GET /api/wordchain/bank/:day`) instead,
+     `backend/src/lib/wordchain.js` must follow.
+   - **Analytics:** a points game (Sojourner) is "higher is better, score ÷ max"; Word Chain
+     is "lower time is better" and its card shows m:ss. The front-door card averages the
+     *points* games only (labelled so); Word Chain is not in it until the Intellisense
+     categories say how a time and a score combine.
 7. **Leaderboards:**
    - Decided: public by default, verified scores only (the Terms say so).
    - Built: the API's leaderboards are **friends-only** (`play.js`).
@@ -415,11 +436,12 @@ the backend must be redeployed with it; until then the server answers 503
   that game's raw score; the front door's card averages every game as a percentage
   of its maximum (a stand-in until the Intellisense categories exist). It reads the
   `results` table, which no game writes to yet (next item).
-- **Word Chain does not post results to the API** (audit S3, still open for it).
-  Sojourner now does (option D stage 1, §8 item 6): at the end of a daily it sends
-  its moves, and any saved day not yet sent (today and yesterday) is retried the
-  next time the game opens. Practice and past days (`late`) are never sent.
-  Sojourner's old `SOJOURNER_API` hook is gone.
+- **Both games now send their dailies** (option D, §8 item 6): at the end of a daily the
+  game sends its moves, and a saved day not yet sent (today and yesterday) is retried the
+  next time it opens. Practice and past days are never sent. Sojourner's old
+  `SOJOURNER_API` hook is gone. Not yet tried by Kai on the live site. Word Chain's
+  open items: the day key is still local (S1), and a daily played before this change has
+  no stamp or moves, so it is not sent.
 - **Friend challenges** (timed and 1v1) are **not built**: there is no server side.
   The "New challenge" buttons only show a "coming soon" toast.
 - **Payments** are not wired. There is no Paddle checkout and no webhook.
@@ -455,17 +477,16 @@ the backend must be redeployed with it; until then the server answers 503
 
 1. **Deploy the backend for** `f40799a` (migration 0007 + `wrangler deploy`), if not done.
 2. **Analytics steps 1 and 2: built (20 Oct 2026, commit `e09cb28`).** The card is
-   fills as Sojourner results arrive (stage 1 of option D is built, item 5); Word
-   Chain results will follow with stage 2.
+   fills as results arrive (option D, both stages, is built, item 5). Word Chain shows
+   times; Sojourner shows points.
 3. (Done: friend-group comparisons are part of item 2.)
 4. **Paddle integration** once Paddle approves the account:
    - checkout button;
    - webhook that sets `plan_until` +12 months;
    - remove client-set `plan`;
    - refund calculator on an Admin page.
-5. **Results pipeline (option D).** Stage 1 (Sojourner + server) built 20 Oct.
-   **Stage 2: Word Chain**: a server-issued start and a server-stamped finish for
-   online runs, ranking on time (see §8 item 6), then its place in Analytics.
+5. **Results pipeline (option D): built, both games (20 Oct).** Next: Kai checks it live; then
+   friend challenges (item 6), which can reuse the run stamp for timed ones.
 6. **Friend challenges:** 1v1 (turns through the server, so verified for free) and
    timed groups (need a server-stamped start and finish).
 7. Small open offer: shrink "Share your code" on the Friends card into one "Or share

@@ -11,12 +11,13 @@ let seq = 0;
 /* Results go straight into the table: the route only accepts today or
    yesterday, and these tests need weeks of history. They are verified ones,
    because only verified results are ranked. */
-function put(h, who, game, day, score, mode = 'daily') {
+/* `ms` is a time, for the game ranked on time. */
+function put(h, who, game, day, score, mode = 'daily', ms = null) {
   h.db.raw.prepare(
-    `INSERT INTO results (id, user_id, game, day, mode, score, max_score, created_at, verified)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`)
+    `INSERT INTO results (id, user_id, game, day, mode, score, max_score, duration_ms, created_at, verified)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`)
     .run('r_test' + (++seq), who.user.id, game, day, mode, score,
-      game === 'sojourner' ? 1155 : 7, T0);
+      game === 'sojourner' ? 1155 : 7, ms, T0);
 }
 
 async function befriend(h, x, y) {
@@ -76,7 +77,7 @@ test('a tie is neither ahead nor behind, and a player alone has nobody to beat',
   const tie = await get(h, kai, '?game=sojourner');
   assert.deepEqual(tie.data.daily.compare.all, { rank: 1, of: 2, beat: 0 });
 
-  put(h, cy, 'wordchain', TODAY, 5);
+  put(h, cy, 'wordchain', TODAY, 7, 'daily', 150000);
   const alone = await get(h, cy, '?game=wordchain');
   assert.deepEqual(alone.data.daily.compare.all, { rank: 1, of: 1, beat: null });
 });
@@ -115,14 +116,43 @@ test('last dozen and lifetime appear at 12 and 13 results, and rank only those w
   assert.equal(r13.data.lifetime.compare.all.of, 1);                           /* only kai has 13 */
 });
 
-test('the front door puts every game on one scale: a percentage of each maximum', async () => {
+test('the front door puts the points games on one scale, a percentage of each maximum, and leaves times out', async () => {
   const { h, kai } = await world();
-  put(h, kai, 'sojourner', TODAY, 693);      /* 60% of 1155 */
-  put(h, kai, 'wordchain', TODAY, 7);        /* 100% */
+  put(h, kai, 'sojourner', TODAY, 693);                       /* 60% of 1155 */
+  put(h, kai, 'wordchain', TODAY, 7, 'daily', 90000);         /* a time, not points */
   const r = await get(h, kai, '?game=all');
-  assert.deepEqual(r.data.daily.you, { value: 80, max: 100 });
+  assert.deepEqual(r.data.daily.you, { value: 60, max: 100 });
   const one = await get(h, kai);
-  assert.deepEqual(one.data.daily.you, { value: 80, max: 100 }, 'all is the default');
+  assert.deepEqual(one.data.daily.you, { value: 60, max: 100 }, 'all is the default');
+});
+
+test('Word Chain is measured on time, lowest first, and shown in seconds', async () => {
+  const { h, kai, ama, bo, cy, group } = await world();
+  put(h, kai, 'wordchain', TODAY, 7, 'daily', 120000);        /* 2:00 */
+  put(h, ama, 'wordchain', TODAY, 7, 'daily', 95000);         /* faster, a friend and in the group */
+  put(h, bo, 'wordchain', TODAY, 7, 'daily', 180000);         /* slower, a friend */
+  put(h, cy, 'wordchain', TODAY, 7, 'daily', 60000);          /* fastest of all, a stranger */
+  put(h, kai, 'wordchain', TODAY, 7, 'practice', 10000);      /* never counts */
+
+  const r = await get(h, kai, '?game=wordchain&group=' + group.id);
+  const d = r.data.daily;
+  assert.deepEqual(d.you, { value: 120, unit: 'time' });
+  assert.deepEqual(d.compare.all, { rank: 3, of: 4, beat: 33 });       /* behind cy and ama */
+  assert.deepEqual(d.compare.friends, { rank: 2, of: 3, beat: 50 });   /* behind ama */
+  assert.deepEqual(d.compare.group, { rank: 2, of: 2, beat: 0 });
+});
+
+test('a time average needs the same 12 results, and a result with no time is not counted', async () => {
+  const { h, kai, ama } = await world();
+  for (let i = 0; i < 12; i++) put(h, kai, 'wordchain', dayBefore(i), 7, 'daily', 100000 + i * 1000);
+  for (let i = 0; i < 12; i++) put(h, ama, 'wordchain', dayBefore(i), 7, 'daily', 90000);
+  put(h, kai, 'wordchain', dayBefore(40), 7, 'daily', null);   /* no time: left out */
+
+  const r = await get(h, kai, '?game=wordchain');
+  assert.deepEqual(r.data.dozen.you, { value: 105.5, unit: 'time' });   /* 100..111 s, mean 105.5 */
+  assert.deepEqual(r.data.dozen.compare.friends, { rank: 2, of: 2, beat: 0 });   /* ama, a friend, is faster */
+  assert.equal(r.data.dozen.compare.all.rank, 2);
+  assert.equal(r.data.lifetime.you, null, 'the 13th counted result is not there yet');
 });
 
 test('free accounts get Daily only, and the server says so itself', async () => {

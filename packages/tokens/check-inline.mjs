@@ -36,6 +36,7 @@ const TARGETS = [
 
 const SCRIPT_SOURCES = [
   { rel: 'packages/scoring/sojourner.cjs', target: 'games/sojourner/src/partD.js' },
+  { rel: 'packages/scoring/wordchain.cjs', target: 'games/wordchain/src/part-c-app.js' },
 ];
 
 let bad = 0, checked = 0;

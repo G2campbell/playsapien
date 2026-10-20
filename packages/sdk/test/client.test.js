@@ -182,6 +182,29 @@ test('moves and the map fingerprint travel with the result, and are kept for the
   assert.equal('moves' in PS.queue()[0].body, false);
 });
 
+test('startRun asks the server for a stamp, and never queues when it cannot get one', async () => {
+  const f = mockFetch({ token: '2026-10-20.1760000000.sig', day: '2026-10-20', started_at: 1760000000 });
+  const { PS } = setup(f);
+  const r = await PS.startRun('wordchain', '2026-10-20');
+  assert.equal(r.token, '2026-10-20.1760000000.sig');
+  assert.deepEqual(f.calls.at(-1).body, { game: 'wordchain', day: '2026-10-20' });
+  assert.equal(f.calls.at(-1).url, '/api/play/run');
+
+  const down = setup(offlineFetch()).PS;
+  const none = await down.startRun('wordchain', '2026-10-20');
+  assert.equal(none.token, null);
+  assert.equal(down.queue().length, 0, 'a late stamp would start the clock late: not queued');
+});
+
+test('the run token travels with a result and is kept for the retry', async () => {
+  const { PS } = setup(offlineFetch());
+  await PS.saveResult({ game: 'wordchain', day: '2026-10-20', score: 7, maxScore: 7, durationMs: 150000,
+    moves: { v: 1 }, run: 'tok' });
+  const body = PS.queue()[0].body;
+  assert.equal(body.run, 'tok');
+  assert.equal(body.duration_ms, 150000);
+});
+
 test('a successful write is not queued at all', async () => {
   const { PS } = setup(mockFetch({ ok: true }));
   const r = await PS.saveResult({ game: 'wordchain', day: '2025-06-01', score: 8, maxScore: 8 });
