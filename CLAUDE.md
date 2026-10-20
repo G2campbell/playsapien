@@ -347,23 +347,30 @@ the backend must be redeployed with it; until then the server answers 503
    - Rankings (friends' leaderboards, standings, Analytics) read **verified** rows
      only. `key` is a fingerprint of the map data (only fields scoring reads); a
      mismatch is a retryable 503.
-   - **Word Chain (stage 2, built 20 Oct): ranked on time, lowest wins, and the
-     SERVER keeps the clock.** When a fresh daily starts the game calls
-     `POST /api/play/run` and gets a signed token (day + the server's moment; nothing
-     stored). At the end it sends `{v:1, finals:[accepted guess per word|null],
-     hints:[Lifelines per word]}` plus the token through `PS.saveResult`. The Worker
-     replays the chain with the same engine, works out the Lifeline penalty itself
-     (15+25+40 s per word) and ranks **(finish − start) + penalty**: the game's own
-     clock is ignored. Platform `score` is the 7 links solved; the ranked time is
-     `results.duration_ms`.
-   - A valid daily that cannot be timed fairly is stored **unranked** (own record and
-     streak only): no token (offline or server down), another day's token, under 10 s,
-     over an hour, or the game claiming more playing time than the server saw (a held-back
-     start; 5 s of network delay is allowed). A chain that was not actually solved is refused.
-   - **Pausing does not stop the ranked clock.** The game's own clock still stops when the
-     window loses focus or the player pauses (so the time on the result screen can be lower
-     than the ranked one). That is deliberate: it closes "look the answer up in another tab for
-     free". The result screen does not yet say so; consider a line of copy.
+   - **Word Chain (stage 2, built 20 Oct): ranked on time, lowest wins, on the GAME'S OWN
+     clock.** Kai's rule: a pause must never cost anyone time (a phone call, switching
+     windows), so the ranked time is the clock the player watched. That clock stops while the
+     player is paused or the window is in the background. The server does not measure the time;
+     it keeps the claim honest.
+   - Flow: when a fresh daily starts the game calls `POST /api/play/run` and gets a signed
+     token (day + the server's moment; nothing stored). At the end it sends
+     `{v:1, finals:[accepted guess per word|null], hints:[Lifelines per word], baseMs}` plus the
+     token through `PS.saveResult` (`baseMs` = playing time, penalty NOT included). The Worker
+     replays the chain with the same engine, works out the Lifeline penalty itself (15+25+40 s
+     per word) and ranks **baseMs + that penalty**. Platform `score` is the 7 links solved; the
+     time is `results.duration_ms`. It equals what the result screen showed.
+   - **Ranked only if** the run has a genuine stamp for this day, `baseMs` is 10 s to 1 hour
+     of play, and `baseMs` is no longer than the server's start-to-finish gap (+5 s of network
+     delay). Pauses make the playing time shorter than the gap, never longer, so they are
+     free. Otherwise the daily is stored **unranked** (own record and streak only): no token
+     (offline or server down), another day's token, too fast, too long, or a held-back start.
+     A chain that was not actually solved is refused outright.
+   - **Known limit, chosen on purpose:** the server cannot catch a player who claims a shorter
+     time than they played, and the whole bank is in the page the game ships, so a determined
+     cheater can solve any chain in seconds on any clock. Rankings are friends-only, where an
+     unbelievable time is not believed. Server-recorded pauses (pause/resume pings, tokens
+     carrying the paused total) were considered and rejected: much more machinery, fragile
+     offline, and no real extra protection. Revisit only if rankings ever become public.
    - The server uses the game's own `gamedata.json` calendar for the daily chain. If the game
      ever fetches its daily from the database bank (`GET /api/wordchain/bank/:day`) instead,
      `backend/src/lib/wordchain.js` must follow.

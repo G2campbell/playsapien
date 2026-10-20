@@ -168,7 +168,7 @@ async function recordResult(ctx, input) {
      for sanity. */
   if (sentMoves) {
     replay = await REPLAYERS[game](input.moves, day, {
-      key: input.key, run: input.run, now: ctx.now, claimedMs: durationMs, env: ctx.env,
+      key: input.key, run: input.run, now: ctx.now, env: ctx.env,
     });
     if (replay.error === 'key_mismatch') {
       /* Not a refusal: the game and this Worker were built from different maps,
@@ -178,8 +178,8 @@ async function recordResult(ctx, input) {
     }
     if (replay.error) return err(replay.error, 'Those moves do not replay.', 400);
     score = replay.score;
-    /* A game ranked on time has its duration decided by the replay: the server's
-       own stamps when they hold, otherwise the player's own clock. */
+    /* A game ranked on time has its duration decided by the replay: the game's
+       playing time plus the penalty the replay found, not the number it claimed. */
     if (replay.durationMs !== undefined) durationMs = replay.durationMs;
   }
 

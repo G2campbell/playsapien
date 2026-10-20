@@ -149,10 +149,10 @@ function saveSet() { store('set', SET); }
        believed;
      - which chain it was, from the day, by the same calendar the game reads.
 
-   The TIME is not in this file. It cannot be: the browser measures it, and a
-   browser can say anything. The server stamps the start (a signed token handed
-   out when the game begins) and the finish (when the result arrives), and ranks
-   on that. See routes/play.js.
+   The time is the game's own clock -- the playing time, which stops while the
+   player is paused or away (a phone call must never cost anyone time). It travels
+   in the record as baseMs and the server adds the Lifeline penalty it worked out
+   itself. The server's own stamps only keep that honest: see lib/wordchain.js.
 
    Like packages/scoring/sojourner.cjs this is ES5 with no DOM, clock or network,
    inlined into games/wordchain/src/part-c-app.js between marker comments
@@ -244,14 +244,15 @@ var PSWordChain = (function () {
 
        moves = { v:1,
                  finals:[null, 'ARM', 'CHAIR', ...],   // the guess that was accepted, per word
-                 hints: [0, 0, 1, ...] }               // Lifelines taken, per word
+                 hints: [0, 0, 1, ...],                // Lifelines taken, per word
+                 baseMs: 94210 }                       // the game's playing time, penalty NOT included
 
      Index 0 is the word the game gives; every other word was either typed (a
      final guess) or bought in full (no final guess, and exactly as many
      Lifelines as it takes to show every letter).
 
      `data` is the game's gamedata.json ({chains, calendar}). Returns
-     { ok:true, chain, words, hints, penaltyMs } or { ok:false, error }. */
+     { ok:true, chain, words, hints, penaltyMs, baseMs } or { ok:false, error }. */
   function verify(data, moves, dayKey, isWord) {
     function fail(code) { return { ok: false, error: code }; }
     if (!moves || typeof moves !== 'object' || moves.v !== 1) return fail('bad_moves');
@@ -276,7 +277,9 @@ var PSWordChain = (function () {
       totalHints += h; penalty += hintsCost(h);
     }
     if (moves.finals[0] !== null || moves.hints[0] !== 0) return fail('bad_moves');
-    return { ok: true, chain: idx, words: words, hints: totalHints, penaltyMs: penalty * 1000 };
+    var base = moves.baseMs;
+    if (typeof base !== 'number' || base !== Math.floor(base) || base < 0 || base > 6 * 3600000) return fail('bad_moves');
+    return { ok: true, chain: idx, words: words, hints: totalHints, penaltyMs: penalty * 1000, baseMs: base };
   }
 
   return {
@@ -432,10 +435,12 @@ function recordResult(r) {
 function dailyDone() { return store('daily:' + todayKey()); }
 
 /* ------------------------------------------------------------------ the platform
-   A daily is ranked on TIME, and the browser's clock cannot be trusted with that. So
-   when a fresh daily begins the game asks the server for a start stamp (a signed
-   token); when the daily ends it sends how the chain was solved and the server
-   stamps the finish, adds the Lifeline penalty itself, and ranks the difference.
+   A daily is ranked on TIME: this game's own clock, which stops while the player is
+   paused or away, so a phone call never costs anyone time. When a fresh daily begins
+   the game asks the server for a start stamp (a signed token); when the daily ends it
+   sends how the chain was solved and the playing time, and the server adds the Lifeline
+   penalty itself. The stamp only keeps the clock honest (a run cannot claim more
+   playing time than the server saw pass).
    Nothing here may ever hold up play: /sdk.js is loaded only when there is something
    to ask or send, a failure is silent, and a daily played with no stamp (offline, or
    the server down) simply is not ranked -- it still counts for the player's own
@@ -461,14 +466,16 @@ function beginRun(g) {
   });
 }
 /* How the chain was solved: per word, the guess that was accepted (null when the word
-   was bought in full with Lifelines) and how many Lifelines went on it. */
-function movesOf(g) {
+   was bought in full with Lifelines) and how many Lifelines went on it, plus the playing
+   time on this game's clock (which stops while the player is paused or away), penalty
+   not included -- the server works the penalty out itself. */
+function movesOf(g, baseMs) {
   var finals = [], hints = [];
   for (var k = 0; k < g.words.length; k++) {
     finals.push(k === 0 ? null : (g.finals[k] || null));
     hints.push(k === 0 ? 0 : (g.perWord[k] || 0));
   }
-  return { v: 1, finals: finals, hints: hints };
+  return { v: 1, finals: finals, hints: hints, baseMs: Math.max(0, Math.round(baseMs)) };
 }
 function markSent(dayKey) {
   var d = store('daily:' + dayKey);
@@ -756,7 +763,7 @@ function finish() {
   if (S.mode === 'daily') {
     var sendable = S.utcDay ? {
       utcDay: S.utcDay, run: S.run, links: S.words.length - 1,
-      moves: movesOf(S)
+      moves: movesOf(S, base)
     } : null;
     store('daily:' + todayKey(), {
       mode: 'daily', day: todayKey(), total: total, hints: S.hintCount,

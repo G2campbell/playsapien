@@ -11,10 +11,10 @@
        believed;
      - which chain it was, from the day, by the same calendar the game reads.
 
-   The TIME is not in this file. It cannot be: the browser measures it, and a
-   browser can say anything. The server stamps the start (a signed token handed
-   out when the game begins) and the finish (when the result arrives), and ranks
-   on that. See routes/play.js.
+   The time is the game's own clock -- the playing time, which stops while the
+   player is paused or away (a phone call must never cost anyone time). It travels
+   in the record as baseMs and the server adds the Lifeline penalty it worked out
+   itself. The server's own stamps only keep that honest: see lib/wordchain.js.
 
    Like packages/scoring/sojourner.cjs this is ES5 with no DOM, clock or network,
    inlined into games/wordchain/src/part-c-app.js between marker comments
@@ -106,14 +106,15 @@ var PSWordChain = (function () {
 
        moves = { v:1,
                  finals:[null, 'ARM', 'CHAIR', ...],   // the guess that was accepted, per word
-                 hints: [0, 0, 1, ...] }               // Lifelines taken, per word
+                 hints: [0, 0, 1, ...],                // Lifelines taken, per word
+                 baseMs: 94210 }                       // the game's playing time, penalty NOT included
 
      Index 0 is the word the game gives; every other word was either typed (a
      final guess) or bought in full (no final guess, and exactly as many
      Lifelines as it takes to show every letter).
 
      `data` is the game's gamedata.json ({chains, calendar}). Returns
-     { ok:true, chain, words, hints, penaltyMs } or { ok:false, error }. */
+     { ok:true, chain, words, hints, penaltyMs, baseMs } or { ok:false, error }. */
   function verify(data, moves, dayKey, isWord) {
     function fail(code) { return { ok: false, error: code }; }
     if (!moves || typeof moves !== 'object' || moves.v !== 1) return fail('bad_moves');
@@ -138,7 +139,9 @@ var PSWordChain = (function () {
       totalHints += h; penalty += hintsCost(h);
     }
     if (moves.finals[0] !== null || moves.hints[0] !== 0) return fail('bad_moves');
-    return { ok: true, chain: idx, words: words, hints: totalHints, penaltyMs: penalty * 1000 };
+    var base = moves.baseMs;
+    if (typeof base !== 'number' || base !== Math.floor(base) || base < 0 || base > 6 * 3600000) return fail('bad_moves');
+    return { ok: true, chain: idx, words: words, hints: totalHints, penaltyMs: penalty * 1000, baseMs: base };
   }
 
   return {
