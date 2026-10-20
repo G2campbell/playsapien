@@ -19,6 +19,14 @@
     pairs-graded.jsonl  its source: 1,888 heads graded by Claude, A-Z sweep, 19 Oct 2026
     make_pairs.py       pairs-graded.jsonl + old lex + OPEN phrases -> pairs.json
     pairs-extra-words.txt  words pairs need that were added to dict.txt by hand
+    pairs-additions.txt hand-added pairs ("HEAD TAIL" / "HEAD TAIL weak"); heads that exist
+                        only here are marked partial ("~") so a miss is "unknown", not "wrong"
+    chains-2026-10.jsonl  390 new chains (Oct 2026), IN CALENDAR ORDER; see ../chain-tools/
+    make_bank.py        appends them to gamedata.json after the 34 original chains and sets
+                        the calendar: days before 21 Oct 2026 keep the old rotation, from then
+                        each day plays the next new chain (390 days before it wraps).
+                        NOTE: finalize.py rewrites gamedata.json from bank.json -- run
+                        make_bank.py again after it, or the new chains are lost.
 
 ## Rebuilding
 

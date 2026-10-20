@@ -21,7 +21,11 @@ function pairsOf(head) {
   if (PAIR_CACHE[head]) return PAIR_CACHE[head];
   var raw = PAIRS[head];
   if (raw == null) return (PAIR_CACHE[head] = null);
-  var parts = raw.split('|'), o = { s: {}, w: {} };
+  /* "~" marks a partial list (a head added by hand, never swept A-Z): a pair
+     missing from it is unknown rather than wrong. */
+  var partial = raw.charAt(0) === '~';
+  if (partial) raw = raw.slice(1);
+  var parts = raw.split('|'), o = { s: {}, w: {}, partial: partial };
   (parts[0] || '').split(' ').forEach(function (x) { if (x) o.s[x] = 1; });
   (parts[1] || '').split(' ').forEach(function (x) { if (x) o.w[x] = 1; });
   return (PAIR_CACHE[head] = o);
@@ -208,9 +212,18 @@ function todayKey() {
 function dayIndex() { return Math.floor(Date.now() / 86400000); }
 
 /* One chain a day for everyone, drawn from the whole bank regardless of its graded
-   level. Practice walks the rest of the bank and never serves the day's chain, so
-   warming up cannot spoil the challenge. */
-function dailyIdx() { return dayIndex() % BANK.length; }
+   level. The bank is the original hand-made chains (CAL.legacy of them) followed by
+   the new ones in calendar order (make_bank.py). Days before CAL.start keep the old
+   rotation, so every past day still shows the chain it showed at the time; from
+   CAL.start, each day takes the next new chain, and the calendar only wraps round
+   after all of them (390 days). */
+var CAL = DATA.calendar || { start: 0, legacy: BANK.length };
+function idxForDay(d) {
+  var L = CAL.legacy, n = BANK.length - L;
+  if (!CAL.start || n <= 0 || d < CAL.start) return ((d % L) + L) % L;
+  return L + (d - CAL.start) % n;
+}
+function dailyIdx() { return idxForDay(dayIndex()); }
 function dailyChain() { return BANK[dailyIdx()]; }
 /* Earlier days, for the day row. The keys are local dates, the same as
    todayKey() (so audit S1 above applies to them too), and the chain is the
@@ -220,18 +233,24 @@ function keyAgo(n) {
   var d = new Date(); d.setDate(d.getDate() - n);
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
-function chainAgo(n) { var L = BANK.length; return BANK[(((dayIndex() - n) % L) + L) % L]; }
+function chainAgo(n) { return BANK[idxForDay(dayIndex() - n)]; }
 /* A past day counts as done if it was played on the day or played later. */
 function pastDone(key) { return store('daily:' + key) || store('past:' + key); }
 function longDay(key) {
   var p = key.split('-');
   return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
 }
+/* Practice only ever serves chains that have ALREADY been a daily -- the original
+   ones, and each new one once its day has passed -- and never today's. Warming up
+   can neither spoil today's challenge nor use up a future one. */
 function practiceChain() {
-  var at = store('practiceAt') || 0, d = dailyIdx(), i = at % BANK.length, guard = 0;
-  while (i === d && guard++ < BANK.length) i = (i + 1) % BANK.length;
-  store('practiceAt', i + 1);
-  return BANK[i];
+  var today = dayIndex(), d = dailyIdx(), pool = [], i;
+  for (i = 0; i < CAL.legacy; i++) if (i !== d) pool.push(i);
+  var played = CAL.start ? Math.min(Math.max(0, today - CAL.start), BANK.length - CAL.legacy) : 0;
+  for (i = 0; i < played; i++) if (CAL.legacy + i !== d) pool.push(CAL.legacy + i);
+  var at = store('practiceAt') || 0;
+  store('practiceAt', at + 1);
+  return BANK[pool[at % pool.length]];
 }
 
 /* ------------------------------------------------------------------ persistence */
@@ -438,7 +457,7 @@ function localVerdict(prev, guess) {
   var f = guessForms(guess), i;
   for (i = 0; i < f.length; i++) if (p.s[f[i]]) return 'strong';
   for (i = 0; i < f.length; i++) if (p.w[f[i]]) return 'weak';
-  return 'none';
+  return p.partial ? 'unsure' : 'none';
 }
 function askModel(prev, guess) {
   if (!sampler) return Promise.resolve(null);

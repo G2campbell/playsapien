@@ -101,7 +101,8 @@ def compose(src, site, style):
     pairs = json.loads(read(src + 'pairs.json', 'pairs.json',
                             'the follow-on word list; it is checked in'))
     notes.append('pairs %d heads' % len(pairs))
-    slim = {"pairs": pairs, "chains": [
+    # calendar: which chain each day plays (make_bank.py; part-c-app.js idxForDay)
+    slim = {"pairs": pairs, "calendar": data.get("calendar"), "chains": [
         {"level": c["level"], "words": c["words"],
          "links": [{"numberStrict": l["numberStrict"], "alt": l["alt"]} for l in c["links"]]}
         for c in data["chains"]]}

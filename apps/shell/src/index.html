@@ -386,6 +386,17 @@ document.addEventListener('DOMContentLoaded', function () {
   function closeAll() { while (stack.length) close(); }
 
   function toast(msg, ms) {
+    /* A page that never put a toast element in its markup (the front door did
+       not) still gets its messages: make one, once, at the end of the body. */
+    if (!toastEl && document.body) {
+      toastEl = $('toast');
+      if (!toastEl) {
+        toastEl = document.createElement('div');
+        toastEl.className = 'toast'; toastEl.id = 'toast';
+        toastEl.setAttribute('role', 'status'); toastEl.setAttribute('aria-live', 'polite');
+        document.body.appendChild(toastEl);
+      }
+    }
     if (!toastEl) return;
     toastEl.textContent = msg;
     toastEl.classList.add('on');
@@ -1765,6 +1776,20 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  /* Friend challenges are not built yet (no server side), so starting one
+     says so rather than doing nothing. The gate still runs first: a Free
+     player is shown Sapien, a Sapien player is told it is on its way. */
+  function wireChallenges() {
+    ['timedNew', 'duelNew'].forEach(function (id) {
+      var b = $(id);
+      if (!b || b.__wired) return;
+      b.__wired = true;
+      b.addEventListener('click', function () {
+        toast('Friend challenges are coming soon. We\u2019ll let you know when they\u2019re ready.', 4000);
+      });
+    });
+  }
+
   function wirePromo() {
     var f = document.getElementById('promoForm');
     if (!f || f.__wired) return;
@@ -1949,6 +1974,7 @@ document.addEventListener('DOMContentLoaded', function () {
     wirePromo();
     wireTrial();
     wireNameAsk();
+    wireChallenges();
     wireAnalytics();
     wireLinks();
 
