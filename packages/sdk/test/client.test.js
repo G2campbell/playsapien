@@ -155,6 +155,33 @@ test('replaying the same day replaces its queue entry rather than doubling it', 
   assert.equal(PS.queue()[0].body.score, 9);
 });
 
+test('two different games finished offline are both kept', async () => {
+  const { PS } = setup(offlineFetch());
+  await PS.saveResult({ game: 'sojourner', day: '2025-06-01', score: 500, maxScore: 1155 });
+  await PS.saveResult({ game: 'wordchain', day: '2025-06-01', score: 7, maxScore: 7 });
+  await PS.saveResult({ game: 'sojourner', day: '2025-06-02', score: 600, maxScore: 1155 });
+  assert.equal(PS.queue().length, 3, 'one per game and day, not one per path');
+});
+
+test('moves and the map fingerprint travel with the result, and are kept for the retry', async () => {
+  const storage = new FakeStorage();
+  const moves = { v: 1, focus: 'Japan', rounds: [1, 2, 3, 4, 5], sprint: { answers: [6], secs: 40 } };
+  const down = createClient().init({ storage, fetch: offlineFetch() });
+  await down.saveResult({ game: 'sojourner', day: '2025-06-01', score: 700, maxScore: 1155, moves, key: 'abc12' });
+  assert.deepEqual(down.queue()[0].body.moves, moves);
+  assert.equal(down.queue()[0].body.key, 'abc12');
+
+  const f = mockFetch({ ok: true });
+  createClient().init({ storage, fetch: f });
+  await tick();
+  assert.deepEqual(f.calls.find((c) => c.url === '/api/play/result').body.moves, moves);
+
+  // and a plain score carries neither
+  const { PS } = setup(offlineFetch());
+  await PS.saveResult({ game: 'wordchain', day: '2025-06-01', score: 7, maxScore: 7 });
+  assert.equal('moves' in PS.queue()[0].body, false);
+});
+
 test('a successful write is not queued at all', async () => {
   const { PS } = setup(mockFetch({ ok: true }));
   const r = await PS.saveResult({ game: 'wordchain', day: '2025-06-01', score: 8, maxScore: 8 });

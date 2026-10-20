@@ -29,6 +29,12 @@ const TARGETS = [
   'games/wordchain/src/part-a-style.html',
 ];
 
+/* Scoring code the Worker also runs, inlined into the one game script that uses
+   it, so the browser and the server cannot disagree about a pick or a score. */
+const SCRIPT_SOURCES = [
+  { rel: 'packages/scoring/sojourner.cjs', target: 'games/sojourner/src/partD.js' },
+];
+
 for (const target of TARGETS) {
   const file = path.join(ROOT, target);
   if (!fs.existsSync(file)) continue;
@@ -67,4 +73,22 @@ for (const target of HTML_TARGETS) {
     }
   }
   if (done.length) { fs.writeFileSync(file, html); console.log(`  ${target}: re-synced ${done.join(', ')}`); }
+}
+
+/* and once more for scoring code, with the JS markers, one target each */
+for (const { rel, target } of SCRIPT_SOURCES) {
+  const file = path.join(ROOT, target);
+  if (!fs.existsSync(file)) continue;
+  let js = fs.readFileSync(file, 'utf8');
+  const canonical = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  const begin = `/* ===== BEGIN ${rel} (inlined verbatim — do not edit here) ===== */
+`;
+  const end = `/* ===== END ${rel} ===== */`;
+  const i = js.indexOf(begin), j = js.indexOf(end);
+  if (i < 0 || j < 0) continue;
+  if (js.slice(i + begin.length, j) !== canonical) {
+    js = js.slice(0, i + begin.length) + canonical + js.slice(j);
+    fs.writeFileSync(file, js);
+    console.log(`  ${target}: re-synced ${path.basename(rel)}`);
+  } else console.log(`  ${target}: already in sync`);
 }

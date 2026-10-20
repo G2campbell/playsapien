@@ -9,13 +9,14 @@ const dayBefore = (n) => utcDay(T0 - n * 86400);
 let seq = 0;
 
 /* Results go straight into the table: the route only accepts today or
-   yesterday, and these tests need weeks of history. */
+   yesterday, and these tests need weeks of history. They are verified ones,
+   because only verified results are ranked. */
 function put(h, who, game, day, score, mode = 'daily') {
   h.db.raw.prepare(
-    `INSERT INTO results (id, user_id, game, day, mode, score, max_score, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+    `INSERT INTO results (id, user_id, game, day, mode, score, max_score, created_at, verified)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`)
     .run('r_test' + (++seq), who.user.id, game, day, mode, score,
-      game === 'sojourner' ? 1000 : 7, T0);
+      game === 'sojourner' ? 1155 : 7, T0);
 }
 
 async function befriend(h, x, y) {
@@ -48,13 +49,14 @@ test('daily: rank and share beaten, among all players, friends and a group', asy
   put(h, bo, 'sojourner', TODAY, 500);
   put(h, cy, 'sojourner', TODAY, 800);
   /* A practice run, and an old day, change nothing about today. */
-  put(h, kai, 'sojourner', TODAY, 1000, 'practice');
-  put(h, cy, 'sojourner', dayBefore(1), 1000);
+  put(h, kai, 'sojourner', TODAY, 1155, 'practice');
+  put(h, cy, 'sojourner', dayBefore(1), 1155);
 
   const r = await get(h, kai, '?game=sojourner&group=' + group.id);
   assert.equal(r.status, 200);
   const d = r.data.daily;
-  assert.deepEqual(d.you, { value: 700, max: 1000 });
+  assert.equal(Math.round(d.you.value), 700);                          /* basis points round a little */
+  assert.equal(d.you.max, 1155);
   assert.equal(d.provisional, true);
   assert.deepEqual(d.compare.all, { rank: 3, of: 4, beat: 33 });       /* behind ama and cy */
   assert.deepEqual(d.compare.friends, { rank: 2, of: 3, beat: 50 });   /* behind ama */
@@ -101,7 +103,8 @@ test('last dozen and lifetime appear at 12 and 13 results, and rank only those w
   for (let i = 0; i <= 4; i++) put(h, bo, 'sojourner', dayBefore(i), 100);     /* too few */
 
   const r = await get(h, kai, '?game=sojourner');
-  assert.deepEqual(r.data.dozen.you, { value: 608.3, max: 1000 });            /* (700 + 11x600) / 12 */
+  assert.equal(Math.round(r.data.dozen.you.value), 608);                      /* (700 + 11x600) / 12 */
+  assert.equal(r.data.dozen.you.max, 1155);
   assert.deepEqual(r.data.dozen.compare.friends, { rank: 2, of: 2, beat: 0 }); /* bo is not counted */
   assert.equal(r.data.lifetime.you, null);                                     /* 13th result not yet */
 
@@ -114,12 +117,12 @@ test('last dozen and lifetime appear at 12 and 13 results, and rank only those w
 
 test('the front door puts every game on one scale: a percentage of each maximum', async () => {
   const { h, kai } = await world();
-  put(h, kai, 'sojourner', TODAY, 700);      /* 70% */
+  put(h, kai, 'sojourner', TODAY, 693);      /* 60% of 1155 */
   put(h, kai, 'wordchain', TODAY, 7);        /* 100% */
   const r = await get(h, kai, '?game=all');
-  assert.deepEqual(r.data.daily.you, { value: 85, max: 100 });
+  assert.deepEqual(r.data.daily.you, { value: 80, max: 100 });
   const one = await get(h, kai);
-  assert.deepEqual(one.data.daily.you, { value: 85, max: 100 }, 'all is the default');
+  assert.deepEqual(one.data.daily.you, { value: 80, max: 100 }, 'all is the default');
 });
 
 test('free accounts get Daily only, and the server says so itself', async () => {

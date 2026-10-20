@@ -258,7 +258,7 @@ test('blocking an author stops submissions and nothing else', async () => {
   /* They can still play. */
   const played = await call(h.env, 'POST', '/api/play/result', {
     cookie: author.cookie,
-    body: { game: 'sojourner', day: utcDay(T0), mode: 'daily', score: 500, max_score: 1000 },
+    body: { game: 'sojourner', day: utcDay(T0), mode: 'daily', score: 500, max_score: 1155 },
   });
   assert.equal(played.status, 201);
 

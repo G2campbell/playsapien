@@ -34,6 +34,10 @@ const TARGETS = [
   'games/wordchain/src/part-a-style.html',
 ];
 
+const SCRIPT_SOURCES = [
+  { rel: 'packages/scoring/sojourner.cjs', target: 'games/sojourner/src/partD.js' },
+];
+
 let bad = 0, checked = 0;
 for (const target of TARGETS) {
   const file = path.join(ROOT, target);
@@ -76,6 +80,20 @@ for (const target of HTML_TARGETS) {
     if (got === canonical) { console.log(`  ${target} :: ${name}  identical (${canonical.length} bytes)`); }
     else { bad++; console.log(`  ${target} :: ${name}  *** DRIFTED ***`); }
   }
+}
+
+for (const { rel, target } of SCRIPT_SOURCES) {
+  const file = path.join(ROOT, target);
+  if (!fs.existsSync(file)) { console.log(`  ${target}: NOT FOUND`); bad++; continue; }
+  const js = fs.readFileSync(file, 'utf8');
+  const canonical = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  const begin = `/* ===== BEGIN ${rel} (inlined verbatim — do not edit here) ===== */\n`;
+  const end = `/* ===== END ${rel} ===== */`;
+  const i = js.indexOf(begin), j = js.indexOf(end);
+  if (i < 0 || j < 0) { console.log(`  ${target} :: ${path.basename(rel)}  markers missing`); bad++; continue; }
+  checked++;
+  if (js.slice(i + begin.length, j) === canonical) console.log(`  ${target} :: ${path.basename(rel)}  identical (${canonical.length} bytes)`);
+  else { bad++; console.log(`  ${target} :: ${path.basename(rel)}  *** DRIFTED ***`); }
 }
 
 console.log(`\n${checked} inlined copies checked — ${bad ? bad + ' PROBLEM(S)' : 'all in sync'}`);

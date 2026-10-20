@@ -28,7 +28,9 @@
      reaches finish() on a completed chain, so in practice every Word Chain
      score is 7; keeping it a count rather than a constant means a future
      abandon-and-keep-your-progress ending needs no schema change. */
-export const MAX_SCORE = { sojourner: 1000, wordchain: 7 };
+import SojournerEngine from '../../../packages/scoring/sojourner.cjs';
+const MAX_TOTAL = SojournerEngine.MAX_TOTAL;
+export const MAX_SCORE = { sojourner: MAX_TOTAL, wordchain: 7 };
 export const GAMES = Object.keys(MAX_SCORE);
 export const MODES = ['daily', 'practice'];
 

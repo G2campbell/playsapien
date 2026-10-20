@@ -78,7 +78,8 @@ mail app's browser instead of the tab you were playing in.
 | `backend/` | The API Worker. `src/index.js` holds the route table. `src/routes/` holds auth, player, friends, groups, play, wordchain and admin. `src/lib/` has helpers. `migrations/0001…0007_*.sql` is the database schema history. `test/` uses node:test with better-sqlite3 standing in for D1. |
 | `packages/ui/` | **The shared chrome**: `bar.html` (top bar plus all shared sheets: Analytics, gate, upgrade/payWall, Profile, Friends and confirm cards), `ui.css` and `ui.js` (sheets, sign-in, profile, friends, avatars, gate, toasts). |
 | `packages/tokens/` | Design tokens (`tokens.css`), the theme script (`theme.js`) and the checkers: `sync-inline.mjs`, `check-inline.mjs` and `check-contrast.mjs`. |
-| `packages/sdk/` | Offline-first client (`PS`): sessions, day key, a result queue. Bundled to `deploy/sdk.js` with esbuild. |
+| `packages/sdk/` | Offline-first client (`PS`): sessions, day key, a result queue. Bundled to `deploy/sdk.js` with esbuild. `saveResult` can carry a game's `moves` and map `key`. |
+| `packages/scoring/sojourner.cjs` | **Sojourner's rules in one file**: daily picks, country rounds, sprint bag, scoring curve, `verify(moves, day)`. The game runs it inlined into `partD.js`; the Worker imports it (`backend/src/lib/sojourner.js`). See §6 and §8. |
 | `packages/offline/sw.js` | One service worker, copied into every surface by its `build.sh`. |
 | `packages/avatars/{monsters,robots,animals}/` | 192px `.webp` avatar pictures, served at `/avatars/` by the shell build. The originals are in Kai's OneDrive (`Game Apps/Avatars/`). |
 | `packages/build/` | Python helpers shared by the game builds (`head.py`, `paths.py`). |
@@ -91,16 +92,17 @@ mail app's browser instead of the tab you were playing in.
 
 Every surface is a standalone file with no shared runtime, so the canonical
 `packages/tokens/{tokens.css,theme.js}` and `packages/ui/{ui.css,ui.js,bar.html}`
-are **copied into 15 places** between marker comments
+are **copied into 15 places** (and the Sojourner engine into a 16th) between marker comments
 (`/* ===== BEGIN … ===== */` or `<!-- ===== BEGIN … ===== -->`). Those places are
 the shell's `index.html`, Sojourner's `partA`/`partB`, Word Chain's
-`part-a-style`/`part-b-body`, and the template.
+`part-a-style`/`part-b-body`, and the template. The 16th is `packages/scoring/sojourner.cjs`
+inside `games/sojourner/src/partD.js`. Edit the canonical file, never the inlined copy.
 
 **After editing any canonical file, run:**
 
 ```sh
 node packages/tokens/sync-inline.mjs     # copies canonical → all surfaces
-node packages/tokens/check-inline.mjs    # must say "15 inlined copies checked — all in sync"
+node packages/tokens/check-inline.mjs    # must say "16 inlined copies checked — all in sync"
 ```
 
 CI fails if they drift. Never hand-edit the inlined copy inside a surface. Edit the
@@ -136,9 +138,12 @@ editing.** A CRLF `build.sh` dies with `set: Illegal option -`.
 ## 4. Running and testing locally
 
 ```sh
-# Backend (needs Node 22). 113 tests, no Cloudflare account needed.
+# Backend (needs Node 22). 124 tests, no Cloudflare account needed.
 cd backend && npm install && npm test
 npx wrangler dev                      # local Worker + local D1 (optional)
+
+# NOTE: on Kai's Windows machine `python3` is a Microsoft Store stub that does
+# nothing. Python 3.12 is installed: use `py -3` instead of `python3` below.
 
 # Word Chain
 python3 games/wordchain/src/build.py --check   # validate, write nothing (CI runs this)
@@ -213,10 +218,27 @@ the hostname with the shell.
   ```
 
 **State (20 Oct 2026):** commit `f40799a` (friend groups, migration **0007**) is
-live and checked by Kai. Two later commits, `780d916` (friends see each other's
-uploaded avatar pictures) and `e09cb28` (Analytics), are committed but **not yet
-pushed or deployed**. They need `npx wrangler deploy` in `backend/` (no new
-migration) and then `git push`.
+live and checked by Kai. Later commits are committed but **not yet pushed or
+deployed**: `780d916` (friends see each other's uploaded avatars), `e09cb28`
+(Analytics) and the option D stage 1 commit (Sojourner sends moves, the server
+replays them; **migration 0008**).
+
+**Deploy order matters for option D.** Backend first, then `git push`:
+
+```
+1. cd C:UsersG2Campbellplaysapien-liveackend
+2. npx wrangler d1 migrations apply playsapien --remote     (migration 0008; type y)
+3. npx wrangler deploy
+4. cd ..
+5. git push
+```
+
+If the game went live first, its results would be refused by the old server
+(wrong maximum, unknown `moves`) and the game's queue would drop them. If the
+backend is deployed and the game is not, nothing changes for players. If Sojourner's
+map data (`games/sojourner/baked/assets/meta.json`, `pool.json`) is ever re-baked,
+the backend must be redeployed with it; until then the server answers 503
+`key_mismatch` and the game's queue keeps the result and retries.
 
 ---
 
@@ -307,10 +329,27 @@ migration) and then `git push`.
    Sojourner, `--stage` stays dark in both themes.
 5. **Auth** is an email code or Google; no passwords and no Apple (Apple is only
    required if the site is ever wrapped as an App Store app).
-6. **Scores and offline play: option D** (decided 19 Oct). Play works offline. The
-   plan is that games upload *moves* and the server recomputes scores, with
-   unverified results kept for the player only. **Not built yet** apart from the
-   service worker (§9).
+6. **Scores and offline play: option D** (decided 19 Oct). Play works offline. Games
+   upload *moves* and the server recomputes the score; a result a client merely
+   reports is stored (it counts for the player's own streak) but is never ranked.
+   - **Built for Sojourner (stage 1, 20 Oct).** The game records each guess and each
+     sprint answer, then sends `{v:1, focus, rounds:[regionId×5], sprint:{answers,
+     secs}}` through `PS.saveResult({moves, key})`. The Worker replays it with the
+     same engine (`packages/scoring/sojourner.cjs`) and stores the *server's* score
+     as a **verified** result (`results.verified = 1`, `moves` kept so it can be
+     replayed again if scoring is corrected). The client's own score is ignored.
+   - The one number it cannot check is `secs` (the sprint clock bonus): clamped to
+     60 and counted only for a finished sprint. Sojourner's real maximum is **1155**
+     (750 + 320 + 25 + 60), not 1000.
+   - Rankings (friends' leaderboards, standings, Analytics) read **verified** rows
+     only. `key` is a fingerprint of the map data (only fields scoring reads); a
+     mismatch is a retryable 503.
+   - **Word Chain is stage 2, not built.** Decided (Kai, 20 Oct): rank on **time,
+     lowest wins**, with a server-stamped start and finish, so only runs played
+     online can rank; offline runs count for the player's own record. Word Chain's
+     platform `score` is the count of links solved (7) and the clock travels in
+     `duration_ms`. Analytics' "higher is better, score ÷ max" measure does not fit
+     a time: stage 2 has to give Word Chain its own measure there.
 7. **Leaderboards:**
    - Decided: public by default, verified scores only (the Terms say so).
    - Built: the API's leaderboards are **friends-only** (`play.js`).
@@ -376,10 +415,11 @@ migration) and then `git push`.
   that game's raw score; the front door's card averages every game as a percentage
   of its maximum (a stand-in until the Intellisense categories exist). It reads the
   `results` table, which no game writes to yet (next item).
-- **Games do not post results to the API** (audit S3). Sojourner has an unset hook
-  (`window.SOJOURNER_API`, `partD.js`); Word Chain has none. The SDK can queue
-  `POST /play/result`, but no game calls it. Option D (move logs and server replay)
-  is not built.
+- **Word Chain does not post results to the API** (audit S3, still open for it).
+  Sojourner now does (option D stage 1, §8 item 6): at the end of a daily it sends
+  its moves, and any saved day not yet sent (today and yesterday) is retried the
+  next time the game opens. Practice and past days (`late`) are never sent.
+  Sojourner's old `SOJOURNER_API` hook is gone.
 - **Friend challenges** (timed and 1v1) are **not built**: there is no server side.
   The "New challenge" buttons only show a "coming soon" toast.
 - **Payments** are not wired. There is no Paddle checkout and no webhook.
@@ -415,17 +455,17 @@ migration) and then `git push`.
 
 1. **Deploy the backend for** `f40799a` (migration 0007 + `wrangler deploy`), if not done.
 2. **Analytics steps 1 and 2: built (20 Oct 2026, commit `e09cb28`).** The card is
-   ready but empty in practice: make the games post results next (item 5, or a
-   quick stopgap that posts the finished daily score through the existing
-   `POST /api/play/result`; this was offered to Kai and not yet decided).
+   fills as Sojourner results arrive (stage 1 of option D is built, item 5); Word
+   Chain results will follow with stage 2.
 3. (Done: friend-group comparisons are part of item 2.)
 4. **Paddle integration** once Paddle approves the account:
    - checkout button;
    - webhook that sets `plan_until` +12 months;
    - remove client-set `plan`;
    - refund calculator on an Admin page.
-5. **Results pipeline (option D):** games post move logs, the server replays and
-   verifies, then verified leaderboards.
+5. **Results pipeline (option D).** Stage 1 (Sojourner + server) built 20 Oct.
+   **Stage 2: Word Chain**: a server-issued start and a server-stamped finish for
+   online runs, ranking on time (see §8 item 6), then its place in Analytics.
 6. **Friend challenges:** 1v1 (turns through the server, so verified for free) and
    timed groups (need a server-stamped start and finish).
 7. Small open offer: shrink "Share your code" on the Friends card into one "Or share

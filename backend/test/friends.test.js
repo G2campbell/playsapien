@@ -17,10 +17,13 @@ async function postScore(h, cookie, score, game = 'sojourner') {
     cookie,
     body: {
       game, day: TODAY, mode: 'daily', score,
-      max_score: game === 'wordchain' ? 7 : 1000,
+      max_score: game === 'wordchain' ? 7 : 1155,
     },
   });
   assert.equal(res.status, 201, JSON.stringify(res.body));
+  /* A bare score is never ranked, so mark the row just written as the verified one
+     a game's replayed moves would have produced (replay.test.js covers that path). */
+  h.db.raw.prepare('UPDATE results SET verified = 1 WHERE rowid = (SELECT MAX(rowid) FROM results)').run();
 }
 
 test('request, accept, and the pair invariant holds either way round', async () => {
@@ -319,7 +322,7 @@ test('the leaderboard needs a session, and a practice run never appears', async 
 
   await call(h.env, 'POST', '/api/play/result', {
     cookie: kai.cookie,
-    body: { game: 'sojourner', day: TODAY, mode: 'practice', score: 1000, max_score: 1000 },
+    body: { game: 'sojourner', day: TODAY, mode: 'practice', score: 1000, max_score: 1155 },
   });
   const board = await call(h.env, 'GET', '/api/play/leaderboard/sojourner/' + TODAY,
     { cookie: kai.cookie });

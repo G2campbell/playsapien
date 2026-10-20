@@ -94,7 +94,12 @@ export function createClient() {
     const q = queue();
     // One entry per (method, path): a resubmitted day replaces its predecessor
     // rather than queueing twice. The server rejects the second anyway.
-    const at = q.findIndex((e) => e.method === method && e.path === path);
+    // Results all share one path, so they are told apart by game, day and mode
+    // -- otherwise a second game finished offline would silently replace the first.
+    const same = (e) => e.method === method && e.path === path &&
+      (path !== '/play/result' || (e.body && body && e.body.game === body.game &&
+        e.body.day === body.day && e.body.mode === body.mode));
+    const at = q.findIndex(same);
     const entry = { id: uuid4(), method, path, body, at: Date.now(), tries: 0 };
     if (at >= 0) q[at] = entry; else q.push(entry);
     setQueue(q);
@@ -297,6 +302,10 @@ export function createClient() {
       device_id: deviceId(),
       at: Date.now()
     };
+    /* A game that sends its MOVES (option D): the server replays them and works
+       out the score itself, so the score above is only the game's own record.
+       `key` is the game's fingerprint of the map it was built from. */
+    if (r.moves != null) { rec.moves = r.moves; if (r.key != null) rec.key = r.key; }
     if (!rec.game) return Promise.resolve({ ok: false, source: 'local', synced: false, queued: false, error: 'no_game', result: rec });
 
     store.setJSON(resultKey(rec.game, rec.day, rec.mode), rec);

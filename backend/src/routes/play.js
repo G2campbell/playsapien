@@ -27,6 +27,22 @@ import {
 } from '../lib/validate.js';
 import { streakStatements } from '../lib/streaks.js';
 import { acceptedFriendIds } from './friends.js';
+import { sojournerEngine } from '../lib/sojourner.js';
+
+/* Games whose moves the server can replay (option D). Each takes the moves, the
+   day and the game's own fingerprint of the map it was built from, and returns
+   either { error } or the score the SERVER worked out. The score a client claims
+   alongside its moves is never read. */
+const REPLAYERS = {
+  sojourner(moves, day, key) {
+    const eng = sojournerEngine();
+    if (key !== undefined && key !== null && key !== eng.keyHash()) return { error: 'key_mismatch' };
+    const v = eng.verify(moves, day);
+    if (!v.ok) return { error: v.error };
+    return { score: v.total, detail: { rounds: v.rounds, sprint: v.sprint } };
+  },
+};
+const MAX_MOVES_BYTES = 4000;
 
 /* POST /api/play/result */
 export async function submitResult(ctx) {
@@ -80,18 +96,41 @@ async function recordResult(ctx, input) {
   const mode = String(input.mode || 'daily');
   if (!MODES.includes(mode)) return err('bad_mode', 'mode must be daily or practice.', 400);
 
-  const score = input.score;
-  if (!Number.isInteger(score) || score < 0 || score > max) {
-    return err('bad_score', 'score must be a whole number from 0 to ' + max + '.', 400);
-  }
+  /* Moves, or a score. A game that sends its moves has them replayed here and the
+     score is whatever the replay says -- the client's own number, and its own
+     max_score, are not read at all. That result is VERIFIED, and only verified
+     results are ranked. A bare score is still stored (it counts for the player's
+     own streak and record) but is never put in front of anybody else. */
+  const sentMoves = input.moves !== undefined && input.moves !== null;
+  let score = input.score, replay = null, movesJson = null;
+  if (sentMoves) {
+    if (mode !== 'daily') return err('bad_mode', 'Only a daily game is replayed.', 400);
+    const replayer = REPLAYERS[game];
+    if (!replayer) return err('no_moves', game + ' does not take moves.', 400);
+    movesJson = JSON.stringify(input.moves);
+    if (movesJson.length > MAX_MOVES_BYTES) return err('moves_too_large', 'Those moves are too long.', 400);
+    replay = replayer(input.moves, day, input.key);
+    if (replay.error === 'key_mismatch') {
+      /* Not a refusal: the game and this Worker were built from different maps,
+         usually for the few minutes between one being deployed and the other.
+         A 5xx, so the game's queue keeps the result and tries again. */
+      return err('key_mismatch', 'The server is catching up with the game. Try again soon.', 503);
+    }
+    if (replay.error) return err(replay.error, 'Those moves do not replay.', 400);
+    score = replay.score;
+  } else {
+    if (!Number.isInteger(score) || score < 0 || score > max) {
+      return err('bad_score', 'score must be a whole number from 0 to ' + max + '.', 400);
+    }
 
-  /* The declared maximum has to match, and a mismatch is refused rather than
-     corrected. A client sending the wrong maximum is running different scoring
-     rules from this server, and a row whose score cannot be interpreted against
-     a known scale is worse than no row. */
-  if (input.max_score !== undefined && input.max_score !== null && input.max_score !== max) {
-    return err('bad_max_score',
-      'max_score for ' + game + ' is ' + max + '.', 400);
+    /* The declared maximum has to match, and a mismatch is refused rather than
+       corrected. A client sending the wrong maximum is running different scoring
+       rules from this server, and a row whose score cannot be interpreted against
+       a known scale is worse than no row. */
+    if (input.max_score !== undefined && input.max_score !== null && input.max_score !== max) {
+      return err('bad_max_score',
+        'max_score for ' + game + ' is ' + max + '.', 400);
+    }
   }
 
   let durationMs = null;
@@ -104,7 +143,9 @@ async function recordResult(ctx, input) {
   }
 
   let detail = null;
-  if (input.detail !== undefined && input.detail !== null) {
+  if (replay) {
+    detail = JSON.stringify(replay.detail);
+  } else if (input.detail !== undefined && input.detail !== null) {
     detail = typeof input.detail === 'string' ? input.detail : JSON.stringify(input.detail);
     if (detail.length > MAX_DETAIL_BYTES) {
       return err('detail_too_large', 'That result detail is too big.', 400);
@@ -127,7 +168,7 @@ async function recordResult(ctx, input) {
      the unique index below, because two tabs finishing at the same instant will
      race past this read. Neither alone is enough. */
   const existing = await findExisting(ctx.db, { userId, deviceId, game, day, mode });
-  if (existing) return duplicate(existing);
+  if (existing && !(replay && !existing.verified)) return duplicate(existing);
 
   /* The device row has to exist before a result can reference it. Created on
      first sight rather than by a separate endpoint: the client mints the id, so
@@ -142,13 +183,27 @@ async function recordResult(ctx, input) {
       deviceId, userId, ctx.now, userId ? ctx.now : null);
   }
 
-  const id = newId('r');
+  const verified = replay ? 1 : 0;
+  let id = newId('r');
   try {
-    await run(ctx.db,
-      `INSERT INTO results (id, user_id, device_id, game, day, mode, score, max_score,
-                            detail, duration_ms, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      id, userId, deviceId, game, day, mode, score, max, detail, durationMs, ctx.now);
+    if (existing) {
+      /* A bare score already stood for this day, and now the same game's moves
+         have arrived: the replay replaces it. (The other way round, a bare score
+         never displaces a verified one -- that is the duplicate() above.) */
+      id = existing.id;
+      await run(ctx.db,
+        `UPDATE results SET score = ?, max_score = ?, detail = ?, duration_ms = ?,
+                            verified = 1, moves = ?
+          WHERE id = ?`,
+        score, max, detail, durationMs, movesJson, id);
+    } else {
+      await run(ctx.db,
+        `INSERT INTO results (id, user_id, device_id, game, day, mode, score, max_score,
+                              detail, duration_ms, created_at, verified, moves)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, userId, deviceId, game, day, mode, score, max, detail, durationMs, ctx.now,
+        verified, movesJson);
+    }
   } catch (e) {
     if (isUniqueViolation(e)) {
       const winner = await findExisting(ctx.db, { userId, deviceId, game, day, mode });
@@ -169,7 +224,8 @@ async function recordResult(ctx, input) {
       userId);
   }
 
-  return ok({ result: { id, game, day, mode, score, max_score: max }, streaks }, { status: 201 });
+  return ok({ result: { id, game, day, mode, score, max_score: max, verified: !!verified }, streaks },
+    { status: 201 });
 }
 
 function duplicate(row) {
@@ -185,12 +241,12 @@ function duplicate(row) {
 function findExisting(db, { userId, deviceId, game, day, mode }) {
   if (userId) {
     return first(db,
-      `SELECT id, game, day, mode, score, max_score, detail, duration_ms, created_at
+      `SELECT id, game, day, mode, score, max_score, detail, duration_ms, created_at, verified
          FROM results WHERE user_id = ? AND game = ? AND day = ? AND mode = ?`,
       userId, game, day, mode);
   }
   return first(db,
-    `SELECT id, game, day, mode, score, max_score, detail, duration_ms, created_at
+    `SELECT id, game, day, mode, score, max_score, detail, duration_ms, created_at, verified
        FROM results WHERE device_id = ? AND game = ? AND day = ? AND mode = ?`,
     deviceId, game, day, mode);
 }
@@ -206,6 +262,7 @@ function publicResult(r) {
     duration_ms: r.duration_ms,
     detail: parseDetail(r.detail),
     created_at: r.created_at,
+    verified: !!r.verified,
   };
 }
 
@@ -261,7 +318,7 @@ export async function leaderboard(ctx) {
             u.handle, u.display_name, u.avatar,
             CASE WHEN u.avatar = 'custom' THEN u.avatar_img END AS avatar_img
        FROM results r JOIN users u ON u.id = r.user_id
-      WHERE r.game = ? AND r.day = ? AND r.mode = 'daily'
+      WHERE r.game = ? AND r.day = ? AND r.mode = 'daily' AND r.verified = 1
         AND u.deleted_at IS NULL AND r.user_id IN (${ph})
       ORDER BY r.score DESC, r.duration_ms ASC, r.created_at ASC`,
     game, day, ...ids);
@@ -305,7 +362,7 @@ export async function standings(ctx) {
             SUM(r.score) AS total_score,
             COUNT(DISTINCT r.day) AS days
        FROM results r JOIN users u ON u.id = r.user_id
-      WHERE r.mode = 'daily' AND r.day >= ? AND r.day <= ?
+      WHERE r.mode = 'daily' AND r.verified = 1 AND r.day >= ? AND r.day <= ?
         AND u.deleted_at IS NULL AND r.user_id IN (${ph})
       GROUP BY r.user_id, r.game`, from, today, ...ids);
 
@@ -341,7 +398,7 @@ export async function standings(ctx) {
      platform streak means too. */
   const dayRows = await all(ctx.db,
     `SELECT user_id, COUNT(DISTINCT day) AS days FROM results
-      WHERE mode = 'daily' AND day >= ? AND day <= ? AND user_id IN (${ph})
+      WHERE mode = 'daily' AND verified = 1 AND day >= ? AND day <= ? AND user_id IN (${ph})
       GROUP BY user_id`, from, today, ...ids);
   for (const d of dayRows) {
     const u = byUser.get(d.user_id);

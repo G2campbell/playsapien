@@ -19,7 +19,7 @@ async function anonResult(h, device, day, score, game = 'sojourner') {
   const res = await call(h.env, 'POST', '/api/play/result', {
     body: {
       game, day, mode: 'daily', score,
-      max_score: game === 'wordchain' ? 7 : 1000,
+      max_score: game === 'wordchain' ? 7 : 1155,
       device_id: device,
     },
   });
@@ -99,7 +99,7 @@ test('a device result higher than the account\'s displaces it', async () => {
   const me = await signIn(h, 'kai@example.com');
   const owned = await call(h.env, 'POST', '/api/play/result', {
     cookie: me.cookie,
-    body: { game: 'sojourner', day, mode: 'daily', score: 200, max_score: 1000 },
+    body: { game: 'sojourner', day, mode: 'daily', score: 200, max_score: 1155 },
   });
   assert.equal(owned.status, 201);
 
@@ -224,7 +224,7 @@ test('deleting an account takes the play data and leaves the incidents', async (
   const me = await signIn(h, 'kai@example.com');
   await call(h.env, 'POST', '/api/play/result', {
     cookie: me.cookie,
-    body: { game: 'sojourner', day: utcDay(T0), mode: 'daily', score: 500, max_score: 1000 },
+    body: { game: 'sojourner', day: utcDay(T0), mode: 'daily', score: 500, max_score: 1155 },
   });
 
   /* An incident that names them, written the way the admin path writes it. */

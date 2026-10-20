@@ -11,17 +11,363 @@ var $ = function(id){ return document.getElementById(id); };
 var GAME_URL = (typeof window !== "undefined" && window.SOJOURNER_SITE) ||
                "https://claude.ai/code/artifact/PLACEHOLDER";
 var SITE_LABEL = GAME_URL.replace(/^https?:\/\//, '').replace(/\/$/, '');
+/* ===== BEGIN packages/scoring/sojourner.cjs (inlined verbatim — do not edit here) ===== */
+/* Sojourner's scoring engine -- the one copy of the rules.
+
+   Option D (docs/notes/offline-and-score-integrity.md): the game records what
+   the player DID (which region they chose for each place), and the server works
+   out the score itself by running this same code over those moves. A number the
+   browser claims is never trusted.
+
+   So this file is two things at once:
+     - inlined into games/sojourner/src/partD.js between marker comments, where
+       the game uses it for its own picks and scores (packages/tokens/
+       sync-inline.mjs keeps the copies identical); and
+     - imported by the Worker (backend/src/lib/sojourner.js), which feeds it the
+       same data the game loads: baked/assets/meta.json plus pool.json.
+
+   ES5 only, no DOM, no clock, no network: it has to run inline in a browser
+   page and in a Worker and give the same answer in both. Nothing in here may
+   change a pick or a score without the game and the server changing together,
+   which is the point of there being one file.
+
+   Everything below is moved, not rewritten, from partD.js: the daily
+   selection, the country rounds, the sprint bag and the scoring curve. */
+var PSSojourner = (function () {
+  "use strict";
+
+  var D2R = Math.PI / 180, R_EARTH = 6371.0088;
+
+  /* Phase 1 is worth 750: 100 + 125 + 150 + 175 + 200. Phase 2, the sprint, asks
+     one place from home, two from round two and three from each of the rest. */
+  var MULT = [1, 1.25, 1.5, 1.75, 2];
+  var PHASE1_MAX = 750;
+  var SPRINT_COUNT = [1, 2, 3, 3, 3];
+  var SPRINT_PTS   = [15, 19, 24, 29, 36];
+  var SPRINT_SWEEP = 25;                  // for finding every one of the twelve
+  var SPRINT_SECONDS = 60;                // and the seconds left, for finishing
+  var HOME_KM = 150, DECAY = 1600, HOME_DISCOUNT = 0.7;
+  var DECK_GUARD = 5, HOME_WATER_KM = 900;
+
+  var SPRINT_MAX = SPRINT_SWEEP + SPRINT_SECONDS;
+  for (var si = 0; si < SPRINT_COUNT.length; si++) SPRINT_MAX += SPRINT_COUNT[si] * SPRINT_PTS[si];
+  var MAX_TOTAL = PHASE1_MAX + SPRINT_MAX;
+
+  /* The flags the sprint shows: the hundred a general audience recognises,
+     dealt into rounds two to five as thirty, thirty, twenty, twenty. */
+  var FLAG_TIERS = [
+    ['United States of America','United Kingdom','Canada','France','Germany','Italy','Spain','Japan',
+     'China','India','Brazil','Mexico','Australia','Russia','South Korea','Netherlands','Switzerland',
+     'Sweden','Norway','Denmark','Ireland','Greece','Portugal','Turkey','South Africa','Argentina',
+     'Israel','Egypt','Jamaica','New Zealand'],
+    ['Poland','Belgium','Austria','Finland','Iceland','Czech Republic','Hungary','Ukraine','Romania',
+     'Croatia','Republic of Serbia','Vietnam','Thailand','Indonesia','Philippines','Malaysia',
+     'Singapore','Pakistan','Bangladesh','Saudi Arabia','United Arab Emirates','Iran','Iraq','Nigeria',
+     'Kenya','Ethiopia','Ghana','Morocco','Chile','Colombia'],
+    ['Peru','Venezuela','Cuba','Costa Rica','Panama','Dominican Republic','Bolivia','Ecuador','Uruguay',
+     'Paraguay','Guatemala','Nepal','Sri Lanka','Myanmar','Cambodia','North Korea','Taiwan','Kazakhstan',
+     'Afghanistan','Syria'],
+    ['Lebanon','Jordan','Kuwait','Qatar','Oman','Yemen','Libya','Algeria','Tunisia','Sudan',
+     'United Republic of Tanzania','Uganda','Zimbabwe','Zambia','Senegal','Ivory Coast','Cameroon',
+     'Angola','Mozambique','Madagascar']
+  ];
+
+  /* ---------------------------------------------------------- the maths */
+  function gcKm(lon1, lat1, lon2, lat2) {
+    var p1 = lat1 * D2R, p2 = lat2 * D2R, dp = (lat2 - lat1) * D2R, dl = (lon2 - lon1) * D2R;
+    var a = Math.sin(dp / 2) * Math.sin(dp / 2) +
+            Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+    return 2 * R_EARTH * Math.asin(Math.min(1, Math.sqrt(a)));
+  }
+
+  // Distance alone decides the score, except that a guess inside the right
+  // country gets its distance discounted.
+  function rawScore(km) {
+    if (km <= HOME_KM) return 100;
+    return Math.max(0, Math.round(100 * Math.exp(-(km - HOME_KM) / DECAY)));
+  }
+  function scoreFor(km, exact, sameCountry) {
+    if (exact) return 100;
+    var d = sameCountry && km > HOME_KM ? HOME_KM + (km - HOME_KM) * HOME_DISCOUNT : km;
+    return rawScore(d);
+  }
+
+  function fnv(s) {
+    var h = 2166136261 >>> 0;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function shuffled(list, seedStr) {
+    var a = list.slice(), rng = mulberry32(fnv(seedStr));
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(rng() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  // Each round deals from a shuffled deck of its whole pool and reshuffles only
+  // when the deck runs out. At a deck boundary the first few cards are swapped
+  // clear of the previous deck's last few.
+  function deckFor(list, r, cycle) {
+    var d = shuffled(list, 'sojourner|r' + r + '|deck' + cycle), n = d.length;
+    if (cycle <= 0 || n <= 2 * DECK_GUARD) return d;
+    var tail = shuffled(list, 'sojourner|r' + r + '|deck' + (cycle - 1)).slice(n - DECK_GUARD);
+    var j = DECK_GUARD;
+    for (var i = 0; i < DECK_GUARD; i++) {
+      if (tail.indexOf(d[i]) < 0) continue;
+      while (j < n && tail.indexOf(d[j]) >= 0) j++;
+      if (j >= n) break;
+      var t = d[i]; d[i] = d[j]; d[j] = t; j++;
+    }
+    return d;
+  }
+
+  /* ---------------------------------------------- the engine, for one map
+     GD is what the game loads: meta.json (admins, flagA, gL, gA, gX, gY) with
+     pool.json as GD.pool. opts.tidy turns a country's name into the one the
+     game shows; scoring never reads a name, so the server passes nothing. */
+  function make(GD, opts) {
+    var tidy = (opts && opts.tidy) || function (a) { return a; };
+    var POOL = GD.pool;
+    var byAdmin = {}, byRound = [[], [], [], [], []], countryEntry = {};
+    var i;
+
+    for (i = 1; i < GD.gA.length; i++) {
+      var a0 = GD.gA[i];
+      (byAdmin[a0] || (byAdmin[a0] = [])).push(i);
+    }
+    for (i = 0; i < POOL.length; i++) {
+      var p = POOL[i];
+      byRound[p.r - 1].push(i);
+      if (!p.w && p.n === p.c) countryEntry[p.a] = p;
+    }
+
+    function asEntry(v) { return typeof v === 'number' ? POOL[v] : v; }
+
+    function synthCountry(a, r, cc) {
+      var ids = byAdmin[a] || [], sx = 0, sy = 0, k;
+      for (k = 0; k < ids.length; k++) { sx += GD.gX[ids[k]]; sy += GD.gY[ids[k]]; }
+      var nm = tidy(GD.admins[a] || '');
+      return { r: r, n: nm, c: nm, a: a, t: ids, fl: cc,
+               x: Math.round(sx / Math.max(1, ids.length)), y: Math.round(sy / Math.max(1, ids.length)),
+               f: '', s: '', u: '' };
+    }
+
+    // The focus country is asked region by region, everywhere else as a whole
+    // country. Built once per focus country and cached.
+    var roundsCache = {};
+    function countryRounds(focus) {
+      if (roundsCache[focus]) return roundsCache[focus];
+      var rounds = [[], [], [], [], []], tier = {}, seen = {}, home = [];
+      POOL.forEach(function (p) {
+        if (!p.w && GD.admins[p.a] === focus) home.push([p.x / 100, p.y / 100]);
+      });
+      // Round one is home ground, so a sea only belongs there if it is on the
+      // focus country's doorstep.
+      function nearHome(p) {
+        for (var k = 0; k < home.length; k++)
+          if (gcKm(p.x / 100, p.y / 100, home[k][0], home[k][1]) <= HOME_WATER_KM) return true;
+        return false;
+      }
+      POOL.forEach(function (p, i) {
+        if (p.w) { rounds[(p.r === 1 && !nearHome(p)) ? 1 : p.r - 1].push(i); return; }
+        var adm = GD.admins[p.a];
+        // every region of the focus country, whatever tier it sits in elsewhere
+        if (adm === focus) { rounds[0].push(i); return; }
+        if (tier[p.a] === undefined || p.r < tier[p.a]) tier[p.a] = p.r;
+      });
+      POOL.forEach(function (p) {
+        if (p.w) return;
+        var adm = GD.admins[p.a];
+        if (adm === focus || adm === 'Water' || seen[p.a]) return;
+        seen[p.a] = 1;
+        var e = countryEntry[p.a] || synthCountry(p.a, tier[p.a] || 5, GD.flagA[p.a] || '');
+        rounds[(tier[p.a] || 5) - 1].push(e);
+      });
+      roundsCache[focus] = rounds;
+      return rounds;
+    }
+
+    var flagDeckCache = null;
+    function flagDeck() {
+      if (flagDeckCache) return flagDeckCache;
+      var deck = [[], [], [], [], []];                    // round 1 never asks a flag
+      FLAG_TIERS.forEach(function (names, t) {
+        names.forEach(function (nm) {
+          var a = GD.admins.indexOf(nm);
+          if (a < 0) return;
+          var cc = GD.flagA[a];
+          if (!cc) return;
+          var e = countryEntry[a] || synthCountry(a, t + 2, cc);
+          if (!e.t || !e.t.length) return;
+          deck[t + 1].push(e);
+        });
+      });
+      flagDeckCache = deck;
+      return deck;
+    }
+
+    function dayIndexOf(dayKey) {
+      var p = dayKey.split('-');
+      return Math.floor(Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000);
+    }
+    function dailyPicks(dayKey, focus) {
+      var dayIndex = dayIndexOf(dayKey), picks = [];
+      for (var r = 0; r < 5; r++) {
+        var list = countryRounds(focus)[r], n = list.length;
+        if (!n) { picks.push(byRound[r][0]); continue; }
+        var cycle = Math.floor(dayIndex / n), pos = ((dayIndex % n) + n) % n;
+        picks.push(deckFor(list, r, cycle)[pos]);
+      }
+      return picks;
+    }
+    function practicePicks(focus, seed) {
+      var picks = [];
+      for (var r = 0; r < 5; r++) {
+        var list = countryRounds(focus)[r];
+        if (!list.length) list = byRound[r];
+        picks.push(shuffled(list, seed + '|' + r)[0]);
+      }
+      return picks;
+    }
+
+    // Three places a round (one in round one), from that round's pool and, from
+    // round two on, its flags as well. Which of the two you get is the draw.
+    function sprintBag(seed, focus) {
+      var rounds = countryRounds(focus), flags = flagDeck(), bag = [];
+      for (var r = 0; r < 5; r++) {
+        var cand = (rounds[r] || []).map(function (v) { return { e: asEntry(v), r: r, flag: false }; });
+        (flags[r] || []).forEach(function (e) { cand.push({ e: e, r: r, flag: true }); });
+        bag = bag.concat(shuffled(cand, seed + '|' + r).slice(0, SPRINT_COUNT[r]));
+      }
+      return bag;
+    }
+
+    // One Phase 1 guess: `pickId` is the region the player chose.
+    function scoreGuess(entry, round, pickId) {
+      var e = asEntry(entry);
+      var exact = e.t.indexOf(pickId) >= 0;
+      var same = !e.w && GD.gA[pickId] === e.a;           // 'same country' is meaningless at sea
+      var gx = GD.gX[pickId] / 100, gy = GD.gY[pickId] / 100;
+      var km = exact ? 0 : gcKm(gx, gy, e.x / 100, e.y / 100);
+      var base = scoreFor(km, exact, same);
+      var plain = scoreFor(km, exact, false);
+      return { exact: exact, same: same, km: km, base: base, bonus: base - plain,
+               pts: Math.round(base * MULT[round]), gx: gx, gy: gy };
+    }
+
+    function validRegion(id) {
+      return typeof id === 'number' && id === Math.floor(id) && id >= 1 && id < GD.gA.length;
+    }
+
+    /* A daily game's moves, replayed.
+
+         moves = { v:1, focus:'United States of America',
+                   rounds:[regionId x 5],
+                   sprint:{ answers:[regionId ...], secs:<whole seconds left> } }
+
+       Returns { ok:true, total, max, rounds, sprint } or { ok:false, error }.
+       The one number it cannot check is `secs`: it is clamped to the minute and
+       counted only when every place was answered, and that is the whole of what
+       a dishonest clock can add. */
+    function verify(moves, dayKey) {
+      function fail(code) { return { ok: false, error: code }; }
+      if (!moves || typeof moves !== 'object' || moves.v !== 1) return fail('bad_moves');
+      var focus = moves.focus;
+      if (typeof focus !== 'string' || GD.admins.indexOf(focus) < 0) return fail('bad_focus');
+      var rounds = moves.rounds, k;
+      if (!Array.isArray(rounds) || rounds.length !== 5) return fail('bad_moves');
+      for (k = 0; k < 5; k++) if (!validRegion(rounds[k])) return fail('bad_moves');
+
+      var picks = dailyPicks(dayKey, focus), p1 = 0, out = [];
+      for (k = 0; k < 5; k++) {
+        var g = scoreGuess(picks[k], k, rounds[k]);
+        p1 += g.pts;
+        out.push({ pick: rounds[k], pts: g.pts, base: g.base, km: Math.round(g.km), exact: g.exact });
+      }
+
+      var sp = moves.sprint;
+      if (!sp || typeof sp !== 'object' || !Array.isArray(sp.answers)) return fail('bad_moves');
+      var bag = sprintBag('sprint|' + dayKey, focus);
+      if (sp.answers.length > bag.length) return fail('bad_moves');
+      var right = 0, score = 0;
+      for (k = 0; k < sp.answers.length; k++) {
+        if (!validRegion(sp.answers[k])) return fail('bad_moves');
+        if (bag[k].e.t.indexOf(sp.answers[k]) >= 0) { right++; score += SPRINT_PTS[bag[k].r]; }
+      }
+      var completed = sp.answers.length === bag.length;
+      var secs = Math.floor(Number(sp.secs));
+      var bonus = completed && isFinite(secs) ? Math.max(0, Math.min(SPRINT_SECONDS, secs)) : 0;
+      var sweep = right === bag.length ? SPRINT_SWEEP : 0;
+      var sprintScore = score + bonus + sweep;
+      return {
+        ok: true,
+        total: p1 + sprintScore,
+        max: MAX_TOTAL,
+        rounds: out,
+        sprint: { score: sprintScore, right: right, of: bag.length, bonus: bonus, sweep: sweep }
+      };
+    }
+
+    /* A short fingerprint of the map this engine was built from. The game sends
+       its own with each result; if the server's differs, the two were built from
+       different maps and a replay would be meaningless -- so the server asks the
+       game to try again later instead of judging it.
+       It reads ONLY what scoring reads: where each place is, what it is made of
+       and which country it belongs to. The game hangs other things on its pool
+       entries as it runs (the reveal stories, for one), and those must never
+       change the answer. */
+    var keyCache = null;
+    function keyHash() {
+      if (keyCache) return keyCache;
+      var parts = [], n = POOL.length;
+      for (var k = 0; k < n; k++) {
+        var p = POOL[k];
+        parts.push(p.r + ',' + p.a + ',' + (p.w ? 1 : 0) + ',' + p.n + ',' + p.c + ',' + p.x + ',' + p.y + ',' + p.t.join('.'));
+      }
+      keyCache = fnv(parts.join('|') + '#' + GD.admins.join(',') + '#' + GD.gA.join(',') + '#' +
+                     GD.gX.join(',') + '#' + GD.gY.join(',')).toString(36);
+      return keyCache;
+    }
+
+    return {
+      asEntry: asEntry, countryRounds: countryRounds, flagDeck: flagDeck,
+      dailyPicks: dailyPicks, practicePicks: practicePicks, sprintBag: sprintBag,
+      scoreGuess: scoreGuess, verify: verify, keyHash: keyHash,
+      byRound: byRound, byAdmin: byAdmin, countryEntry: countryEntry, synthCountry: synthCountry
+    };
+  }
+
+  return {
+    make: make, gcKm: gcKm, rawScore: rawScore, scoreFor: scoreFor,
+    fnv: fnv, mulberry32: mulberry32, shuffled: shuffled,
+    MULT: MULT, PHASE1_MAX: PHASE1_MAX, MAX_TOTAL: MAX_TOTAL,
+    SPRINT_COUNT: SPRINT_COUNT, SPRINT_PTS: SPRINT_PTS, SPRINT_SWEEP: SPRINT_SWEEP,
+    SPRINT_SECONDS: SPRINT_SECONDS
+  };
+})();
+if (typeof module !== 'undefined' && module.exports) module.exports = PSSojourner;
+/* ===== END packages/scoring/sojourner.cjs ===== */
+var ENG = null;            // the engine over this map's data, built in indexData()
 /* Phase 1 is worth 750: 100 + 125 + 150 + 175 + 200. Phase 2 pays a tenth of
    each round's value, rounded up -- 10, 13, 15, 18, 20 -- three places a round,
    so a clean sprint is 228 before the clock bonus. */
-var MULT = [1, 1.25, 1.5, 1.75, 2];
-var PHASE1_MAX = 750;
+var MULT = PSSojourner.MULT;
+var PHASE1_MAX = PSSojourner.PHASE1_MAX;
 /* The sprint asks one place from home, two from round two and three from each of
    the rest -- twelve in a minute, which is about as many as anyone gets through.
    The ladder steepens towards the end so that ten right lands just under 250. */
-var SPRINT_COUNT = [1, 2, 3, 3, 3];
-var SPRINT_PTS   = [15, 19, 24, 29, 36];
-var SPRINT_SWEEP = 25;                 // for finding every one of the twelve
+var SPRINT_COUNT = PSSojourner.SPRINT_COUNT;
+var SPRINT_PTS   = PSSojourner.SPRINT_PTS;
+var SPRINT_SWEEP = PSSojourner.SPRINT_SWEEP;
 function sprintPts(r){ return SPRINT_PTS[r]; }
 var HOLD_BASE = 620, MOVE_TOL = 11, PREVIEW_MS = 130, ARC_LEN = 364.42;
 
@@ -88,10 +434,7 @@ function shapeRow(results, currentRound, sprint){
 }
 
 /* ---------------- daily selection ---------------- */
-function fnv(s){ var h=2166136261>>>0; for(var i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; }
-function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0;
-  var t=Math.imul(a^a>>>15, 1|a); t=t+Math.imul(t^t>>>7, 61|t)^t;
-  return ((t^t>>>14)>>>0)/4294967296; }; }
+var fnv = PSSojourner.fnv;
 var byAdmin = {}, byPlace = {};
 /* The wrong guess is shown in the same orange whether it is one region or a whole
    country. A country needs the mask rather than uSel (which holds a single id), and
@@ -142,7 +485,6 @@ function setMasks(e){
   M.maskTex.needsUpdate = true;
   M.uniforms.uShowMask.value = 1;
 }
-var byRound = [[],[],[],[],[]];
 var learnIndex = {}, countryEntry = {};
 function buildExtras(){
   var i, p;
@@ -171,6 +513,8 @@ function synthCountry(a, r, cc){
 }
 function indexData(){
   GD = M.GD; POOL = GD.pool;
+  ENG = PSSojourner.make(GD, { tidy: tidy });
+  setTimeout(resendUnsent, 4000);
   /* What a round needs that the landing page never fetches: the reveal stories,
      the select sound, and the flags the sprint shows (one per country in the
      pool, 121 of them). Without these a first-time player who goes offline gets
@@ -187,86 +531,13 @@ function indexData(){
     var a = GD.gA[i];
     (byAdmin[a] || (byAdmin[a] = [])).push(i);
   }
-  POOL.forEach(function(p,i){ byRound[p.r-1].push(i); byPlace[p.n + '|' + p.c] = p; });
+  POOL.forEach(function(p,i){ byPlace[p.n + '|' + p.c] = p; });
   buildExtras();
 }
-// Countries+focus: the focus country is asked region by region, everywhere else
-// as a whole country. Built once per focus country and cached.
-var countryRounds = null, countryRoundsFor = null;
-var HOME_WATER_KM = 900;
-function buildCountryRounds(){
-  if(countryRoundsFor === SET.focus && countryRounds) return countryRounds;
-  var rounds = [[],[],[],[],[]], tier = {}, seen = {}, home = [];
-  POOL.forEach(function(p){
-    if(!p.w && GD.admins[p.a] === SET.focus) home.push([p.x/100, p.y/100]);
-  });
-  // Round one is home ground, so a sea only belongs there if it is on the focus
-  // country's doorstep -- the Great Lakes and the Gulf of Mexico for the US, not
-  // the Atlantic.
-  function nearHome(p){
-    for(var k=0;k<home.length;k++)
-      if(M.gcKm(p.x/100, p.y/100, home[k][0], home[k][1]) <= HOME_WATER_KM) return true;
-    return false;
-  }
-  POOL.forEach(function(p, i){
-    if(p.w){ rounds[(p.r === 1 && !nearHome(p)) ? 1 : p.r-1].push(i); return; }
-    var adm = GD.admins[p.a];
-    // every region of the focus country, whatever tier it sits in elsewhere
-    if(adm === SET.focus){ rounds[0].push(i); return; }
-    if(tier[p.a] === undefined || p.r < tier[p.a]) tier[p.a] = p.r;
-  });
-  POOL.forEach(function(p){
-    if(p.w) return;
-    var adm = GD.admins[p.a];
-    if(adm === SET.focus || adm === 'Water' || seen[p.a]) return;
-    seen[p.a] = 1;
-    var e = countryEntry[p.a] || synthCountry(p.a, tier[p.a] || 5, GD.flagA[p.a] || '');
-    rounds[(tier[p.a] || 5) - 1].push(e);
-  });
-  countryRounds = rounds; countryRoundsFor = SET.focus;
-  return rounds;
-}
-function deckFor2(r){ return buildCountryRounds()[r]; }
+// Countries+focus rounds are built by the shared engine (packages/scoring/sojourner.cjs),
+// once per focus country.
+function deckFor2(r){ return ENG.countryRounds(SET.focus)[r]; }
 
-/* ---------------- flags, for the sprint ----------------
-   The old Flags mode asked for any country in the game, which turned out to be a
-   memory test rather than a geography one. These hundred are the ones a general
-   audience actually recognises, ranked roughly by how often they are seen --
-   economies, sporting nations, holiday destinations, distinctive designs -- and
-   dealt into rounds two through five as thirty, thirty, twenty, twenty. */
-var FLAG_TIERS = [
-  ['United States of America','United Kingdom','Canada','France','Germany','Italy','Spain','Japan',
-   'China','India','Brazil','Mexico','Australia','Russia','South Korea','Netherlands','Switzerland',
-   'Sweden','Norway','Denmark','Ireland','Greece','Portugal','Turkey','South Africa','Argentina',
-   'Israel','Egypt','Jamaica','New Zealand'],
-  ['Poland','Belgium','Austria','Finland','Iceland','Czech Republic','Hungary','Ukraine','Romania',
-   'Croatia','Republic of Serbia','Vietnam','Thailand','Indonesia','Philippines','Malaysia',
-   'Singapore','Pakistan','Bangladesh','Saudi Arabia','United Arab Emirates','Iran','Iraq','Nigeria',
-   'Kenya','Ethiopia','Ghana','Morocco','Chile','Colombia'],
-  ['Peru','Venezuela','Cuba','Costa Rica','Panama','Dominican Republic','Bolivia','Ecuador','Uruguay',
-   'Paraguay','Guatemala','Nepal','Sri Lanka','Myanmar','Cambodia','North Korea','Taiwan','Kazakhstan',
-   'Afghanistan','Syria'],
-  ['Lebanon','Jordan','Kuwait','Qatar','Oman','Yemen','Libya','Algeria','Tunisia','Sudan',
-   'United Republic of Tanzania','Uganda','Zimbabwe','Zambia','Senegal','Ivory Coast','Cameroon',
-   'Angola','Mozambique','Madagascar']
-];
-var flagDeck = null;
-function buildFlagDeck(){
-  if(flagDeck) return flagDeck;
-  flagDeck = [[],[],[],[],[]];                       // round 1 never asks a flag
-  FLAG_TIERS.forEach(function(names, t){
-    names.forEach(function(nm){
-      var a = GD.admins.indexOf(nm);
-      if(a < 0) return;
-      var cc = GD.flagA[a];
-      if(!cc) return;
-      var e = countryEntry[a] || synthCountry(a, t+2, cc);
-      if(!e.t || !e.t.length) return;
-      flagDeck[t+1].push(e);
-    });
-  });
-  return flagDeck;
-}
 function asEntry(v){ return typeof v === 'number' ? POOL[v] : v; }
 
 /* ---------------- choosing which story to tell ----------------
@@ -357,67 +628,57 @@ function noStoryText(){
     : 'A story for this place is still being researched.';
 }
 
-/* leaderboards later: set window.SOJOURNER_API to a URL and finished games post to it.
-   Nothing is sent while it is unset. */
-function submitScore(){
-  var api = window.SOJOURNER_API;
-  if(!api || S.practice || S.late) return;   // a past day is for your own record
+/* Sending the day. The game sends what the player DID -- the region chosen for each
+   place -- and the server replays it with this same engine to work out the score
+   (option D, docs/notes/offline-and-score-integrity.md). The number on this screen
+   is the game's own; the one that ranks is the server's.
+   The platform client (/sdk.js) is loaded only when there is something to send, and
+   a missing or failing one is silent: the game never waits on it. Its queue holds a
+   result until there is a connection. If the client could not be loaded at all, the
+   saved day stays unsent and goes next time the game opens. */
+var psReady = null;
+function loadPS(){
+  if(!psReady){
+    psReady = import('/sdk.js').then(function(m){
+      var PS = m['default'];
+      try{ PS.init(); }catch(e){}
+      return PS;
+    })['catch'](function(){ return null; });
+  }
+  return psReady;
+}
+function markSent(day){
   try{
-    fetch(api.replace(/\/$/,'') + '/score', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        day: S.dayKey, total: S.total,
-        rounds: S.results.map(function(r){ return {place:r.e.n, country:r.e.c, base:r.base, pts:r.pts, km:Math.round(r.km)}; })
-      })
-    })['catch'](function(){});
+    var k = 'sojourner:' + day, d = JSON.parse(localStorage.getItem(k) || 'null');
+    if(d){ d.sent = true; localStorage.setItem(k, JSON.stringify(d)); }
   }catch(e){}
 }
-function shuffled(list, seedStr){
-  var a = list.slice(), rng = mulberry32(fnv(seedStr));
-  for(var i=a.length-1;i>0;i--){
-    var j = Math.floor(rng()*(i+1));
-    var t = a[i]; a[i] = a[j]; a[j] = t;
-  }
-  return a;
+function sendMoves(day, moves, claimed){
+  return loadPS().then(function(PS){
+    if(!PS || !ENG) return false;
+    PS.saveResult({ game:'sojourner', day:day, mode:'daily', moves:moves, key:ENG.keyHash(),
+                    score:claimed, maxScore:PSSojourner.MAX_TOTAL });
+    markSent(day);
+    return true;
+  });
 }
-// Each round deals from a shuffled deck of its whole pool and reshuffles only when the
-// deck runs out, so nothing can come round again until everything else has been used.
-// At a deck boundary the first few cards are swapped clear of the previous deck's last
-// few, which keeps the closest possible repeat about a week apart.
-var DECK_GUARD = 5;
-function deckFor(list, r, cycle){
-  var d = shuffled(list, 'sojourner|r' + r + '|deck' + cycle), n = d.length;
-  if(cycle <= 0 || n <= 2*DECK_GUARD) return d;
-  var tail = shuffled(list, 'sojourner|r' + r + '|deck' + (cycle-1)).slice(n - DECK_GUARD);
-  var j = DECK_GUARD;
-  for(var i=0;i<DECK_GUARD;i++){
-    if(tail.indexOf(d[i]) < 0) continue;
-    while(j < n && tail.indexOf(d[j]) >= 0) j++;
-    if(j >= n) break;
-    var t = d[i]; d[i] = d[j]; d[j] = t; j++;
-  }
-  return d;
+function submitScore(){
+  if(S.practice || S.late || !S.movesLog) return;   // a past day is for your own record
+  sendMoves(S.dayKey, S.movesLog, S.total);
 }
-function dailyPicks(dayKey){
-  var p = dayKey.split('-');
-  var dayIndex = Math.floor(Date.UTC(+p[0], +p[1]-1, +p[2]) / 86400000);
-  var picks = [];
-  for(var r=0;r<5;r++){
-    var list = deckFor2(r), n = list.length;
-    if(!n){ picks.push(byRound[r][0]); continue; }
-    var cycle = Math.floor(dayIndex / n), pos = ((dayIndex % n) + n) % n;
-    picks.push(deckFor(list, r, cycle)[pos]);
-  }
-  return picks;
+// Today's and yesterday's saved games that never reached the platform client.
+function resendUnsent(){
+  [utcDayKey(), utcDayKeyAgo(1)].forEach(function(day){
+    try{
+      var d = JSON.parse(localStorage.getItem('sojourner:' + day) || 'null');
+      if(d && d.moves && !d.sent && !d.late) sendMoves(day, d.moves, d.total);
+    }catch(e){}
+  });
 }
+var shuffled = PSSojourner.shuffled;
+function dailyPicks(dayKey){ return ENG.dailyPicks(dayKey, SET.focus); }
 function practicePicks(){
-  var picks = [], seed = 'practice|' + Math.random() + '|' + Date.now();
-  for(var r=0;r<5;r++){
-    var list = deckFor2(r);
-    if(!list.length) list = byRound[r];
-    picks.push(shuffled(list, seed + '|' + r)[0]);
-  }
-  return picks;
+  return ENG.practicePicks(SET.focus, 'practice|' + Math.random() + '|' + Date.now());
 }
 function utcDayKey(){
   var d = new Date();
@@ -444,16 +705,7 @@ function prettyDate(key){
 // Distance alone decides the score, except that a guess inside the right country
 // gets its distance discounted — worth roughly a tenth of the round, and always
 // beatable by a guess that is meaningfully closer.
-var HOME_KM = 150, DECAY = 1600, HOME_DISCOUNT = 0.7;
-function rawScore(km){
-  if(km <= HOME_KM) return 100;
-  return Math.max(0, Math.round(100 * Math.exp(-(km-HOME_KM)/DECAY)));
-}
-function scoreFor(km, exact, sameCountry){
-  if(exact) return 100;
-  var d = sameCountry && km > HOME_KM ? HOME_KM + (km-HOME_KM)*HOME_DISCOUNT : km;
-  return rawScore(d);
-}
+var rawScore = PSSojourner.rawScore, scoreFor = PSSojourner.scoreFor;
 function fmtKm(km){
   var v = SET.units === 'mi' ? km*0.621371 : km;
   var u = SET.units === 'mi' ? ' mi' : ' km';
@@ -782,24 +1034,14 @@ function setHint(t){ var h=$('hint'); h.textContent=t; h.style.opacity = t ? '1'
    the sprint walks the same ladder the daily just climbed. A place is worth a
    tenth of what it was worth in Phase 1, rounded up. Answer all fifteen before
    the minute is out and the seconds you did not spend are added to the score. */
-var SPRINT_SECONDS = 60;
+var SPRINT_SECONDS = PSSojourner.SPRINT_SECONDS;
 var GREAT_LAKES = ['Lake Superior','Lake Michigan','Lake Huron','Lake Erie','Lake Ontario'];
 
-function sprintBag(seed){
-  var rounds = buildCountryRounds(), flags = buildFlagDeck(), bag = [];
-  for(var r=0;r<5;r++){
-    // A round's three questions are drawn from one pool: its places, and from
-    // round two on its flags as well. Which of the two you get is the draw.
-    var cand = (rounds[r] || []).map(function(v){ return { e: asEntry(v), r: r, flag: false }; });
-    (flags[r] || []).forEach(function(e){ cand.push({ e: e, r: r, flag: true }); });
-    bag = bag.concat(shuffled(cand, seed + '|' + r).slice(0, SPRINT_COUNT[r]));
-  }
-  return bag;
-}
+function sprintBag(seed){ return ENG.sprintBag(seed, SET.focus); }
 function startSprint(){
   var seed = 'sprint|' + (S.practice ? Math.random() + '|' + Date.now() : S.dayKey);
   S.phase = 2;
-  S.sprint = { bag: sprintBag(seed), at:0, score:0, done:0, right:0, log:[], bonus:0, sweep:0 };
+  S.sprint = { bag: sprintBag(seed), at:0, score:0, done:0, right:0, log:[], bonus:0, sweep:0, answers:[] };
   S.mode = 'play'; refreshQuit();
   PSUI.close();
   show($('introView'), false); show($('resultsView'), false);
@@ -839,6 +1081,7 @@ function sprintGuess(pick){
   var right = e.t.indexOf(pick.id) >= 0;
   var pts = right ? sprintPts(item.r) : 0;
   q.score += pts; q.done++; if(right) q.right++;
+  q.answers.push(pick.id);
   q.log.push({ e:e, r:item.r, flag:item.flag, right:right, pts:pts });
   clearWrong();
   M.paintQuiz(e.t, right ? 1 : 4);          // blue for found, orange for missed
@@ -856,6 +1099,8 @@ function finishSprint(completed){
   q.score += q.bonus + q.sweep;
   stopClock();
   S.total = S.phase1Total + q.score;
+  S.movesLog = { v:1, focus:SET.focus, rounds:S.moves.slice(),
+                 sprint:{ answers:q.answers.slice(), secs:q.bonus } };
   S.mode = 'done'; refreshQuit();
   M.setPulse(false); M.uniforms.uSel.value = 0;
   $('topbar').style.display = 'none'; $('promptBox').style.display = 'none';
@@ -886,6 +1131,7 @@ function startGame(practice){
   S.late = !practice && S.dayKey !== utcDayKey();
   S.picks = practice ? practicePicks() : dailyPicks(S.dayKey);
   S.round = 0; S.results = []; S.total = 0; S.phase1Total = 0;
+  S.moves = []; S.movesLog = null;
   resetStoryPicks(); ensureFacts();   // the reveal wants to know if a story has a journey
   stopClock();
   show($('introView'), false); show($('resultsView'), false);
@@ -916,17 +1162,12 @@ function beginRound(){
 function commitGuess(pick){
   if(S.mode !== 'play') return;
   var e = asEntry(S.picks[S.round]);
-  var exact = e.t.indexOf(pick.id) >= 0;
-  var same = !e.w && GD.gA[pick.id] === e.a;   // 'same country' is meaningless at sea
-  var gx = GD.gX[pick.id]/100, gy = GD.gY[pick.id]/100;
-  var km = exact ? 0 : M.gcKm(gx, gy, e.x/100, e.y/100);
-  var base = scoreFor(km, exact, same);
-  var plain = scoreFor(km, exact, false);
-  var pts = Math.round(base * MULT[S.round]);
-  var r = { e:e, base:base, bonus:base-plain, pts:pts, km:km, exact:exact,
-            same:same, guessId:pick.id, gx:gx, gy:gy };
+  var g = ENG.scoreGuess(e, S.round, pick.id);
+  var r = { e:e, base:g.base, bonus:g.bonus, pts:g.pts, km:g.km, exact:g.exact,
+            same:g.same, guessId:pick.id, gx:g.gx, gy:g.gy };
   S.results.push(r);
-  S.total += pts;
+  S.moves.push(pick.id);                       // what the server replays
+  S.total += g.pts;
   S.mode = 'reveal';
   refreshQuit();
   showReveal(e, r);
@@ -1570,7 +1811,7 @@ function saveDay(){
                           n:S.sprint.bag.length, log:S.sprint.log } : null;
     localStorage.setItem('sojourner:'+S.dayKey, JSON.stringify(
       {total:S.total, results:S.results, picks:S.picks, p1:S.phase1Total, sprint:sp,
-       late:!!S.late}));
+       late:!!S.late, moves:S.movesLog || null}));
   }catch(e){}
 }
 function loadDay(){
@@ -1815,7 +2056,6 @@ $('segStyle').addEventListener('click', function(ev){
 });
 $('selFocus').addEventListener('change', function(){
   SET.focus = this.value; saveSettings();
-  countryRounds = null; countryRoundsFor = null;
   applySettings(); resetToIntro();
 });
 $('segUnits').addEventListener('click', function(ev){

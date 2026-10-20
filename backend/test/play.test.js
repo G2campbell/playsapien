@@ -13,7 +13,7 @@ function result(overrides = {}) {
     day: TODAY,
     mode: 'daily',
     score: 640,
-    max_score: 1000,
+    max_score: 1155,
     detail: { rounds: [{ pts: 128 }] },
     duration_ms: 214000,
     ...overrides,
@@ -61,7 +61,7 @@ test('the day, the score and the max are all enforced', async () => {
     [result({ day: utcDay(T0 - 3 * DAY) }), 'stale_day'],
     [result({ day: utcDay(T0 + DAY) }), 'stale_day'],
     [result({ day: '2026-02-31' }), 'bad_day'],
-    [result({ score: 1001 }), 'bad_score'],
+    [result({ score: 1156 }), 'bad_score'],
     [result({ score: -1 }), 'bad_score'],
     [result({ score: 12.5 }), 'bad_score'],
     [result({ max_score: 999 }), 'bad_max_score'],
@@ -111,7 +111,7 @@ test('the sojourner alias translates the old body shape', async () => {
   const row = h.db.one('SELECT game, score, max_score, detail FROM results');
   assert.equal(row.game, 'sojourner');
   assert.equal(row.score, 812);
-  assert.equal(row.max_score, 1000);
+  assert.equal(row.max_score, 1155);
   assert.equal(JSON.parse(row.detail).rounds[0].place, 'Accra');
 });
 
@@ -143,7 +143,7 @@ test('an anonymous device can record a result and read it back', async () => {
 async function post(h, cookie, day, score = 500, game = 'sojourner') {
   const res = await call(h.env, 'POST', '/api/play/result', {
     cookie,
-    body: { game, day, mode: 'daily', score, max_score: game === 'wordchain' ? 7 : 1000 },
+    body: { game, day, mode: 'daily', score, max_score: game === 'wordchain' ? 7 : 1155 },
   });
   assert.equal(res.status, 201, 'posting ' + day + ': ' + JSON.stringify(res.body));
   return res;
@@ -248,7 +248,7 @@ test('practice never counts towards a streak', async () => {
 
   await call(h.env, 'POST', '/api/play/result', {
     cookie: me.cookie,
-    body: { game: 'sojourner', day: TODAY, mode: 'practice', score: 900, max_score: 1000 },
+    body: { game: 'sojourner', day: TODAY, mode: 'practice', score: 900, max_score: 1155 },
   });
 
   const s = streakOf(h, me.user.id, 'sojourner');

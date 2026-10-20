@@ -2,7 +2,8 @@
 
    GET /api/player/analytics?game=<sojourner|wordchain|all>&group=<group id>
 
-   Three horizons, from daily results only (practice never counts):
+   Three horizons, from verified daily results only (practice never counts, and
+   neither does a score a game merely reported -- see routes/play.js):
 
      daily     today's result
      dozen     the mean of the last 12 results   (Sapien; once there are 12)
@@ -62,7 +63,7 @@ function scopeClause(scope, me, groupId) {
    without enough results for the horizon has no row. */
 function measureSql(kind, game, day, scope, me, groupId) {
   const params = [];
-  let where = `r.mode = 'daily' AND r.user_id IS NOT NULL AND u.deleted_at IS NULL`;
+  let where = `r.mode = 'daily' AND r.verified = 1 AND r.user_id IS NOT NULL AND u.deleted_at IS NULL`;
   if (game !== 'all') { where += ' AND r.game = ?'; params.push(game); }
   if (kind === 'daily') { where += ' AND r.day = ?'; params.push(day); }
   const sc = scopeClause(scope, me, groupId);
@@ -144,7 +145,7 @@ export async function analytics(ctx) {
     const have = await mine(ctx.db, kind, game, day, me);
     const total = (await first(ctx.db,
       `SELECT COUNT(*) AS n FROM results r
-        WHERE r.user_id = ? AND r.mode = 'daily'${game === 'all' ? '' : ' AND r.game = ?'}`,
+        WHERE r.user_id = ? AND r.mode = 'daily' AND r.verified = 1${game === 'all' ? '' : ' AND r.game = ?'}`,
       ...(game === 'all' ? [me] : [me, game]))).n;
     const out = { games: total, you: null, compare: {} };
     if (kind === 'dozen') out.needed = DOZEN;
