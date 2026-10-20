@@ -258,7 +258,8 @@ export async function leaderboard(ctx) {
   const ph = ids.map(() => '?').join(',');
   const rows = await all(ctx.db,
     `SELECT r.user_id, r.score, r.max_score, r.duration_ms, r.created_at,
-            u.handle, u.display_name, u.avatar
+            u.handle, u.display_name, u.avatar,
+            CASE WHEN u.avatar = 'custom' THEN u.avatar_img END AS avatar_img
        FROM results r JOIN users u ON u.id = r.user_id
       WHERE r.game = ? AND r.day = ? AND r.mode = 'daily'
         AND u.deleted_at IS NULL AND r.user_id IN (${ph})
@@ -275,6 +276,7 @@ export async function leaderboard(ctx) {
       handle: r.handle,
       display_name: r.display_name || '',
       avatar: r.avatar,
+      avatar_img: r.avatar_img || null,
       score: r.score,
       max_score: r.max_score,
       duration_ms: r.duration_ms,
@@ -308,7 +310,9 @@ export async function standings(ctx) {
       GROUP BY r.user_id, r.game`, from, today, ...ids);
 
   const people = await all(ctx.db,
-    `SELECT id, handle, display_name, avatar FROM users WHERE id IN (${ph})`, ...ids);
+    `SELECT id, handle, display_name, avatar,
+            CASE WHEN avatar = 'custom' THEN avatar_img END AS avatar_img
+       FROM users WHERE id IN (${ph})`, ...ids);
   const profile = new Map(people.map((p) => [p.id, p]));
 
   const byUser = new Map();
@@ -322,6 +326,7 @@ export async function standings(ctx) {
         handle: p.handle || null,
         display_name: p.display_name || '',
         avatar: p.avatar || null,
+        avatar_img: p.avatar_img || null,
         days: 0,
         total_score: 0,
         games: {},

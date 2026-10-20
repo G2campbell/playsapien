@@ -233,6 +233,42 @@ test('a notice is written for a request and for an acceptance', async () => {
   assert.equal(after.data.unread, 0);
 });
 
+/* ---------------------------------------------------------------- avatars */
+
+test('a friend is seen wearing the avatar they chose, uploaded pictures included', async () => {
+  const h = makeEnv();
+  const kai = await signIn(h, 'kai@example.com');
+  const ama = await signIn(h, 'ama@example.com');
+  const PIC = 'data:image/png;base64,iVBORw0KGgo=';
+
+  await call(h.env, 'POST', '/api/player/friends/add',
+    { cookie: kai.cookie, body: { code: await codeFor(h, ama.cookie) } });
+
+  /* Pending: the invited player already sees the inviter's face. */
+  await call(h.env, 'PATCH', '/api/player/me',
+    { cookie: kai.cookie, body: { avatar: 'custom', avatar_img: PIC } });
+  const pending = await call(h.env, 'GET', '/api/player/friends', { cookie: ama.cookie });
+  assert.equal(pending.data.incoming[0].avatar, 'custom');
+  assert.equal(pending.data.incoming[0].avatar_img, PIC);
+
+  await call(h.env, 'POST', '/api/player/friends/' + kai.user.id + '/accept', { cookie: ama.cookie });
+
+  /* Accepted: the picture reaches the list, the leaderboard and the standings. */
+  await postScore(h, kai.cookie, 700);
+  const list = await call(h.env, 'GET', '/api/player/friends', { cookie: ama.cookie });
+  assert.equal(list.data.accepted[0].avatar_img, PIC);
+  const board = await call(h.env, 'GET', '/api/play/leaderboard/sojourner/' + TODAY, { cookie: ama.cookie });
+  assert.equal(board.data.entries.find((e) => e.user_id === kai.user.id).avatar_img, PIC);
+  const table = await call(h.env, 'GET', '/api/play/standings', { cookie: ama.cookie });
+  assert.equal(table.data.entries.find((e) => e.user_id === kai.user.id).avatar_img, PIC);
+
+  /* Switching to a preset: the leftover upload is no longer sent. */
+  await call(h.env, 'PATCH', '/api/player/me', { cookie: kai.cookie, body: { avatar: 'monster-01' } });
+  const after = await call(h.env, 'GET', '/api/player/friends', { cookie: ama.cookie });
+  assert.equal(after.data.accepted[0].avatar, 'monster-01');
+  assert.equal(after.data.accepted[0].avatar_img, null);
+});
+
 /* ------------------------------------------------------------- leaderboard */
 
 test('the leaderboard holds the caller and accepted friends only', async () => {

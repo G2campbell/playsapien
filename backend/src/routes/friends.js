@@ -70,7 +70,9 @@ export async function listFriends(ctx) {
     `SELECT f.a_id, f.b_id, f.state, f.requested_by, f.created_at, f.responded_at,
             f.later_at, f.blocked_by,
             ua.handle AS a_handle, ua.display_name AS a_name, ua.avatar AS a_avatar,
-            ub.handle AS b_handle, ub.display_name AS b_name, ub.avatar AS b_avatar
+            CASE WHEN ua.avatar = 'custom' THEN ua.avatar_img END AS a_img,
+            ub.handle AS b_handle, ub.display_name AS b_name, ub.avatar AS b_avatar,
+            CASE WHEN ub.avatar = 'custom' THEN ub.avatar_img END AS b_img
        FROM friendships f
        JOIN users ua ON ua.id = f.a_id
        JOIN users ub ON ub.id = f.b_id
@@ -79,9 +81,12 @@ export async function listFriends(ctx) {
 
   const accepted = [], waitingOnMe = [], outgoing = [], blocked = [];
   for (const r of rows) {
+    /* avatar_img is the player's own uploaded picture. It is sent only when
+       their avatar token is 'custom' -- the renderer ignores it otherwise, and
+       a list of friends should not carry pictures nobody will draw. */
     const theirs = r.a_id === me
-      ? { id: r.b_id, handle: r.b_handle, display_name: r.b_name || '', avatar: r.b_avatar }
-      : { id: r.a_id, handle: r.a_handle, display_name: r.a_name || '', avatar: r.a_avatar };
+      ? { id: r.b_id, handle: r.b_handle, display_name: r.b_name || '', avatar: r.b_avatar, avatar_img: r.b_img || null }
+      : { id: r.a_id, handle: r.a_handle, display_name: r.a_name || '', avatar: r.a_avatar, avatar_img: r.a_img || null };
     const entry = { ...theirs, since: r.responded_at || r.created_at };
     if (r.state === 'accepted') accepted.push(entry);
     /* A block is shown only to the player who made it. The other side simply
