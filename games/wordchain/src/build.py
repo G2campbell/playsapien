@@ -119,17 +119,23 @@ def _unscramble(key, i, text):
     return json.loads(bytes(b ^ next(ks) for b in raw).decode('ascii'))
 
 
-def scramble_bank(chains, app_js):
-    """One scrambled string per chain, keyed by its position. The key lives in
-    part-c-app.js (BANK_KEY) and must match; both ends are checked here."""
+SEED_COUNT = 25      # practice chains the page carries; the original chains, all long since dailies
+
+
+def scramble_seed(chains, app_js):
+    """The practice seed: one scrambled string per chain, keyed by the chain's id (its
+    position in the bank). The key lives in part-c-app.js (BANK_KEY) and must match;
+    both ends are checked here."""
     m = re.search(r"var BANK_KEY = '([^']+)'", app_js)
     if not m:
-        sys.exit("part-c-app.js has no BANK_KEY, so the game could not read the chains")
+        sys.exit("part-c-app.js has no BANK_KEY, so the game could not read the seed chains")
     key = m.group(1)
-    out = [_scramble(key, i, c) for i, c in enumerate(chains)]
-    for i, c in enumerate(chains):                  # the round trip, on this side
-        if _unscramble(key, i, out[i]) != c:
+    out = []
+    for i in range(min(SEED_COUNT, len(chains))):
+        text = _scramble(key, i, chains[i])
+        if _unscramble(key, i, text) != chains[i]:     # the round trip, on this side
             sys.exit("chain %d does not survive scrambling" % i)
+        out.append({"id": i, "d": text})
     return out
 
 
@@ -150,14 +156,16 @@ def compose(src, site, style):
         {"level": c["level"], "words": c["words"],
          "links": [{"numberStrict": l["numberStrict"], "alt": l["alt"]} for l in c["links"]]}
         for c in data["chains"]]
-    # The chains are NOT shipped as readable text: every future day's answer would be
-    # one "view source" and a search away. They go out scrambled (scramble_bank below)
-    # and the game unscrambles one when it needs it. This is a screen, not a lock --
-    # the game has to be able to read them, so a developer with the page open can --
-    # but nothing in the source reads as a word list. See part-c-app.js bank().
-    slim = {"pairs": pairs, "calendar": data.get("calendar"),
-            "bank": scramble_bank(chains, read(src + 'part-c-app.js', 'part-c-app.js'))}
-    notes.append('chains %d, scrambled' % len(chains))
+    # The page does NOT carry the bank. Every chain is the game's own property, so the
+    # server holds them all (backend/src/lib/wcpools.js) and hands the game the day's chain
+    # and practice top-ups one at a time. All the page keeps is a small practice SEED, so a
+    # brand-new device can practise offline: the first SEED_COUNT of the original chains,
+    # every one long since played as a daily. They go out scrambled, so they do not read as a
+    # word list in the source. This is a screen, not a lock -- the game has to read them.
+    seed = scramble_seed(chains, read(src + 'part-c-app.js', 'part-c-app.js'))
+    slim = {"pairs": pairs, "seed": seed}
+    notes.append('practice seed %d chains, scrambled (the other %d are server-side)'
+                 % (len(seed), len(chains) - len(seed)))
 
     words = read(src + 'dict.txt', 'the word list dict.txt', DICT_HINT).split('\n')
     words = [w for w in words if 2 <= len(w) <= 18]

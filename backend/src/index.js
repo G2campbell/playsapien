@@ -14,7 +14,7 @@
    turns into one player seeing another's data. */
 
 import { ok, err, ERRORS, withCors, preflight, json } from './lib/http.js';
-import { Invalid } from './lib/validate.js';
+import { Invalid, utcDay } from './lib/validate.js';
 import { loadSession } from './middleware/session.js';
 import { sweep as sweepRateLimits } from './middleware/ratelimit.js';
 import { sendLoginCode, signinLink, sendFriendInvite } from './lib/email.js';
@@ -27,6 +27,7 @@ import * as groups from './routes/groups.js';
 import * as play from './routes/play.js';
 import * as analytics from './routes/analytics.js';
 import * as wordchain from './routes/wordchain.js';
+import * as wcplay from './routes/wordchain-play.js';
 import * as admin from './routes/admin.js';
 
 /* ================================================================== router */
@@ -84,6 +85,9 @@ const ROUTES = [
   ['POST',   '/api/wordchain/chains',            wordchain.submitChain],
   ['GET',    '/api/wordchain/chains/mine',       wordchain.myChains],
   ['GET',    '/api/wordchain/bank/:day',         wordchain.bank],
+  ['GET',    '/api/wordchain/chain/:day',        wcplay.chain],
+  ['GET',    '/api/wordchain/practice',          wcplay.practice],
+  ['POST',   '/api/wordchain/practice/played',   wcplay.practicePlayed],
 
   /* The legacy alias. partD.js:341 posts to SOJOURNER_API + '/score' already,
      so the existing game works by setting one constant (spec §4). */
@@ -93,6 +97,7 @@ const ROUTES = [
   ['POST',   '/api/admin/chains/:id',            admin.decideChain, { admin: true }],
   ['GET',    '/api/admin/incidents',             admin.incidents, { admin: true }],
   ['POST',   '/api/admin/users/:id/block',       admin.blockUser, { admin: true }],
+  ['GET',    '/api/admin/practice-stats',        wcplay.practiceStats, { admin: true }],
 ];
 
 function match(method, pathname) {
@@ -307,6 +312,9 @@ export default {
           env.DB.prepare('DELETE FROM email_invites WHERE created_at < ?').bind(now - 90 * DAY),
           /* Rejections only matter for the last 30 days (the sender pause). */
           env.DB.prepare('DELETE FROM friend_rejections WHERE at < ?').bind(now - 30 * DAY),
+          /* Practice counts older than about a year: the admin sizing view reads recent
+             weeks, and nothing in here names a person beyond their opaque id. */
+          env.DB.prepare('DELETE FROM practice_stats WHERE day < ?').bind(utcDay(now - 400 * DAY)),
           /* Sapien grants that have run out. Access already ended at the
              instant plan_until passed -- effectivePlan decides that at read
              time -- so this only makes the stored row say what is already

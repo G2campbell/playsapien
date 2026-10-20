@@ -75,7 +75,7 @@ mail app's browser instead of the tab you were playing in.
 | `games/wordchain/` | `src/build.py` inlines `part-a-style.html`, `part-b-body.html`, `part-c-app.js`, `composer.js`, `gamedata.json`, `pairs.json` and `dict.txt` into one `dist/index.html`. See §7. |
 | `games/wordchain/chain-tools/` | How the October 2026 chains were written, checked and scheduled (briefs, `check_chains.py`, `schedule.py`). |
 | `games/_template/` | A working starter game. **Start a new game here**; see its README. |
-| `backend/` | The API Worker. `src/index.js` holds the route table. `src/routes/` holds auth, player, friends, groups, play, wordchain and admin. `src/lib/` has helpers. `migrations/0001…0007_*.sql` is the database schema history. `test/` uses node:test with better-sqlite3 standing in for D1. |
+| `backend/` | The API Worker. `src/index.js` holds the route table. `src/routes/` holds auth, player, friends, groups, play, analytics, wordchain (submissions), wordchain-play (the day's chain, practice) and admin. `src/lib/` has helpers (`wcpools.js` is Word Chain's three pools). `migrations/0001…0009_*.sql` is the database schema history. `test/` uses node:test with better-sqlite3 standing in for D1. |
 | `packages/ui/` | **The shared chrome**: `bar.html` (top bar plus all shared sheets: Analytics, gate, upgrade/payWall, Profile, Friends and confirm cards), `ui.css` and `ui.js` (sheets, sign-in, profile, friends, avatars, gate, toasts). |
 | `packages/tokens/` | Design tokens (`tokens.css`), the theme script (`theme.js`) and the checkers: `sync-inline.mjs`, `check-inline.mjs` and `check-contrast.mjs`. |
 | `packages/sdk/` | Offline-first client (`PS`): sessions, day key, a result queue. Bundled to `deploy/sdk.js` with esbuild. `saveResult` can carry a game's `moves` and map `key`. |
@@ -140,7 +140,7 @@ editing.** A CRLF `build.sh` dies with `set: Illegal option -`.
 ## 4. Running and testing locally
 
 ```sh
-# Backend (needs Node 22). 139 tests, no Cloudflare account needed.
+# Backend (needs Node 22). 151 tests, no Cloudflare account needed.
 cd backend && npm install && npm test
 npx wrangler dev                      # local Worker + local D1 (optional)
 
@@ -224,7 +224,9 @@ live and checked by Kai. Later commits are committed but **not yet pushed or
 deployed**: `780d916` (friends see each other's uploaded avatars), `e09cb28`
 (Analytics), option D stage 1 (Sojourner sends moves, the server replays them;
 **migration 0008**) and option D stage 2 (Word Chain, ranked on server-kept time;
-no further migration). Both stages deploy together with the steps below.
+no further migration) and the Word Chain **pools and server-served chains** (migration **0009**:
+practice counts). All of it deploys together with the steps below (`migrations apply` runs
+every pending migration, so 0008 and 0009 go in one go).
 
 **Deploy order matters for option D.** Backend first, then `git push`:
 
@@ -278,16 +280,40 @@ the backend must be redeployed with it; until then the server answers 503
 
 ## 7. Word Chain specifics
 
-- **The bank is scrambled in the shipped page** (Kai asked that it not be easy to see). The
-  built page carries each chain as one scrambled string (`build.py` `scramble_bank`, XOR with
-  an xorshift32 stream keyed by `BANK_KEY` and the chain's position, then base64); the game
-  unscrambles one on demand (`bank(i)` in `part-c-app.js`) and removes `window.__WC_DATA__`.
-  View-source shows no words from any chain. It is a screen, not a lock: the game must read the
-  chains, so a developer with the page open still can. `BANK_KEY` must match in both files
-  (the build checks that and the round trip). Nothing else reads the shipped chains; the
-  server uses `gamedata.json` directly. Not hidden: the `pairs` list (what can follow each
-  word) and the word list, which are not answers; and an *unfinished* daily is kept in
-  `localStorage` with its words so it can be resumed (a player with devtools could read it).
+- **The page does NOT carry the bank; the server serves chains one at a time** (Kai, 20 Oct:
+  the chains, including player-made ones, are the game's intellectual property, so no need to
+  share them all). `lib/wcpools.js` + `routes/wordchain-play.js`:
+  - `GET /api/wordchain/chain/:day`: the chain for a day. Today's or a past day up to 40 days
+    back; **never a future day**. A player's chain the admin scheduled for that day wins over the
+    calendar's (`chainForDay`, used both to serve a day and to check a finished daily).
+    80 a day per player/device.
+  - `GET /api/wordchain/practice?n=&seen=`: a batch of practice chains for a device to top up
+    with; 12 top-ups a day. `POST /api/wordchain/practice/played {id}` counts a finished one.
+  - **Three pools** (Kai): **daily** (~250 chains, never practice, not even after they have
+    been a daily; player-made chains belong here too), **reserve** (~100, dailies first; once
+    one has been a daily it joins practice, and before that practice dips into it only if it
+    must), **practice** (the rest, plus the 34 originals: practice first, a daily only if the
+    others run out). The pools are a classification over the existing calendar order (first 250
+    of the newer chains, next 100, rest), so the daily order did NOT change. `POOL_SIZES` in
+    `wcpools.js` moves the boundaries. Practice draws: practice pool + used reserve, then unused
+    reserve, then repeats; never the daily pool, never today's chain.
+  - **The game keeps a small practice set on the device** (the SEED, 25 of the originals,
+    scrambled in the page by `build.py scramble_seed`, plus whatever it has been sent since;
+    cap 60) so practice always works offline. It tops up from the server when fewer than 8
+    unseen remain, and reports each finished practice chain.
+  - **Offline policy (Kai's choice):** a day's chain is fetched the first time it is needed and
+    kept on the device. A new day with no connection and nothing cached shows "Connect once to
+    get today's puzzle. Practice works offline." Today's chain is fetched in the background
+    shortly after the game opens, so the first tap is instant.
+  - **Practice usage is counted** (`practice_stats`, migration 0009): per UTC day per player
+    (account, else device) chains finished and top-ups. `GET /api/admin/practice-stats` returns
+    per-day players, plays, average and peak per player, top-ups and "heavy" players (20+ a
+    day), plus the pools as they stand. It is for sizing the practice pool; closed until Access
+    is configured (§6). The nightly cron drops rows older than ~400 days.
+  - The page carries no calendar and no readable chain (checked: none of the 399 server-side
+    chains appears in the page source). The page still carries the `pairs` list and the word
+    list (not answers). A day's chain, and the practice set, sit in the player's
+    `localStorage` once fetched, so a player with devtools could read what they hold.
 
 - **The bank.** `src/gamedata.json` → `chains` holds the 34 original hand-graded
   chains (made by `bank.py` + `finalize.py`) **followed by 390 new chains in
@@ -466,8 +492,8 @@ the backend must be redeployed with it; until then the server answers 503
   `PATCH /api/player/me` still accepts `plan` from the browser (marked
   `TODO(billing)` in `bar.html`); it must stop once the webhook exists. The upgrade
   card says "Payment is not switched on yet."
-- **Admin page** does not exist, and the admin API is closed (Access not configured).
-  Planned: a review queue for submitted chains and a refund calculator.
+- **Admin page** does not exist, and the admin API is closed (Access not configured). See
+  §10 item 9 for what it is to become.
 - **Word Chain:**
   - The composer's "send to friends" still uses a local placeholder list.
   - Player-made chains are kept on the device; nothing in the composer posts them
@@ -510,6 +536,24 @@ the backend must be redeployed with it; until then the server answers 503
 7. Small open offer: shrink "Share your code" on the Friends card into one "Or share
    your invite link" button (Kai asked why it exists; no decision yet).
 8. LLC paperwork, then the legal-name updates.
+9. **The admin app** (Kai, 20 Oct: not yet, but plan for it). One place, behind Cloudflare
+   Access, to watch the game and adjust it without a code change. The pieces already exist as
+   API (`/api/admin/*`, closed until `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are set), so the
+   app is mostly screens on top of them. What it should do:
+   - **Monitor practice use**: average and peak chains per player per day, top-ups, and heavy
+     players (`GET /api/admin/practice-stats`, built), shown against the pool sizes so a
+     decision to enlarge the practice pool is easy. Likely also: dailies played, new accounts,
+     active players, Sojourner and Word Chain results per day.
+   - **Adjust the pools**: pool sizes and boundaries are constants today (`POOL_SIZES`); they
+     should become settings, and individual chains movable between daily / reserve / practice.
+   - **Add and schedule chains**: add a chain by hand; the review queue for player-made chains
+     (pending, recommended, incidents, block an author; built as API); schedule a chain into a
+     day. Player-made chains go to the daily pool (decided).
+   - **Moderation**: incidents and strikes (the submission pipeline's design).
+   - **Billing**: the refund calculator, once Paddle is live (item 4).
+   - Open: the chain bank itself still lives in `gamedata.json` in the repo. For the admin app
+     to add or edit bank chains without a code change, the bank has to move into the database
+     (`chains` table, which already has pool and scheduled_for). Decide that when building it.
 
 ---
 

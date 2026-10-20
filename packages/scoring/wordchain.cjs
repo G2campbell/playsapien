@@ -113,13 +113,21 @@ var PSWordChain = (function () {
      final guess) or bought in full (no final guess, and exactly as many
      Lifelines as it takes to show every letter).
 
-     `data` is the game's gamedata.json ({chains, calendar}). Returns
-     { ok:true, chain, words, hints, penaltyMs, baseMs } or { ok:false, error }. */
-  function verify(data, moves, dayKey, isWord) {
+     `data` is the game's gamedata.json ({chains, calendar}). `chainOverride`, when the
+     server has one, is the chain that day actually played ({id, words, links}) -- a
+     player's chain the admin scheduled -- and is used instead of the calendar's.
+     Returns { ok:true, chain, words, hints, penaltyMs, baseMs } or { ok:false, error }. */
+  function verify(data, moves, dayKey, isWord, chainOverride) {
     function fail(code) { return { ok: false, error: code }; }
     if (!moves || typeof moves !== 'object' || moves.v !== 1) return fail('bad_moves');
-    var bank = data.chains, idx = idxForDay(data.calendar, bank.length, dayNumber(dayKey));
-    var chain = bank[idx], words = chain.words, links = chain.links, n = words.length;
+    var chain, idx;
+    if (chainOverride) { chain = chainOverride; idx = chainOverride.id; }
+    else {
+      var bank = data.chains;
+      idx = idxForDay(data.calendar, bank.length, dayNumber(dayKey));
+      chain = bank[idx];
+    }
+    var words = chain.words, links = chain.links, n = words.length;
     if (!Array.isArray(moves.finals) || moves.finals.length !== n) return fail('bad_moves');
     if (!Array.isArray(moves.hints) || moves.hints.length !== n) return fail('bad_moves');
 

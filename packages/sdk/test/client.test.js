@@ -205,6 +205,34 @@ test('the run token travels with a result and is kept for the retry', async () =
   assert.equal(body.duration_ms, 150000);
 });
 
+test('get is a plain read: the data comes back, and a dead network is a value, not a throw', async () => {
+  const f = mockFetch({ chains: [1, 2] });
+  const { PS } = setup(f);
+  const r = await PS.get('/wordchain/practice?n=2');
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.data, { chains: [1, 2] });
+  assert.equal(f.calls.at(-1).url, '/api/wordchain/practice?n=2');
+  assert.equal(f.calls.at(-1).headers['X-PS-Device'], PS.deviceId());
+
+  const down = setup(offlineFetch()).PS;
+  const none = await down.get('/wordchain/practice');
+  assert.equal(none.ok, false);
+  assert.equal(down.queue().length, 0, 'a read is never queued');
+});
+
+test('report queues a count that could not be sent, and every count is its own entry', async () => {
+  const { PS } = setup(offlineFetch());
+  await PS.report('/wordchain/practice/played', { id: 4 });
+  await PS.report('/wordchain/practice/played', { id: 4 });
+  await PS.report('/wordchain/practice/played', { id: 9 });
+  assert.equal(PS.queue().length, 3, 'two practice chains finished offline are two counts');
+
+  const ok = setup(mockFetch({ ok: true })).PS;
+  const r = await ok.report('/wordchain/practice/played', { id: 1 });
+  assert.equal(r.ok, true);
+  assert.equal(ok.queue().length, 0);
+});
+
 test('a successful write is not queued at all', async () => {
   const { PS } = setup(mockFetch({ ok: true }));
   const r = await PS.saveResult({ game: 'wordchain', day: '2025-06-01', score: 8, maxScore: 8 });

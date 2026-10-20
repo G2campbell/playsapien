@@ -168,7 +168,7 @@ async function recordResult(ctx, input) {
      for sanity. */
   if (sentMoves) {
     replay = await REPLAYERS[game](input.moves, day, {
-      key: input.key, run: input.run, now: ctx.now, env: ctx.env,
+      key: input.key, run: input.run, now: ctx.now, env: ctx.env, db: ctx.db,
     });
     if (replay.error === 'key_mismatch') {
       /* Not a refusal: the game and this Worker were built from different maps,

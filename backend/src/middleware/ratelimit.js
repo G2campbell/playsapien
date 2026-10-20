@@ -44,6 +44,14 @@ export const LIMITS = {
   invite_email_month: { limit: 50,  window: 30 * DAY, prefix: 'invmail30' },
   invite_game_day:    { limit: 40,  window: DAY,      prefix: 'invgame1' },
   invite_game_month:  { limit: 100, window: 30 * DAY, prefix: 'invgame30' },
+  /* Word Chain's chains come from the server one at a time (routes/wordchain-play.js).
+     Chains for a day: far more than a player needs, far too few to walk the bank.
+     Practice top-ups return up to 30 chains each, so they are the tighter limit. */
+  wc_chain:    { limit: 80,  window: DAY, prefix: 'wcchain' },
+  wc_practice: { limit: 12,  window: DAY, prefix: 'wcprac' },
+  /* Practice chains finished, as counted for the admin numbers: generous, but it
+     stops a broken client inflating them. */
+  wc_played:   { limit: 300, window: DAY, prefix: 'wcplayed' },
   /* Promotion codes. Ten tries an hour per player: plenty for typos, far too
      few to guess a code by working through variations of a known one. */
   redeem: { limit: 10, window: HOUR, prefix: 'redeem' },

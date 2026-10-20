@@ -90,7 +90,7 @@ export function createClient() {
   };
   const setQueue = (q) => store.setJSON(KEYS.queue, q.slice(-QUEUE_MAX));
 
-  function enqueue(method, path, body) {
+  function enqueue(method, path, body, opts = {}) {
     const q = queue();
     // One entry per (method, path): a resubmitted day replaces its predecessor
     // rather than queueing twice. The server rejects the second anyway.
@@ -99,7 +99,8 @@ export function createClient() {
     const same = (e) => e.method === method && e.path === path &&
       (path !== '/play/result' || (e.body && body && e.body.game === body.game &&
         e.body.day === body.day && e.body.mode === body.mode));
-    const at = q.findIndex(same);
+    // `append`: a count or an event, where two of the same are two events, not one resubmitted.
+    const at = opts.append ? -1 : q.findIndex(same);
     const entry = { id: uuid4(), method, path, body, at: Date.now(), tries: 0 };
     if (at >= 0) q[at] = entry; else q.push(entry);
     setQueue(q);
@@ -338,6 +339,25 @@ export function createClient() {
     return { ok: true, token: r.data?.token ?? null, day: r.data?.day ?? day, error: null };
   }
 
+  /**
+   * A plain read through the same transport (device id, timeout, envelope unwrapped).
+   * Resolves to { ok, status, data, error }; never throws, never queues.
+   */
+  function get(path) { return call('GET', path); }
+
+  /**
+   * Tell the server something that may arrive late -- a count, not a result. If it
+   * cannot be sent now it is queued and retried on the next load. Every call is its
+   * own entry: two practice chains finished offline are two counts.
+   */
+  async function report(path, body = {}) {
+    const r = await call('POST', path, body);
+    if (r.ok) return { ok: true, queued: false, error: null };
+    if (isPermanent(r.status)) return { ok: false, queued: false, error: r.error };
+    enqueue('POST', path, body, { append: true });
+    return { ok: false, queued: true, error: r.error };
+  }
+
   async function today(day = dayKey()) {
     const r = await call('GET', '/play/day/' + encodeURIComponent(day));
     if (r.ok) {
@@ -390,7 +410,7 @@ export function createClient() {
     me, notices, readNotices,
     friends, addFriend, friendCode, rotateFriendCode,
     updateMe,
-    saveResult, startRun, today, leaderboard, standings,
+    saveResult, startRun, get, report, today, leaderboard, standings,
 
     // escape hatches, mostly for the games' own offline paths and for tests
     localResult, localResultsFor,

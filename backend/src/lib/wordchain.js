@@ -40,6 +40,7 @@
 import Engine from '../../../packages/scoring/wordchain.cjs';
 import gamedata from '../../../games/wordchain/src/gamedata.json' with { type: 'json' };
 import { isWord } from './dictionary.js';
+import { chainForDay } from './wcpools.js';
 import { hmacSign, hmacVerify } from './crypto.js';
 
 export const MIN_RUN_MS = 10_000;
@@ -68,7 +69,7 @@ export async function readRun(env, token) {
   return ok ? { day: m[1], startedSec: Number(m[2]) } : null;
 }
 
-/* A finished daily, replayed. `x` = { run, now, env }:
+/* A finished daily, replayed. `x` = { run, now, env, db }:
      run        the token the game was given at the start (or undefined)
      now        the Worker's clock, seconds -- the FINISH stamp
    The game's playing time is in the moves (baseMs, penalty not included).
@@ -77,7 +78,9 @@ export async function readRun(env, token) {
    plus the penalty the replay found -- the same either way; ranking is the only
    thing that differs. */
 export async function replayWordchain(moves, day, x) {
-  const v = Engine.verify(gamedata, moves, day, isWord);
+  /* The chain that day actually played: a player's chain the admin scheduled, or the
+     calendar's. The same lookup that serves the day to the game. */
+  const v = Engine.verify(gamedata, moves, day, isWord, await chainForDay(x.db, day));
   if (!v.ok) return { error: v.error };
 
   const detail = { chain: v.chain, hints: v.hints, penalty_ms: v.penaltyMs, base_ms: v.baseMs };

@@ -13,14 +13,15 @@
 var DATA = window.__WC_DATA__, DICT = window.__WC_DICT__;
 var SITE = window.__WC_SITE__ || '';   /* where this copy of the game lives */
 var PAIRS = DATA.pairs;
-/* The chains. The page carries them scrambled, one string per chain (build.py
-   scramble_bank), so no day's answer can be read out of the page source -- the whole
-   bank, every future day included, used to be plain text. bank(i) unscrambles one on
-   demand. This is a screen, not a lock: the game has to read them, so anyone who opens
-   the developer tools can too. The page's copy of the data is also dropped from window. */
+/* The chains. The game does NOT carry the bank: every chain is the game's own
+   intellectual property, so the page holds only a small practice SEED (the first of the
+   original chains, long since played as dailies) and asks the server for everything
+   else, one chain at a time -- the day's chain, and top-ups for practice (see "the
+   chains" below). The seed is scrambled in the page (build.py scramble_seed) so it does
+   not read as a word list in the source. A screen, not a lock: the game has to read it.
+   The page's copy of the data is also dropped from window. */
 var BANK_KEY = 'wordchain-bank-v1';          // must match build.py (it checks)
-var BANK_RAW = DATA.bank, BANK_CACHE = [];
-var BANK = { length: BANK_RAW.length };      // how many chains there are
+var SEED = DATA.seed || [];                  // [{ id, d: scrambled chain }]
 try { delete window.__WC_DATA__; } catch (e) { window.__WC_DATA__ = undefined; }
 function wcFnv(s) {
   var h = 2166136261 >>> 0;
@@ -34,13 +35,11 @@ function wcStream(seed) {                    // xorshift32; build.py _stream() i
     return x & 255;
   };
 }
-function bank(i) {
-  if (!BANK_CACHE[i]) {
-    var raw = atob(BANK_RAW[i]), next = wcStream(wcFnv(BANK_KEY + '|' + i)), out = '';
-    for (var k = 0; k < raw.length; k++) out += String.fromCharCode(raw.charCodeAt(k) ^ next());
-    BANK_CACHE[i] = JSON.parse(out);
-  }
-  return BANK_CACHE[i];
+function unscramble(id, text) {
+  var raw = atob(text), next = wcStream(wcFnv(BANK_KEY + '|' + id)), out = '';
+  for (var k = 0; k < raw.length; k++) out += String.fromCharCode(raw.charCodeAt(k) ^ next());
+  var c = JSON.parse(out); c.id = id;
+  return c;
 }
 /* PAIRS: for each head word, the words that can follow it, as one string
    "STRONG WORDS|WEAK WORDS" (pairs.json). Strong = a pair anyone would know
@@ -280,13 +279,21 @@ var PSWordChain = (function () {
      final guess) or bought in full (no final guess, and exactly as many
      Lifelines as it takes to show every letter).
 
-     `data` is the game's gamedata.json ({chains, calendar}). Returns
-     { ok:true, chain, words, hints, penaltyMs, baseMs } or { ok:false, error }. */
-  function verify(data, moves, dayKey, isWord) {
+     `data` is the game's gamedata.json ({chains, calendar}). `chainOverride`, when the
+     server has one, is the chain that day actually played ({id, words, links}) -- a
+     player's chain the admin scheduled -- and is used instead of the calendar's.
+     Returns { ok:true, chain, words, hints, penaltyMs, baseMs } or { ok:false, error }. */
+  function verify(data, moves, dayKey, isWord, chainOverride) {
     function fail(code) { return { ok: false, error: code }; }
     if (!moves || typeof moves !== 'object' || moves.v !== 1) return fail('bad_moves');
-    var bank = data.chains, idx = idxForDay(data.calendar, bank.length, dayNumber(dayKey));
-    var chain = bank[idx], words = chain.words, links = chain.links, n = words.length;
+    var chain, idx;
+    if (chainOverride) { chain = chainOverride; idx = chainOverride.id; }
+    else {
+      var bank = data.chains;
+      idx = idxForDay(data.calendar, bank.length, dayNumber(dayKey));
+      chain = bank[idx];
+    }
+    var words = chain.words, links = chain.links, n = words.length;
     if (!Array.isArray(moves.finals) || moves.finals.length !== n) return fail('bad_moves');
     if (!Array.isArray(moves.hints) || moves.hints.length !== n) return fail('bad_moves');
 
@@ -364,42 +371,107 @@ function todayKey() {
 }
 function dayIndex() { return Math.floor(Date.now() / 86400000); }
 
-/* One chain a day for everyone, drawn from the whole bank regardless of its graded
-   level. The bank is the original hand-made chains (CAL.legacy of them) followed by
-   the new ones in calendar order (make_bank.py). Days before CAL.start keep the old
-   rotation, so every past day still shows the chain it showed at the time; from
-   CAL.start, each day takes the next new chain, and the calendar only wraps round
-   after all of them (390 days). */
-var CAL = DATA.calendar || { start: 0, legacy: BANK.length };
-function idxForDay(d) { return PSWordChain.idxForDay(CAL, BANK.length, d); }
-function dailyIdx() { return idxForDay(dayIndex()); }
-function dailyChain() { return bank(dailyIdx()); }
-/* Earlier days, for the day row. The keys are local dates, the same as
-   todayKey() (so audit S1 above applies to them too), and the chain is the
-   one the bank served that day, counted back from today's exactly as
-   dailyIdx() counts. */
 function keyAgo(n) {
   var d = new Date(); d.setDate(d.getDate() - n);
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
-function chainAgo(n) { return bank(idxForDay(dayIndex() - n)); }
 /* A past day counts as done if it was played on the day or played later. */
 function pastDone(key) { return store('daily:' + key) || store('past:' + key); }
 function longDay(key) {
   var p = key.split('-');
   return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
 }
-/* Practice only ever serves chains that have ALREADY been a daily -- the original
-   ones, and each new one once its day has passed -- and never today's. Warming up
-   can neither spoil today's challenge nor use up a future one. */
+/* ------------------------------------------------------------------ the chains
+   One chain a day for everyone, and it comes from the SERVER (GET /api/wordchain/chain/
+   :day), not from the page: the server decides what today's chain is (lib/wcpools.js),
+   serves no future day, and keeps the whole bank to itself. Once fetched, a day's chain is
+   kept on the device, so a game in progress, or a day already opened, plays offline. The
+   one thing that needs a connection is the FIRST open of a new day. */
+function utcKey(n) { return PSWordChain.dayKeyOf(dayIndex() - (n || 0)); }
+var CHAIN_KEEP_DAYS = 45;
+function pruneChains() {
+  try {
+    var ls = window.localStorage, cutoff = utcKey(CHAIN_KEEP_DAYS), doomed = [], i, k, m;
+    for (i = 0; i < ls.length; i++) {
+      k = ls.key(i); m = /^wordchain:chain:(\d{4}-\d{2}-\d{2})$/.exec(k || '');
+      if (m && m[1] < cutoff) doomed.push(k);
+    }
+    for (i = 0; i < doomed.length; i++) { try { ls.removeItem(doomed[i]); } catch (e) {} }
+  } catch (e) {}
+}
+/* Resolves to the chain for a UTC day -- from the device if it has it, else the server --
+   or to null when there is none to be had (offline, or the server said no). */
+function chainFor(dayKey) {
+  var c = store('chain:' + dayKey);
+  if (c && c.words) return Promise.resolve(c);
+  return loadPS().then(function (PS) {
+    return PS ? PS.get('/wordchain/chain/' + dayKey) : null;
+  }).then(function (r) {
+    if (!r || !r.ok || !r.data || !r.data.chain || !r.data.chain.words) return null;
+    store('chain:' + dayKey, r.data.chain); pruneChains();
+    return r.data.chain;
+  });
+}
+
+/* ------------------------------------------------------------------ practice
+   Practice chains live on the device: the SEED in the page, plus whatever the server has
+   handed over since (GET /api/wordchain/practice). The server decides what practice may
+   draw from -- three pools, so the daily challenge stays fresh (lib/wcpools.js). The
+   device only keeps its own small set playable offline, and tops it up when it has run
+   through most of it. Finishing a practice chain is reported, which is how the admin sees
+   how fast people get through them. */
+var PRACTICE_LOW = 8, PRACTICE_KEEP = 60, TOPUP_N = 15, topping = false;
+function practiceState() { var p = store('pool') || {}; return { have: p.have || [], seen: p.seen || [] }; }
+function practiceIds(p) {
+  var ids = SEED.map(function (x) { return x.id; });
+  p.have.forEach(function (c) { if (ids.indexOf(c.id) < 0) ids.push(c.id); });
+  return ids;
+}
+function practiceById(id, p) {
+  for (var i = 0; i < p.have.length; i++) if (p.have[i].id === id) return p.have[i];
+  for (var j = 0; j < SEED.length; j++) if (SEED[j].id === id) return unscramble(id, SEED[j].d);
+  return null;
+}
+function practiceUnseen(p) { return practiceIds(p).filter(function (id) { return p.seen.indexOf(id) < 0; }); }
 function practiceChain() {
-  var today = dayIndex(), d = dailyIdx(), pool = [], i;
-  for (i = 0; i < CAL.legacy; i++) if (i !== d) pool.push(i);
-  var played = CAL.start ? Math.min(Math.max(0, today - CAL.start), BANK.length - CAL.legacy) : 0;
-  for (i = 0; i < played; i++) if (CAL.legacy + i !== d) pool.push(CAL.legacy + i);
-  var at = store('practiceAt') || 0;
-  store('practiceAt', at + 1);
-  return bank(pool[at % pool.length]);
+  var p = practiceState(), ids = practiceIds(p), unseen = practiceUnseen(p);
+  if (!unseen.length) {                      // seen them all: go round again, but not straight back to the last one
+    var last = p.seen[p.seen.length - 1];
+    p.seen = [];
+    unseen = ids.filter(function (id) { return id !== last; });
+    if (!unseen.length) unseen = ids;
+  }
+  var id = unseen[Math.floor(Math.random() * unseen.length)];
+  p.seen.push(id);
+  store('pool', p);
+  if (unseen.length - 1 < PRACTICE_LOW) topUpPractice();
+  return practiceById(id, p);
+}
+function topUpPractice() {
+  if (topping) return;
+  topping = true;
+  loadPS().then(function (PS) {
+    if (!PS) return null;
+    var p = practiceState();
+    return PS.get('/wordchain/practice?n=' + TOPUP_N + '&seen=' + practiceIds(p).join(','));
+  }).then(function (r) {
+    if (!r || !r.ok || !r.data || !r.data.chains) return;
+    var p = practiceState(), ids = practiceIds(p);
+    r.data.chains.forEach(function (c) {
+      if (c && c.words && ids.indexOf(c.id) < 0) { p.have.push({ id: c.id, words: c.words, links: c.links }); ids.push(c.id); }
+    });
+    /* Keep the set a sensible size: when it is over, let the oldest ones already seen go. */
+    while (p.have.length > PRACTICE_KEEP) {
+      var drop = -1;
+      for (var i = 0; i < p.have.length; i++) if (p.seen.indexOf(p.have[i].id) >= 0) { drop = i; break; }
+      if (drop < 0) break;
+      p.have.splice(drop, 1);
+    }
+    store('pool', p);
+  }).then(function () { topping = false; }, function () { topping = false; });
+}
+function reportPractice(id) {
+  loadPS().then(function (PS) { if (PS) PS.report('/wordchain/practice/played', { id: id }); });
 }
 
 /* ------------------------------------------------------------------ persistence */
@@ -415,7 +487,7 @@ function save() {
     hintsThisWord: S.hintsThisWord, hintCount: S.hintCount, penaltyMs: S.penaltyMs,
     baseMs: baseMs(), tried: S.tried, wrongThisWord: S.wrongThisWord,
     perWord: S.perWord, wordMs: S.wordMs, day: S.mode === 'past' ? S.day : todayKey(),
-    finals: S.finals, run: S.run, utcDay: S.utcDay
+    finals: S.finals, run: S.run, utcDay: S.utcDay, chainId: S.chainId
   });
 }
 function loadHeld(mode) {
@@ -430,7 +502,8 @@ function loadHeld(mode) {
     perWord: g.perWord || [], wordMs: g.wordMs || [], wordT0: Date.now(),
     tried: g.tried || [], wrongThisWord: g.wrongThisWord || 0,
     locked: false, done: false, pausedAt: 0, day: g.day,
-    finals: g.finals || [], run: g.run || null, utcDay: g.utcDay || null
+    finals: g.finals || [], run: g.run || null, utcDay: g.utcDay || null,
+    chainId: g.chainId === undefined ? null : g.chainId
   };
 }
 /* One circle per word, sized by that word's share of the total time, so the row
@@ -528,26 +601,44 @@ function resendUnsent() {
 }
 
 /* ------------------------------------------------------------------ starting */
+var starting = false;
 function startGame(mode, past) {
+  if (starting) return;
   /* One past day can be held at a time; starting a different one drops it. */
   if (mode === 'past' && HELD.past && HELD.past.day !== past.key) { HELD.past = null; drop('game:past'); }
   if (HELD[mode]) {
     S = HELD[mode]; HELD[mode] = null;
     if (S.pausedAt) S.frozenMs += Date.now() - S.pausedAt;
     S.pausedAt = 0;
-  } else {
-    var c = mode === 'daily' ? dailyChain() : mode === 'past' ? chainAgo(past.n) : practiceChain();
-    S = {
-      mode: mode, words: c.words, links: c.links, i: 1,
-      day: mode === 'past' ? past.key : todayKey(),
-      revealed: c.words.map(function (w, k) { return k === 0 ? w.length : 1; }),
-      hintsThisWord: 0, hintCount: 0, penaltyMs: 0, frozenMs: 0, perWord: [], wordMs: [],
-      wrongThisWord: 0, tried: [], t0: Date.now(), wordT0: Date.now(),
-      locked: false, done: false, finals: [], run: null,
-      utcDay: PSWordChain.dayKeyOf(dayIndex())      // the day the chain was drawn for
-    };
-    if (mode === 'daily') beginRun(S);
+    show(mode);
+    return;
   }
+  if (mode === 'practice') { launch(mode, past, practiceChain()); return; }
+  starting = true;
+  chainFor(utcKey(mode === 'past' ? past.n : 0)).then(function (c) {
+    starting = false;
+    if (!c) {
+      PSUI.toast('Connect once to get ' + (mode === 'daily' ? 'today\u2019s' : 'that day\u2019s') +
+        ' puzzle. Practice works offline.');
+      return;
+    }
+    launch(mode, past, c);
+  });
+}
+function launch(mode, past, c) {
+  S = {
+    mode: mode, words: c.words, links: c.links, i: 1,
+    day: mode === 'past' ? past.key : todayKey(),
+    revealed: c.words.map(function (w, k) { return k === 0 ? w.length : 1; }),
+    hintsThisWord: 0, hintCount: 0, penaltyMs: 0, frozenMs: 0, perWord: [], wordMs: [],
+    wrongThisWord: 0, tried: [], t0: Date.now(), wordT0: Date.now(),
+    locked: false, done: false, finals: [], run: null, chainId: c.id,
+    utcDay: PSWordChain.dayKeyOf(dayIndex())      // the day the chain was drawn for
+  };
+  if (mode === 'daily') beginRun(S);
+  show(mode);
+}
+function show(mode) {
   typed = '';
   $('mode').textContent = mode === 'daily' ? 'Daily' : mode === 'past' ? 'Daily \u00b7 ' + longDay(S.day) : 'Practice';
   $('home').hidden = true; $('app').hidden = false; $('compose').hidden = true;
@@ -808,6 +899,7 @@ function finish() {
     words: S.words, perWord: S.perWord, wordMs: S.wordMs
   });
   recordResult({ day: r.day, mode: r.mode, total: total, hints: S.hintCount, chain: S.words.join(' · ') });
+  if (S.mode === 'practice' && S.chainId != null) reportPractice(S.chainId);
   store('last', r);
 
   $('resLine').innerHTML = S.mode === 'daily'
@@ -1224,6 +1316,10 @@ document.addEventListener('keydown', function (e) {
 });
 
 setTimeout(resendUnsent, 4000);
+setTimeout(function () {
+  if (!HELD.daily && !dailyDone()) chainFor(utcKey(0));                 // today's chain, ready before the tap
+  if (practiceUnseen(practiceState()).length < PRACTICE_LOW + 4) topUpPractice();
+}, 2500);
 HELD.daily = loadHeld('daily');
 HELD.practice = loadHeld('practice');
 HELD.past = loadHeld('past');
