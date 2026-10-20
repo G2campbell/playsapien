@@ -25,6 +25,7 @@ import * as player from './routes/player.js';
 import * as friends from './routes/friends.js';
 import * as groups from './routes/groups.js';
 import * as play from './routes/play.js';
+import * as analytics from './routes/analytics.js';
 import * as wordchain from './routes/wordchain.js';
 import * as admin from './routes/admin.js';
 
@@ -74,6 +75,7 @@ const ROUTES = [
   ['POST',   '/api/player/notices/read',         player.readNotices],
 
   ['POST',   '/api/play/result',                 play.submitResult],
+  ['GET',    '/api/player/analytics',            analytics.analytics],
   ['GET',    '/api/play/standings',              play.standings],
   ['GET',    '/api/play/day/:day',               play.readDay],
   ['GET',    '/api/play/leaderboard/:game/:day', play.leaderboard],

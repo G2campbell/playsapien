@@ -980,6 +980,17 @@
    three horizons read as three things even before they hold numbers. */
 .an-body{min-height:64px; margin:0 0 16px; border-radius:11px;
   border:1px dashed var(--line-2); background:color-mix(in srgb, var(--fg) 3%, transparent)}
+/* Once it holds numbers it stops looking like a place-holder. */
+.an-body.filled{padding:14px 16px; border-style:solid; border-color:var(--line)}
+.an-big{font-family:var(--f-display, inherit); font-size:30px; line-height:1.1; font-weight:600;
+  color:var(--fg); font-variant-numeric:tabular-nums}
+.an-big small{display:block; margin-top:4px; font-family:var(--f-mono); font-size:10.5px;
+  font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:var(--fg-2)}
+.an-cmp{display:flex; justify-content:space-between; gap:12px; margin:10px 0 0; padding-top:10px;
+  border-top:1px solid var(--line); font-size:14px; color:var(--fg-2)}
+.an-cmp b{font-weight:600; color:var(--fg); text-align:right}
+.an-note{margin:10px 0 0; font-size:12.5px; line-height:1.5; color:var(--fg-3)}
+.an-empty{margin:0; font-size:14px; line-height:1.5; color:var(--fg-2)}
 .an-block.locked h3{opacity:.5}
 .an-block.locked .an-body{display:none}
 .an-lock{margin:2px 0 4px; padding:16px; border-radius:12px; text-align:center;
@@ -3807,15 +3818,101 @@ PSTheme.init('wc-game');
     var lock = document.getElementById('anLock');
     if (lock) lock.hidden = sapien;
     paintGroups();
+    AN.data = null; AN.failed = false;
+    paintAnalyticsBody();
+    /* The groups are only fetched when the Friends card opens, so ask for them
+       here too -- a player can open Analytics first. */
+    if (!ME.user) return;
+    api('GET', '/player/groups').then(function (r) {
+      if (r.ok && r.data && Array.isArray(r.data.groups)) {
+        GROUPS = r.data.groups.map(function (g) { return { id: g.id, name: g.name }; });
+        paintGroups();
+      }
+      loadAnalytics();
+    });
   }
   function paintGroups() {
     var sel = document.getElementById('anGroup'), none = document.getElementById('anNoGroups');
     if (!sel || !none) return;
-    if (!GROUPS.length) { sel.hidden = true; none.hidden = false; return; }
+    if (!GROUPS.length) { AN.group = ''; sel.hidden = true; none.hidden = false; return; }
     sel.innerHTML = GROUPS.map(function (g) {
       return '<option value="' + escapeAttr(g.id) + '">' + escapeAttr(g.name) + '</option>';
     }).join('');
+    /* Keep the group that was picked; fall back to the first if it is gone. */
+    var keep = GROUPS.some(function (g) { return g.id === AN.group; });
+    AN.group = keep ? AN.group : GROUPS[0].id;
+    sel.value = AN.group;
     sel.hidden = false; none.hidden = true;
+  }
+
+  /* The numbers. One request answers every comparison -- all players, all
+     friends and the picked group -- so switching between All and Friend groups
+     repaints without asking again; only picking a different group does. The
+     server decides what this player may see (routes/analytics.js). */
+  var AN = { scope: 'all', group: '', data: null, failed: false, seq: 0 };
+  /* A game's card reports that game; the front door's card reports them all. */
+  function anGame() {
+    var m = !isShell() && /^\/(sojourner|wordchain)(\/|$)/.exec(location.pathname);
+    return m ? m[1] : 'all';
+  }
+  function ordinal(n) {
+    var s = ['th', 'st', 'nd', 'rd'], v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
+  function anNum(you) {
+    return you.max === 100 ? (Math.round(you.value * 10) / 10) + '%'
+      : Math.round(you.value) + ' / ' + you.max;
+  }
+  function anCmp(label, c) {
+    if (!c) return '';
+    var t = c.of < 2 ? 'Only you so far'
+      : c.of < 20 ? ordinal(c.rank) + ' of ' + c.of
+      : 'Ahead of ' + c.beat + '%';
+    return '<div class="an-cmp"><span>' + label + '</span><b>' + t + '</b></div>';
+  }
+  function anBody(h, kind) {
+    if (AN.failed) return '<p class="an-empty">Could not load your numbers. Close this and try again.</p>';
+    if (!h) return '<p class="an-empty">Loading…</p>';
+    if (!h.you) {
+      return '<p class="an-empty">' + (kind === 'daily'
+        ? 'Play today’s puzzle to see your score here.'
+        : 'Shown once you have played ' + h.needed + ' games (' + h.games + ' so far).') + '</p>';
+    }
+    var d = AN.data, c = h.compare || {};
+    var s = '<div class="an-big">' + anNum(h.you) + '<small>' +
+      (kind === 'daily' ? 'today' : kind === 'dozen' ? 'average of your last 12'
+        : 'average of all ' + h.games) + '</small></div>';
+    if (AN.scope === 'groups') {
+      if (d.group && d.group.id === AN.group) s += anCmp(escapeAttr(d.group.name), c.group);
+    } else {
+      s += anCmp('All players', c.all) + anCmp('All my friends', c.friends);
+    }
+    if (kind === 'daily') s += '<p class="an-note">Ranks can still change until midnight UTC.</p>';
+    return s;
+  }
+  function paintAnalyticsBody() {
+    var d = AN.data;
+    [['anDaily', 'daily'], ['anDozen', 'dozen'], ['anLifetime', 'lifetime']].forEach(function (p) {
+      var el = document.getElementById(p[0]); if (!el) return;
+      var h = d && d[p[1]];
+      var locked = !!(h && h.locked);
+      el.classList.toggle('filled', !locked && !AN.failed && !!(h && h.you));
+      el.innerHTML = locked ? '' : anBody(h, p[1]);
+    });
+  }
+  function loadAnalytics() {
+    if (!ME.user) return;
+    var mine = ++AN.seq;
+    var q = '?game=' + anGame() + (AN.group ? '&group=' + encodeURIComponent(AN.group) : '');
+    api('GET', '/player/analytics' + q).then(function (r) {
+      if (mine !== AN.seq) return;                          // a newer request is on its way
+      if (!r.ok && r.status === 404 && AN.group) {          // the group was deleted meanwhile
+        AN.group = ''; paintGroups(); loadAnalytics(); return;
+      }
+      AN.failed = !r.ok || !r.data;
+      AN.data = AN.failed ? null : r.data;
+      paintAnalyticsBody();
+    });
   }
   function wireAnalytics() {
     var seg = document.getElementById('anScope');
@@ -3826,9 +3923,19 @@ PSTheme.init('wc-game');
       [].forEach.call(seg.querySelectorAll('button'), function (x) {
         x.setAttribute('aria-pressed', String(x === b));
       });
-      document.getElementById('anGroupWrap').hidden = b.getAttribute('data-scope') !== 'groups';
+      AN.scope = b.getAttribute('data-scope') === 'groups' ? 'groups' : 'all';
+      document.getElementById('anGroupWrap').hidden = AN.scope !== 'groups';
       paintGroups();
+      paintAnalyticsBody();
     });
+    var sel = document.getElementById('anGroup');
+    if (sel) {
+      sel.addEventListener('change', function () {
+        AN.group = sel.value;
+        paintAnalyticsBody();                               // stale group's row is hidden until the answer
+        loadAnalytics();
+      });
+    }
   }
 
   /* ------------------------------------------------------------ offline ----

@@ -489,6 +489,17 @@
    three horizons read as three things even before they hold numbers. */
 .an-body{min-height:64px; margin:0 0 16px; border-radius:11px;
   border:1px dashed var(--line-2); background:color-mix(in srgb, var(--fg) 3%, transparent)}
+/* Once it holds numbers it stops looking like a place-holder. */
+.an-body.filled{padding:14px 16px; border-style:solid; border-color:var(--line)}
+.an-big{font-family:var(--f-display, inherit); font-size:30px; line-height:1.1; font-weight:600;
+  color:var(--fg); font-variant-numeric:tabular-nums}
+.an-big small{display:block; margin-top:4px; font-family:var(--f-mono); font-size:10.5px;
+  font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:var(--fg-2)}
+.an-cmp{display:flex; justify-content:space-between; gap:12px; margin:10px 0 0; padding-top:10px;
+  border-top:1px solid var(--line); font-size:14px; color:var(--fg-2)}
+.an-cmp b{font-weight:600; color:var(--fg); text-align:right}
+.an-note{margin:10px 0 0; font-size:12.5px; line-height:1.5; color:var(--fg-3)}
+.an-empty{margin:0; font-size:14px; line-height:1.5; color:var(--fg-2)}
 .an-block.locked h3{opacity:.5}
 .an-block.locked .an-body{display:none}
 .an-lock{margin:2px 0 4px; padding:16px; border-radius:12px; text-align:center;
