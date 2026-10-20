@@ -136,7 +136,7 @@ editing.** A CRLF `build.sh` dies with `set: Illegal option -`.
 ## 4. Running and testing locally
 
 ```sh
-# Backend (needs Node 22). 104 tests, no Cloudflare account needed.
+# Backend (needs Node 22). 113 tests, no Cloudflare account needed.
 cd backend && npm install && npm test
 npx wrangler dev                      # local Worker + local D1 (optional)
 
@@ -212,11 +212,11 @@ the hostname with the shell.
   curl -I  https://playsapien.com/wordchain          # 301 to /wordchain/
   ```
 
-**State at hand-off (20 Oct 2026):** commit `f40799a` (Friends card rebuild and
-friend groups, migration **0007**) is pushed, but the backend half (migration
-0007 + `wrangler deploy`) may not have been run. Check with
-`npx wrangler d1 migrations list playsapien --remote` before assuming groups
-work live.
+**State (20 Oct 2026):** commit `f40799a` (friend groups, migration **0007**) is
+live and checked by Kai. Two later commits, `780d916` (friends see each other's
+uploaded avatar pictures) and `e09cb28` (Analytics), are committed but **not yet
+pushed or deployed**. They need `npx wrangler deploy` in `backend/` (no new
+migration) and then `git push`.
 
 ---
 
@@ -369,9 +369,13 @@ work live.
 
 ## 9. Half-finished, broken, or known gaps
 
-- **Analytics card is a frame with no numbers.** Daily, Last dozen and Lifetime are
-  empty placeholders. The "Friend groups" picker now lists the player's groups but
-  compares nothing.
+- **Analytics card is built but will show "play today's puzzle" until games post
+  results.** `GET /api/player/analytics` (`backend/src/routes/analytics.js`) ranks
+  Daily, Last dozen (from 12 results) and Lifetime (from 13) against all players,
+  all friends and the picked friend group; Free sees Daily only. A game's card shows
+  that game's raw score; the front door's card averages every game as a percentage
+  of its maximum (a stand-in until the Intellisense categories exist). It reads the
+  `results` table, which no game writes to yet (next item).
 - **Games do not post results to the API** (audit S3). Sojourner has an unset hook
   (`window.SOJOURNER_API`, `partD.js`); Word Chain has none. The SDK can queue
   `POST /play/result`, but no game calls it. Option D (move logs and server replay)
@@ -410,12 +414,11 @@ work live.
 ## 10. What Kai was planning next (in rough order)
 
 1. **Deploy the backend for** `f40799a` (migration 0007 + `wrangler deploy`), if not done.
-2. **Analytics, step 1:** real numbers on the Analytics card — the player's scores
-   and how they rank against all players and against "all my friends" (automatic),
-   then against each friend group. Kai was asked whether to do this before or
-   together with step 2 and had not answered.
-3. **Friend groups in Analytics, step 2:** comparisons per group. The groups
-   themselves are already built.
+2. **Analytics steps 1 and 2: built (20 Oct 2026, commit `e09cb28`).** The card is
+   ready but empty in practice: make the games post results next (item 5, or a
+   quick stopgap that posts the finished daily score through the existing
+   `POST /api/play/result`; this was offered to Kai and not yet decided).
+3. (Done: friend-group comparisons are part of item 2.)
 4. **Paddle integration** once Paddle approves the account:
    - checkout button;
    - webhook that sets `plan_until` +12 months;
