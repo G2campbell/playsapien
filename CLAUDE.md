@@ -57,7 +57,9 @@ playsapien.com/about|sapien|refunds|privacy|terms/   apps/legal (static pages)
   full analytics, making puzzles, friend groups and starting friend challenges.
 - Every account keeps every result. The plan only decides how much is shown.
 - One free 2-day Sapien trial per email address, ever. No card needed.
-- Promotion codes can grant Sapien.
+- Promotion codes can grant Sapien. Live codes (each grants Sapien up to a fixed date, once per player; they sit in
+  migrations on purpose, a code is made to be handed out): `FREETRIAL#11.1` (0003) and `HAVEN26` (0010),
+  both through all of 1 Nov 2026 UTC. New ones are a one-row migration into `promo_codes`.
 
 **Sign-in:** a six-digit code by email (sent via Resend), or Google. There are no
 passwords. A code is used rather than a magic link because a link opens in the

@@ -28,6 +28,23 @@ test('the launch code makes an account Sapien until the end of 1 November', asyn
   assert.equal(s.data.user.plan_until, TRIAL_ENDS);
 });
 
+test('HAVEN26 gives Sapien through the end of 1 November, and never shortens a longer grant', async () => {
+  const h = makeEnv();
+  const { cookie } = await signIn(h, 'haven@example.com');
+  const r = await call(h.env, 'POST', '/api/player/redeem', { cookie, body: { code: ' haven26 ' } });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.user.plan, 'sapien');
+  assert.equal(r.data.user.plan_until, TRIAL_ENDS);
+  /* the same account can still use the launch code, and the end date does not move */
+  const again = await call(h.env, 'POST', '/api/player/redeem', { cookie, body: { code: TRIAL } });
+  assert.equal(again.status, 200);
+  assert.equal(again.data.user.plan_until, TRIAL_ENDS);
+  /* but HAVEN26 itself works once per player */
+  const twice = await call(h.env, 'POST', '/api/player/redeem', { cookie, body: { code: 'HAVEN26' } });
+  assert.equal(twice.status, 409);
+  assert.equal(twice.error.code, 'already_redeemed');
+});
+
 test('codes are read the way people type them: case and spaces do not matter', async () => {
   const h = makeEnv();
   const { cookie } = await signIn(h, 'typist@example.com');
