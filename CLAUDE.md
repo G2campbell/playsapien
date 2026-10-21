@@ -77,7 +77,7 @@ mail app's browser instead of the tab you were playing in.
 | `games/wordchain/` | `src/build.py` inlines `part-a-style.html`, `part-b-body.html`, `part-c-app.js`, `composer.js`, `gamedata.json`, `pairs.json` and `dict.txt` into one `dist/index.html`. See §7. |
 | `games/wordchain/chain-tools/` | How the October 2026 chains were written, checked and scheduled (briefs, `check_chains.py`, `schedule.py`). |
 | `games/_template/` | A working starter game. **Start a new game here**; see its README. |
-| `backend/` | The API Worker. `src/index.js` holds the route table. `src/routes/` holds auth, player, friends, groups, play, analytics, wordchain (submissions), wordchain-play (the day's chain, practice) and admin. `src/lib/` has helpers (`wcpools.js` is Word Chain's three pools). `migrations/0001…0009_*.sql` is the database schema history. `test/` uses node:test with better-sqlite3 standing in for D1. |
+| `backend/` | The API Worker. `src/index.js` holds the route table. `src/routes/` holds auth, player, friends, groups, play, analytics, wordchain (submissions), wordchain-play (the day's chain, practice) and admin. `src/lib/` has helpers (`wcpools.js` is Word Chain's three pools). `migrations/0001…0011_*.sql` is the database schema history. `test/` uses node:test with better-sqlite3 standing in for D1. |
 | `packages/ui/` | **The shared chrome**: `bar.html` (top bar plus all shared sheets: Analytics, gate, upgrade/payWall, Profile, Friends and confirm cards), `ui.css` and `ui.js` (sheets, sign-in, profile, friends, avatars, gate, toasts). |
 | `packages/tokens/` | Design tokens (`tokens.css`), the theme script (`theme.js`) and the checkers: `sync-inline.mjs`, `check-inline.mjs` and `check-contrast.mjs`. |
 | `packages/sdk/` | Offline-first client (`PS`): sessions, day key, a result queue. Bundled to `deploy/sdk.js` with esbuild. `saveResult` can carry a game's `moves` and map `key`. |
@@ -142,7 +142,7 @@ editing.** A CRLF `build.sh` dies with `set: Illegal option -`.
 ## 4. Running and testing locally
 
 ```sh
-# Backend (needs Node 22). 151 tests, no Cloudflare account needed.
+# Backend (needs Node 22). 184 tests, no Cloudflare account needed.
 cd backend && npm install && npm test
 npx wrangler dev                      # local Worker + local D1 (optional)
 
@@ -228,7 +228,8 @@ deployed**: `780d916` (friends see each other's uploaded avatars), `e09cb28`
 **migration 0008**) and option D stage 2 (Word Chain, ranked on server-kept time;
 no further migration) and the Word Chain **pools and server-served chains** (migration **0009**:
 practice counts). All of it deploys together with the steps below (`migrations apply` runs
-every pending migration, so 0008 and 0009 go in one go).
+every pending migration, so 0008 to 0011 go in one go), the **HAVEN26** promo code (0010) and
+Word Chain **1v1 challenges** (migration **0011**, see §8 item 13).
 
 **Deploy order matters for option D.** Backend first, then `git push`:
 
@@ -470,6 +471,48 @@ the backend must be redeployed with it; until then the server answers 503
     - Players can upload their own picture (a square data URL).
 12. **Phone layout:** `overflow-x: clip` on html/body; the fixed top bar must never
     cover content; pages should fit one phone screen.
+13. **Word Chain 1v1** (Kai, 21 Oct; `backend/src/lib/duel.js` rules, `routes/duels.js`,
+    `games/wordchain/src/duel.js` front end, migration 0011):
+    - **Rules.** Both players race to solve the SAME chain, each at their own pace; there is no
+      clock and no score. A **turn** is a run of right words; it ends at the first real wrong
+      guess, at a Lifeline, or when you finish. Each round the first mover plays, then the
+      second. **Equal turns:** if the first mover finishes in round r the second still gets
+      round r's turn and can tie (a draw); if the second mover finishes first they win at once;
+      if the second mover's turn ends unfinished after the first finished, the first wins.
+    - **Not attempts, so free:** not a word, wrong first letter, a repeat of a wrong guess, the
+      right word in the wrong number (on a number-strict link). **A Lifeline** reveals the next
+      letter and ends your turn (no clock to charge). At most 3 a word.
+    - **The server keeps the answers.** A player is only ever sent the words they have solved
+      and the first letter(s) of the one they are on (`viewFor`); every guess goes to the server
+      to be judged, so a 1v1 turn needs a connection and cannot be cheated by looking. The game
+      only adds the flavour of a wrong guess (strong/weak/none) from its own pairs list.
+    - **Who moves first.** The CHALLENGED player (`RECIPIENT_SIDE = 'a'` in `routes/duels.js`;
+      flip to 'b' to make the challenger go first). Assumed from "sends it to the friend... it is
+      their turn"; not explicitly confirmed by Kai.
+    - **Making one (Sapien only; playing is free).** New 1v1 challenge -> pick a friend, or invite
+      someone new (email or invite code) -> choose the puzzle: PlaySapien picks (from the practice
+      pile, never the daily-only pool, and not a chain either player has had in a duel), share one
+      of your saved puzzles, or make a new one in the composer (then: send it / choose another
+      (only if you have others) / make another / cancel; sending or cancelling leaves the area).
+    - **Inviting with a challenge.** Behaves exactly like inviting (same limits and email, and the
+      answer never says whether an address has an account), and the challenge waits (`invited`)
+      until they join and accept the friend request; accepting starts it. Blocked recipients never
+      see it and the sender is not told. Declining, un-friending, rejecting or blocking cancels
+      games between the pair silently, with no result. The challenger sees only a masked address
+      ("ne***@example.com"); the address itself is never stored (only the keyed hash, as invites).
+    - **The list** (the shared 1v1 panel): Your turn first, then their turn, invitations, then
+      finished games for 30 days. The badge on the 1v1 button counts the games waiting on you; it
+      refreshes on load, every 90 s while the page is visible, and when the window regains focus.
+    - **Record.** Wins-draws-losses overall and per friend, on the Word Chain Analytics card
+      (`record` in `GET /api/player/analytics?game=wordchain`). Cancelled games are not results;
+      a resignation is a loss.
+    - **Housekeeping.** Max 25 games going per player, 5 per friend; cron cancels an unaccepted
+      challenge after 90 days and a game nobody has moved in for 45. Notices are written for a
+      challenge, a turn, and a result.
+    - **Known gaps.** A player's own puzzle is not content-checked (it only reaches a friend, who
+      can block); no automatic forfeit beyond the 45-day cleanup; no rematch button; Sojourner has
+      no 1v1; the Word Chain clock/lifeline bank are hidden in a duel but the board is otherwise
+      the ordinary one (`S.mode === 'duel'` hooks in `part-c-app.js`).
 
 ---
 
@@ -488,8 +531,10 @@ the backend must be redeployed with it; until then the server answers 503
   `SOJOURNER_API` hook is gone. Not yet tried by Kai on the live site. Word Chain's
   open items: the day key is still local (S1), and a daily played before this change has
   no stamp or moves, so it is not sent.
-- **Friend challenges** (timed and 1v1) are **not built**: there is no server side.
-  The "New challenge" buttons only show a "coming soon" toast.
+- **Friend challenges:** Word Chain **1v1 is built** (§8 item 13). **Timed group challenges are
+  not**: the "New timed challenge" button (and Sojourner's challenge buttons) still show a
+  "coming soon" toast. A game that has built its challenge marks the button `data-live` and
+  the shared placeholder in `ui.js` stands aside.
 - **Payments** are not wired. There is no Paddle checkout and no webhook.
   `PATCH /api/player/me` still accepts `plan` from the browser (marked
   `TODO(billing)` in `bar.html`); it must stop once the webhook exists. The upgrade
@@ -533,8 +578,10 @@ the backend must be redeployed with it; until then the server answers 503
    - refund calculator on an Admin page.
 5. **Results pipeline (option D): built, both games (20 Oct).** Next: Kai checks it live; then
    friend challenges (item 6), which can reuse the run stamp for timed ones.
-6. **Friend challenges:** 1v1 (turns through the server, so verified for free) and
-   timed groups (need a server-stamped start and finish).
+6. **Friend challenges:** Word Chain 1v1 is built (§8 item 13). Left: **timed group challenges**
+   (need a server-stamped start and finish; the Word Chain run stamp is the model) and a 1v1 for
+   Sojourner. Ideas noted while building 1v1: a rematch button on the result card; a nudge when
+   a game has waited a few days; a "decline" that also tells the challenger.
 7. Small open offer: shrink "Share your code" on the Friends card into one "Or share
    your invite link" button (Kai asked why it exists; no decision yet).
 8. LLC paperwork, then the legal-name updates.

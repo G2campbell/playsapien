@@ -1685,15 +1685,17 @@
     });
   }
 
-  /* Friend challenges are not built yet (no server side), so starting one
-     says so rather than doing nothing. The gate still runs first: a Free
-     player is shown Sapien, a Sapien player is told it is on its way. */
+  /* Friend challenges a game has not built yet say so rather than doing nothing. The gate
+     still runs first: a Free player is shown Sapien, a Sapien player is told it is on its
+     way. A game that HAS built its challenge marks the button data-live and answers the tap
+     itself (Word Chain's 1v1, duel.js), so this placeholder stands aside. */
   function wireChallenges() {
     ['timedNew', 'duelNew'].forEach(function (id) {
       var b = $(id);
       if (!b || b.__wired) return;
       b.__wired = true;
       b.addEventListener('click', function () {
+        if (b.hasAttribute('data-live')) return;
         toast('Friend challenges are coming soon. We\u2019ll let you know when they\u2019re ready.', 4000);
       });
     });
@@ -1826,8 +1828,30 @@
     if (kind === 'daily') s += '<p class="an-note">Ranks can still change until midnight UTC.</p>';
     return s;
   }
+  /* Wins, draws and losses -- overall, then against each friend, most-played first. */
+  function anRecord(rec) {
+    var t = rec.total, games = t.w + t.d + t.l;
+    if (!games) return '<p class="an-empty">No finished 1v1 games yet.</p>';
+    var s = '<div class="an-big">' + t.w + '-' + t.d + '-' + t.l +
+      '<small>wins \u00b7 draws \u00b7 losses</small></div>';
+    rec.friends.forEach(function (f) {
+      s += '<div class="an-cmp"><span><span class="psav" style="width:22px;height:22px;display:inline-block;' +
+        'vertical-align:middle;margin-right:8px;border-radius:50%;overflow:hidden">' + avatar(f.friend) + '</span>' +
+        escapeAttr(f.friend.name) + '</span><b>' + f.w + '-' + f.d + '-' + f.l + '</b></div>';
+    });
+    return s;
+  }
   function paintAnalyticsBody() {
     var d = AN.data;
+    var rb = document.getElementById('anRecordBlock'), rbody = document.getElementById('anRecord');
+    if (rb && rbody) {
+      var rec = d && d.record;
+      rb.hidden = !rec;                                     // only a game with head-to-head play has one
+      if (rec) {
+        rbody.innerHTML = anRecord(rec);
+        rbody.classList.toggle('filled', rec.total.w + rec.total.d + rec.total.l > 0);
+      }
+    }
     [['anDaily', 'daily'], ['anDozen', 'dozen'], ['anLifetime', 'lifetime']].forEach(function (p) {
       var el = document.getElementById(p[0]); if (!el) return;
       var h = d && d[p[1]];

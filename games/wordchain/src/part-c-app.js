@@ -481,7 +481,7 @@ var pauseAt = 0, typed = '';
 
 function baseMs() { return Date.now() - S.t0 - S.frozenMs; }
 function save() {
-  if (!S || S.done) return;
+  if (!S || S.done || S.mode === 'duel') return;       // a 1v1 is held by the server, not here
   store('game:' + S.mode, {
     mode: S.mode, words: S.words, links: S.links, i: S.i, revealed: S.revealed,
     hintsThisWord: S.hintsThisWord, hintCount: S.hintCount, penaltyMs: S.penaltyMs,
@@ -641,6 +641,9 @@ function launch(mode, past, c) {
 function show(mode) {
   typed = '';
   $('mode').textContent = mode === 'daily' ? 'Daily' : mode === 'past' ? 'Daily \u00b7 ' + longDay(S.day) : 'Practice';
+  /* A 1v1 has no clock: just who gets to the end first. */
+  $('clock').style.display = mode === 'duel' ? 'none' : '';
+  if (mode === 'duel') duelLabel();
   $('home').hidden = true; $('app').hidden = false; $('compose').hidden = true;
   mountKeyboard($('app'));
   setInput(true); renderChain(); updateHintBtn(); renderBank(); setMsg('', null);
@@ -718,7 +721,7 @@ var HINT_COST = PSWordChain.HINT_COST;
 function nextCost() { return HINT_COST[Math.min(S.hintsThisWord, 2)]; }
 function updateHintBtn() {
   $('hintBtn').disabled = S.done || S.hintsThisWord >= 3 || S.locked;
-  $('hintCost').textContent = '+' + nextCost() + 's';
+  $('hintCost').textContent = S.mode === 'duel' ? 'ends turn' : '+' + nextCost() + 's';
 }
 function renderBank() {
   var w = $('bankwrap');
@@ -736,6 +739,7 @@ function flash(text) {
 /* ------------------------------------------------------------------ hints */
 function takeHint() {
   if (!S || S.locked || S.done || S.hintsThisWord >= 3) return;
+  if (S.mode === 'duel') { duelHint(); return; }
   var w = S.words[S.i], cost = nextCost();
   S.penaltyMs += cost * 1000; S.hintsThisWord++; S.hintCount++;
   S.perWord[S.i] = (S.perWord[S.i] || 0) + 1;
@@ -783,6 +787,7 @@ function askModel(prev, guess) {
 
 /* ------------------------------------------------------------------ adjudication */
 function classify(guess) {
+  if (S.mode === 'duel') return duelClassify(guess);
   var answer = S.words[S.i], prev = S.words[S.i - 1], link = S.links[S.i - 1];
   if (!guess) return Promise.resolve({ b: null });
   if (PSWordChain.guessCorrect(guess, answer, link, function (w) { return DICT.has(w); })) {
@@ -820,6 +825,11 @@ function submit() {
       var b = res.b;
       if (!b) { unlock(); return; }
 
+      if (b === 'correct' && S.mode === 'duel') {
+        typed = ''; setMsg(pick('correct'), 'good');
+        duelApply(res.server.game, 'correct');
+        return;
+      }
       if (b === 'correct') {
         S.finals[S.i] = guess;                 // what the server replays
         typed = ''; setMsg(pick('correct'), 'good'); advance();
@@ -845,7 +855,9 @@ function submit() {
           var el = $('typed');
           el.classList.remove('dim'); el.classList.add('fading');
           setTimeout(function () {
-            typed = ''; renderTyped(); el.classList.remove('fading'); unlock();
+            typed = ''; renderTyped(); el.classList.remove('fading');
+            if (S && S.mode === 'duel' && res.server && res.server.turnOver) duelApply(res.server.game, 'wrong');
+            else unlock();
           }, SET.motion ? 0 : 240);
         }, LOCKOUT[eff] || 1200);
       }, Math.max(0, FLOOR - (Date.now() - t)));
@@ -989,11 +1001,12 @@ function resumePlay() {
 }
 function goHome() {
   $('pause').hidden = true; $('app').classList.remove('paused');
-  if (S && !S.done) { S.pausedAt = pauseAt || Date.now(); HELD[S.mode] = S; save(); }
+  if (S && !S.done && S.mode !== 'duel') { S.pausedAt = pauseAt || Date.now(); HELD[S.mode] = S; save(); }
   pauseAt = 0;
   if (tick) { clearInterval(tick); tick = null; }
   S = null;
   $('app').hidden = true; $('home').hidden = false;
+  var rh = document.querySelector('#results h2'); if (rh) rh.textContent = 'Chained.';   // a 1v1 card renames it
   $('results').classList.remove('on'); PSUI.close(); paintHome();
 }
 
@@ -1005,7 +1018,7 @@ function goHome() {
    to live here are gone; call PSUI.open / PSUI.close / PSUI.toast. The open class
    is `.sheet.on`, not `.sheet.up`. */
 PSUI.init({
-  sheets: ['aboutSheet', 'settingsSheet', 'mineSheet', 'shareSheet'],
+  sheets: ['aboutSheet', 'settingsSheet', 'mineSheet', 'shareSheet', 'duelWho', 'duelWhat', 'duelMineSheet', 'duelSaved'],
   scrim: 'scrim',
   toast: 'toast'
 });

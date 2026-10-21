@@ -346,6 +346,13 @@ export function createClient() {
   function get(path) { return call('GET', path); }
 
   /**
+   * A write that needs its answer NOW, such as a move in a 1v1 game: sent once and
+   * never queued or retried (a move replayed later would be a different move).
+   * Resolves to { ok, status, data, error }; never throws.
+   */
+  function send(path, body = {}) { return call('POST', path, body); }
+
+  /**
    * Tell the server something that may arrive late -- a count, not a result. If it
    * cannot be sent now it is queued and retried on the next load. Every call is its
    * own entry: two practice chains finished offline are two counts.
@@ -410,7 +417,7 @@ export function createClient() {
     me, notices, readNotices,
     friends, addFriend, friendCode, rotateFriendCode,
     updateMe,
-    saveResult, startRun, get, report, today, leaderboard, standings,
+    saveResult, startRun, get, send, report, today, leaderboard, standings,
 
     // escape hatches, mostly for the games' own offline paths and for tests
     localResult, localResultsFor,

@@ -220,6 +220,21 @@ test('get is a plain read: the data comes back, and a dead network is a value, n
   assert.equal(down.queue().length, 0, 'a read is never queued');
 });
 
+test('send waits for its answer, and is never queued', async () => {
+  const f = mockFetch({ outcome: 'correct' });
+  const { PS } = setup(f);
+  const r = await PS.send('/duels/d1/guess', { guess: 'FLOWER' });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.data, { outcome: 'correct' });
+  assert.deepEqual(f.calls.at(-1).body, { guess: 'FLOWER' });
+  assert.equal(f.calls.at(-1).method, 'POST');
+
+  const down = setup(offlineFetch()).PS;
+  const none = await down.send('/duels/d1/guess', { guess: 'FLOWER' });
+  assert.equal(none.ok, false);
+  assert.equal(down.queue().length, 0, 'a move replayed later would be a different move');
+});
+
 test('report queues a count that could not be sent, and every count is its own entry', async () => {
   const { PS } = setup(offlineFetch());
   await PS.report('/wordchain/practice/played', { id: 4 });

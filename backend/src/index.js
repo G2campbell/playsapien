@@ -28,6 +28,7 @@ import * as play from './routes/play.js';
 import * as analytics from './routes/analytics.js';
 import * as wordchain from './routes/wordchain.js';
 import * as wcplay from './routes/wordchain-play.js';
+import * as duels from './routes/duels.js';
 import * as admin from './routes/admin.js';
 
 /* ================================================================== router */
@@ -87,6 +88,13 @@ const ROUTES = [
   ['GET',    '/api/wordchain/bank/:day',         wordchain.bank],
   ['GET',    '/api/wordchain/chain/:day',        wcplay.chain],
   ['GET',    '/api/wordchain/practice',          wcplay.practice],
+  ['POST',   '/api/duels',                       duels.create],
+  ['GET',    '/api/duels',                       duels.list],
+  ['GET',    '/api/duels/:id',                   duels.get],
+  ['POST',   '/api/duels/:id/guess',             duels.guess],
+  ['POST',   '/api/duels/:id/hint',              duels.hint],
+  ['POST',   '/api/duels/:id/resign',            duels.resign],
+  ['POST',   '/api/duels/:id/cancel',            duels.cancel],
   ['POST',   '/api/wordchain/practice/played',   wcplay.practicePlayed],
 
   /* The legacy alias. partD.js:341 posts to SOJOURNER_API + '/score' already,
@@ -312,6 +320,12 @@ export default {
           env.DB.prepare('DELETE FROM email_invites WHERE created_at < ?').bind(now - 90 * DAY),
           /* Rejections only matter for the last 30 days (the sender pause). */
           env.DB.prepare('DELETE FROM friend_rejections WHERE at < ?').bind(now - 30 * DAY),
+          /* 1v1 games that never got going: a challenge nobody accepted in 90 days, or a game
+             nobody has moved in for 45. Withdrawn with no result, as if never played. */
+          env.DB.prepare("UPDATE duels SET state = 'cancelled' WHERE state = 'invited' AND created_at < ?")
+            .bind(now - 90 * DAY),
+          env.DB.prepare("UPDATE duels SET state = 'cancelled' WHERE state = 'active' AND updated_at < ?")
+            .bind(now - 45 * DAY),
           /* Practice counts older than about a year: the admin sizing view reads recent
              weeks, and nothing in here names a person beyond their opaque id. */
           env.DB.prepare('DELETE FROM practice_stats WHERE day < ?').bind(utcDay(now - 400 * DAY)),

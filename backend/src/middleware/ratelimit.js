@@ -52,6 +52,10 @@ export const LIMITS = {
   /* Practice chains finished, as counted for the admin numbers: generous, but it
      stops a broken client inflating them. */
   wc_played:   { limit: 300, window: DAY, prefix: 'wcplayed' },
+  /* 1v1 Word Chain (routes/duels.js). Challenges started, and moves made (a guess or a
+     Lifeline): generous for a real game, a stop for a script. */
+  duel_create: { limit: 20,   window: DAY, prefix: 'duelnew' },
+  duel_move:   { limit: 1500, window: DAY, prefix: 'duelmove' },
   /* Promotion codes. Ten tries an hour per player: plenty for typos, far too
      few to guess a code by working through variations of a known one. */
   redeem: { limit: 10, window: HOUR, prefix: 'redeem' },

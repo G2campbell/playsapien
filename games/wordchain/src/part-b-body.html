@@ -179,6 +179,12 @@
       <p>Upgrade to Sapien to access these.</p>
       <button class="btn" type="button" data-open-paywall>Upgrade to Sapien</button>
     </div>
+    <!-- A game with head-to-head play shows its record here: wins, draws and losses, overall and
+         against each friend (Word Chain's 1v1). Hidden on every card that has none. -->
+    <div class="an-block" data-tier="record" id="anRecordBlock" hidden>
+      <h3>1v1 record</h3>
+      <div class="an-body" id="anRecord"></div>
+    </div>
   </div>
 </section>
 
@@ -708,6 +714,51 @@
   </div>
   <div id="friendList"></div>
   <button class="btn" id="sendBtn" style="width:100%;margin-top:18px" disabled>Send</button>
+</div></section>
+
+<!-- 1v1: who to play, which puzzle, and what to do with a puzzle you have just made.
+     The list of games and the "New 1v1 challenge" button are the shared duelSheet
+     above; these are the steps that button leads through (duel.js). -->
+<section class="sheet" id="duelWho" role="dialog" aria-modal="true" aria-labelledby="duelWhoTitle" hidden><div class="sheet-in">
+  <div class="sh-head"><h2 id="duelWhoTitle">Who do you want to play?</h2>
+    <button class="donebtn" data-sheet-close>Cancel</button></div>
+  <div id="duelFriends"></div>
+  <div class="mine-head">Someone new</div>
+  <p class="sethint" style="margin:0 0 9px">Type their email address or invite code. They are invited, and your
+    challenge starts when they have joined and accepted.</p>
+  <div class="findrow">
+    <input id="duelInvite" type="text" placeholder="Email address or invite code" autocomplete="off"
+           autocapitalize="off" spellcheck="false">
+    <button class="btn small" id="duelInviteGo">Next</button>
+  </div>
+</div></section>
+
+<section class="sheet" id="duelWhat" role="dialog" aria-modal="true" aria-labelledby="duelWhatTitle" hidden><div class="sheet-in">
+  <div class="sh-head"><h2 id="duelWhatTitle">Which puzzle?</h2>
+    <button class="donebtn" data-sheet-close>Cancel</button></div>
+  <p class="sh-status" id="duelWhatWho"></p>
+  <div class="btncol">
+    <button class="btn" id="duelPick">Let PlaySapien choose</button>
+    <button class="btn ghost" id="duelMineBtn">Share one of mine</button>
+    <button class="btn ghost" id="duelMake">Make a new puzzle</button>
+  </div>
+</div></section>
+
+<section class="sheet" id="duelMineSheet" role="dialog" aria-modal="true" aria-labelledby="duelMineTitle" hidden><div class="sheet-in">
+  <div class="sh-head"><h2 id="duelMineTitle">Share one of mine</h2>
+    <button class="donebtn" data-sheet-close>Cancel</button></div>
+  <div id="duelMineBody"></div>
+</div></section>
+
+<section class="sheet" id="duelSaved" role="dialog" aria-modal="true" aria-labelledby="duelSavedTitle" hidden><div class="sheet-in">
+  <div class="sh-head"><h2 id="duelSavedTitle">Puzzle saved</h2></div>
+  <p class="sh-status" id="duelSavedWho"></p>
+  <div class="btncol">
+    <button class="btn" id="duelSavedSend">Send it</button>
+    <button class="btn ghost" id="duelSavedOther">Choose another</button>
+    <button class="btn ghost" id="duelSavedMake">Make another</button>
+    <button class="btn ghost" id="duelSavedCancel">Cancel</button>
+  </div>
 </div></section>
 
 <div id="confirm" hidden>

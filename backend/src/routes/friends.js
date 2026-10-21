@@ -25,6 +25,7 @@ import { hmacSign } from '../lib/crypto.js';
 import { normaliseTrialEmail } from '../lib/trial.js';
 import { DAY } from '../lib/db.js';
 import { groupsFor, unGroupStatements } from './groups.js';
+import { activateDuelsStmt, cancelDuelsStmt, attachInvitedDuelsStmt } from '../lib/duels-db.js';
 
 /* How many pending invites a player sees at once. More can arrive, but they
    wait, unseen, until the player makes room by accepting, rejecting or
@@ -286,6 +287,7 @@ async function accept(ctx, them) {
     stmt(ctx.db,
       `UPDATE friendships SET state = 'accepted', responded_at = ?
         WHERE a_id = ? AND b_id = ? AND state = 'pending'`, ctx.now, a, b),
+    activateDuelsStmt(ctx.db, ctx.user.id, them, ctx.now),     // a 1v1 sent with the invite can start
     noticeStatement(ctx.db, {
       userId: them,
       kind: 'friend_accepted',
@@ -312,8 +314,11 @@ export async function removeFriend(ctx) {
     a, b);
   const changed = res && res.meta ? res.meta.changes : 0;
   if (!changed) return ERRORS.notFound('You are not connected to that player.');
-  /* No longer friends: out of each other's groups too. */
-  await ctx.db.batch(unGroupStatements(ctx.db, ctx.user.id, ctx.params.id));
+  /* No longer friends: out of each other's groups too, and any 1v1 between them stops. */
+  await ctx.db.batch([
+    ...unGroupStatements(ctx.db, ctx.user.id, ctx.params.id),
+    cancelDuelsStmt(ctx.db, ctx.user.id, ctx.params.id, ctx.now),
+  ]);
   return ok({ removed: ctx.params.id });
 }
 
@@ -351,7 +356,10 @@ export async function blockFriend(ctx) {
        responded_at = CASE WHEN friendships.state = 'blocked' THEN friendships.responded_at ELSE excluded.responded_at END,
        state = 'blocked', later_at = NULL`,
     a, b, ctx.user.id, ctx.now, ctx.now, ctx.user.id);
-  await ctx.db.batch(unGroupStatements(ctx.db, ctx.user.id, them));
+  await ctx.db.batch([
+    ...unGroupStatements(ctx.db, ctx.user.id, them),
+    cancelDuelsStmt(ctx.db, ctx.user.id, them, ctx.now),
+  ]);
 
   return ok({ state: 'blocked', id: them });
 }
@@ -385,6 +393,7 @@ export async function rejectRequest(ctx) {
     stmt(ctx.db, "DELETE FROM friendships WHERE a_id = ? AND b_id = ? AND state = 'pending'", a, b),
     stmt(ctx.db, 'INSERT INTO friend_rejections (sender_id, recipient_id, at) VALUES (?, ?, ?)',
       them, ctx.user.id, ctx.now),
+    cancelDuelsStmt(ctx.db, ctx.user.id, them, ctx.now),
   ]);
   return ok({ state: 'rejected', id: them });
 }
@@ -479,6 +488,15 @@ export async function inviteByEmail(ctx) {
     return ok({ sent: true });
   }
 
+  await inviteUnknown(ctx, email);
+  return ok({ sent: true });
+}
+
+/* An address with no account: keep the invite (as a keyed hash) for when that person
+   joins, and send ONE invitation email -- at most one per address per 30 days, whoever is
+   inviting, and never to an address that has asked to stop. Returns the key. Shared by the
+   invite box and by a 1v1 challenge sent to an address. */
+async function inviteUnknown(ctx, email) {
   const key = await emailKey(ctx.env, email);
   const optedOut = await first(ctx.db, 'SELECT 1 AS x FROM email_optouts WHERE email_key = ?', key);
   const recent = await first(ctx.db,
@@ -504,7 +522,71 @@ export async function inviteByEmail(ctx) {
       console.error('[friends] invite mail failed: ' + (e && e.message));
     }
   }
-  return ok({ sent: true });
+  return key;
+}
+
+/* A 1v1 challenge for someone who is not (yet) a friend: an email address or an invite code.
+   It does exactly what inviting them would -- the same limits, the same friend request or
+   invitation email, the same refusal to say whether an address has an account -- and hands
+   back who the challenge is for:
+     { them, label }       a player: the friend request is sent (or answered, if they had asked)
+     { them, label, blocked: true }   they have blocked you: nothing is sent, and nothing says so
+     { key, label }        no account: an invitation is out, and the challenge waits for them
+   or { error }. */
+export async function inviteForChallenge(ctx, raw) {
+  const text = String(raw || '').trim();
+  const paused = await pausedUntil(ctx.db, ctx.user.id, ctx.now);
+  if (paused) return { error: pausedError(paused) };
+
+  async function known(them, label) {
+    const existing = await getFriendship(ctx.db, ctx.user.id, them);
+    if (existing && existing.state === 'blocked') return { them, label, blocked: true };
+    await requestPlayer(ctx, them);
+    return { them, label };
+  }
+
+  if (isEmail(text.toLowerCase())) {
+    const email = text.toLowerCase();
+    if (ctx.user.email && normaliseTrialEmail(email) === normaliseTrialEmail(ctx.user.email)) {
+      return { error: err('self', 'That is your own address.', 400) };
+    }
+    const day = await consume(ctx.db, 'invite_email_day', ctx.user.id, ctx.now);
+    if (!day.allowed) return { error: ERRORS.rateLimited(day.retryAfter, 'Twenty email invites a day is the limit. Try tomorrow.') };
+    const month = await consume(ctx.db, 'invite_email_month', ctx.user.id, ctx.now);
+    if (!month.allowed) return { error: ERRORS.rateLimited(month.retryAfter, 'Fifty email invites a month is the limit.') };
+
+    const label = maskEmail(email);
+    const target = await first(ctx.db,
+      'SELECT id FROM users WHERE email = ? COLLATE NOCASE AND deleted_at IS NULL', email);
+    if (target) {
+      if (target.id === ctx.user.id) return { error: err('self', 'That is your own address.', 400) };
+      return await known(target.id, label);
+    }
+    return { key: await inviteUnknown(ctx, email), label };
+  }
+
+  const code = normaliseInviteCode(text);
+  if (code.length !== 8) {
+    return { error: err('bad_invite', 'Type an email address or an 8-character invite code.', 400) };
+  }
+  const day = await consume(ctx.db, 'invite_game_day', ctx.user.id, ctx.now);
+  if (!day.allowed) return { error: ERRORS.rateLimited(day.retryAfter, 'That is a lot of invites for one day. Try tomorrow.') };
+  const month = await consume(ctx.db, 'invite_game_month', ctx.user.id, ctx.now);
+  if (!month.allowed) return { error: ERRORS.rateLimited(month.retryAfter, 'That is a lot of invites for one month.') };
+  const row = await first(ctx.db,
+    `SELECT ic.user_id, u.handle, u.display_name
+       FROM invite_codes ic JOIN users u ON u.id = ic.user_id
+      WHERE ic.code = ? AND ic.revoked_at IS NULL AND u.deleted_at IS NULL`, code);
+  if (!row) return { error: err('bad_code', 'That invite code does not work.', 400) };
+  if (row.user_id === ctx.user.id) return { error: err('self', 'That is your own invite code.', 400) };
+  return await known(row.user_id, row.display_name || row.handle || 'Friend');
+}
+
+/* "ka***@example.com": enough for the challenger to tell their invitations apart, not the address. */
+function maskEmail(email) {
+  const at = email.lastIndexOf('@');
+  const local = email.slice(0, at), domain = email.slice(at + 1);
+  return local.slice(0, Math.min(2, local.length)) + '***@' + domain;
 }
 
 /* GET /api/invites/stop?k=&t= -> the link at the foot of an invitation email */
@@ -547,6 +629,7 @@ export async function claimEmailInvites(ctx, userId, email) {
        VALUES (?, ?, 'pending', ?, ?) ON CONFLICT(a_id, b_id) DO NOTHING`,
       a, b, r.inviter_id, ctx.now));
   }
+  stmts.push(attachInvitedDuelsStmt(ctx.db, key, userId, ctx.now));   // a 1v1 sent with the invite
   stmts.push(stmt(ctx.db, 'DELETE FROM email_invites WHERE email_key = ?', key));
   await ctx.db.batch(stmts);
 }

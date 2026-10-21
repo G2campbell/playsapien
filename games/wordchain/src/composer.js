@@ -12,13 +12,15 @@ function archive() { return store('archive') || []; }
 function friends() { return store('friends') || []; }
 function newId() { return 'p' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36); }
 
-function composeOpen(src) {
+function composeOpen(src, opts) {
   C = {
     words: src ? src.words.slice() : ['', '', '', '', '', '', '', ''],
     row: 0, sourceId: src ? src.id : null,
-    savedId: null, shareId: src ? src.id : null, dirty: false
+    savedId: null, shareId: src ? src.id : null, dirty: false,
+    duel: opts && opts.duel ? opts.duel : null        /* writing a puzzle for a 1v1 challenge (duel.js) */
   };
-  $('cTitle').textContent = src ? 'Editing' : 'New chain';
+  $('cTitle').textContent = C.duel ? 'Puzzle for ' + C.duel.name : (src ? 'Editing' : 'New chain');
+  $('cShareBtn').style.display = C.duel ? 'none' : '';
   $('home').hidden = true; $('app').hidden = true; $('compose').hidden = false;
   mountKeyboard($('compose'));
   cRender(); cHint('');
@@ -116,6 +118,7 @@ function cSave(confirmed) {
   C.savedId = p.id; C.shareId = p.id; C.dirty = false; C.sourceId = null;
   $('cTitle').textContent = 'Saved';
   cRender(); cHint('Saved.');
+  if (C.duel) duelSaved();         /* send it, choose another, make another, or cancel */
 }
 
 /* ------------------------------------------------------------------ my chains */

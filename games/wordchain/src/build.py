@@ -174,6 +174,7 @@ def compose(src, site, style):
     body = read(src + 'part-b-body.html', 'part-b-body.html')
     app = read(src + 'part-c-app.js', 'part-c-app.js')
     app += read(src + 'composer.js', 'composer.js')
+    app += read(src + 'duel.js', 'duel.js')
 
     # Audit B7. Unwrapped, these two files put ~107 declarations on `window` --
     # `$`, `S`, `SET`, `DATA`, `SITE`, `store`, `drop`, `toast`, `save`, `finish`,
