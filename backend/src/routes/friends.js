@@ -21,7 +21,7 @@ import { newInviteCode, normaliseInviteCode } from '../lib/id.js';
 import { asObject, isEmail } from '../lib/validate.js';
 import { consume } from '../middleware/ratelimit.js';
 import { noticeStatement } from './player.js';
-import { hmacSign } from '../lib/crypto.js';
+import { hmacSign, base64url, randomBytes } from '../lib/crypto.js';
 import { normaliseTrialEmail } from '../lib/trial.js';
 import { DAY } from '../lib/db.js';
 import { groupsFor, unGroupStatements } from './groups.js';
@@ -439,6 +439,13 @@ export async function emailKey(env, email) {
   const secret = env.TRIAL_KEY_SECRET || env.LOGIN_CODE_PEPPER || 'playsapien-email';
   return hmacSign(secret, 'email:' + normaliseTrialEmail(email));
 }
+/* A challenge sent by text message has no address to key on, so the link carries a random
+   token and only its keyed hash is kept (like an email invite): the database never holds a
+   working link. */
+async function textKey(env, token) {
+  const secret = env.TRIAL_KEY_SECRET || env.LOGIN_CODE_PEPPER || 'playsapien-email';
+  return hmacSign(secret, 'textlink:' + token);
+}
 async function stopToken(env, key) {
   return hmacSign(env.OAUTH_STATE_SECRET || env.LOGIN_CODE_PEPPER || 'playsapien-stop', 'stop:' + key);
 }
@@ -587,6 +594,73 @@ export async function inviteForChallenge(ctx, raw) {
   if (!row) return { error: err('bad_code', 'That invite code does not work.', 400) };
   if (row.user_id === ctx.user.id) return { error: err('self', 'That is your own invite code.', 400) };
   return await known(row.user_id, row.display_name || row.handle || 'Friend');
+}
+
+/* A challenge to be sent by text message: no one is named. The server makes a one-time token
+   (the client turns it into a link and the player sends it through their own messages app, so
+   PlaySapien never sees a phone number). The challenge waits (`invited`) until someone opens
+   the link (claimTextChallenge). Counts against the same limits as an invite by code.
+   Returns { key, label, token } or { error }. */
+export async function textInviteForChallenge(ctx) {
+  const paused = await pausedUntil(ctx.db, ctx.user.id, ctx.now);
+  if (paused) return { error: pausedError(paused) };
+  const day = await consume(ctx.db, 'invite_game_day', ctx.user.id, ctx.now);
+  if (!day.allowed) return { error: ERRORS.rateLimited(day.retryAfter, 'That is a lot of invites for one day. Try tomorrow.') };
+  const month = await consume(ctx.db, 'invite_game_month', ctx.user.id, ctx.now);
+  if (!month.allowed) return { error: ERRORS.rateLimited(month.retryAfter, 'That is a lot of invites for one month.') };
+  const token = base64url(randomBytes(16));
+  return { key: await textKey(ctx.env, token), label: 'your text invite', token };
+}
+
+/* POST /api/invites/claim { token } -> who sent it, and what is waiting
+   The person who opens a text-message challenge link gets the challenge, exactly as someone
+   who joins at an invited email address does: it becomes theirs, a friend request from the
+   challenger arrives with it, and the challenge starts when they accept (at once if they were
+   already friends). The first person to open a link gets it; after that it is spent. A link
+   from someone who has blocked you, or that you have blocked, answers like a spent one. */
+export async function claimTextChallenge(ctx) {
+  if (!ctx.user) return ERRORS.unauthorised();
+  const body = await readJson(ctx.req);
+  const token = String(asObject(body.value).token || '');
+  if (body.bad || body.tooLarge || !/^[A-Za-z0-9_-]{16,64}$/.test(token)) return ERRORS.invalid('That link is not right.');
+  const gate = await consume(ctx.db, 'link_claim', ctx.user.id, ctx.now);
+  if (!gate.allowed) return ERRORS.rateLimited(gate.retryAfter, 'Try again tomorrow.');
+
+  const gone = () => err('link_used', 'That challenge link has already been used, or it has run out.', 404);
+  const key = await textKey(ctx.env, token);
+  const since = ctx.now - 90 * DAY;
+  const found = await all(ctx.db,
+    `SELECT challenger_id, 'duel' AS kind FROM duels WHERE invite_key = ? AND state = 'invited' AND created_at > ?
+     UNION ALL
+     SELECT challenger_id, 'timed' AS kind FROM timed WHERE invite_key = ? AND state = 'invited' AND created_at > ?`,
+    key, since, key, since);
+  if (!found.length) return gone();
+  const challenger = found[0].challenger_id;
+  if (challenger === ctx.user.id) return err('own_link', 'That is your own challenge link.', 400);
+  const f = await getFriendship(ctx.db, ctx.user.id, challenger);
+  if (f && f.state === 'blocked') return gone();
+  const who = await first(ctx.db, 'SELECT display_name, handle FROM users WHERE id = ? AND deleted_at IS NULL', challenger);
+  if (!who) return gone();
+
+  const stmts = [
+    attachInvitedDuelsStmt(ctx.db, key, ctx.user.id, ctx.now),
+    attachInvitedTimedStmt(ctx.db, key, ctx.user.id, ctx.now),
+  ];
+  if (!f) {
+    const { a, b } = pair(ctx.user.id, challenger);
+    stmts.push(stmt(ctx.db,
+      `INSERT INTO friendships (a_id, b_id, state, requested_by, created_at)
+       VALUES (?, ?, 'pending', ?, ?) ON CONFLICT(a_id, b_id) DO NOTHING`, a, b, challenger, ctx.now));
+  } else if (f.state === 'accepted') {
+    stmts.push(activateDuelsStmt(ctx.db, ctx.user.id, challenger, ctx.now));
+    stmts.push(activateTimedStmt(ctx.db, ctx.user.id, challenger, ctx.now));
+  }
+  await ctx.db.batch(stmts);
+  return ok({
+    from: who.display_name || who.handle || 'A friend',
+    kinds: found.map((r) => r.kind),
+    friends: !!(f && f.state === 'accepted'),
+  });
 }
 
 /* "ka***@example.com": enough for the challenger to tell their invitations apart, not the address. */

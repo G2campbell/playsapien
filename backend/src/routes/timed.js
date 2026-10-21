@@ -66,7 +66,7 @@ export async function create(ctx) {
     `SELECT COUNT(*) AS n FROM timed WHERE state IN ('invited','active')
        AND ((a_id = ? AND b_id = ?) OR (a_id = ? AND b_id = ?))`, x, y, y, x)).n);
   if (t.error) return t.error;
-  const { them, key, label, state, blocked, invited } = t;
+  const { them, key, label, state, blocked, invited, token } = t;
   if (blocked) return ok({ id: newId('t'), state: 'invited' }, { status: 201 });
 
   /* The chain: from the practice pile, one neither player has had in a challenge before. */
@@ -94,7 +94,7 @@ export async function create(ctx) {
     }));
   }
   await ctx.db.batch(writes);
-  return ok({ id, state: invited ? 'invited' : state }, { status: 201 });
+  return ok(token ? { id, state: 'invited', token } : { id, state: invited ? 'invited' : state }, { status: 201 });
 }
 
 /* ----------------------------------------------------------------------- list */

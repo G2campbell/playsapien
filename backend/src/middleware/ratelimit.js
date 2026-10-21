@@ -57,6 +57,8 @@ export const LIMITS = {
   duel_create: { limit: 20,   window: DAY, prefix: 'duelnew' },
   timed_create: { limit: 20,  window: DAY, prefix: 'timednew' },
   duel_move:   { limit: 1500, window: DAY, prefix: 'duelmove' },
+  /* Opening a text-message challenge link (routes/friends.js claimTextChallenge). */
+  link_claim:  { limit: 30,   window: DAY, prefix: 'linkclaim' },
   /* Promotion codes. Ten tries an hour per player: plenty for typos, far too
      few to guess a code by working through variations of a known one. */
   redeem: { limit: 10, window: HOUR, prefix: 'redeem' },

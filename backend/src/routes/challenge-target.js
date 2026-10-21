@@ -2,6 +2,8 @@
    (routes/timed.js), so the two can never differ on the things that matter:
 
      - a friend, picked from the list: they must be an accepted friend;
+     - or a text-message link ({ text: true }): nobody is named, the answer carries a token
+       that becomes the link, and whoever opens it first gets the challenge;
      - or an email address / invite code typed in: it does exactly what inviting them would
        (the same limits, the same friend request or invitation email) and the answer never
        says whether an address has an account. The challenge then waits until they have
@@ -9,12 +11,12 @@
        is not told (the caller returns the same answer and creates nothing). */
 
 import { err, ERRORS } from '../lib/http.js';
-import { getFriendship, inviteForChallenge } from './friends.js';
+import { getFriendship, inviteForChallenge, textInviteForChallenge } from './friends.js';
 
 export const MAX_PER_FRIEND = 5;      // games going at once with the same friend
 
 /* `pairBusy(me, them)` counts the games already going between the two, for the caller's table.
-   Resolves to { error } or { them, key, label, state, blocked, invited }. */
+   Resolves to { error } or { them, key, label, state, blocked, invited, token? }. */
 export async function resolveTarget(ctx, to, pairBusy) {
   const me = ctx.user.id;
   if (to.friend_id) {
@@ -25,6 +27,11 @@ export async function resolveTarget(ctx, to, pairBusy) {
       return { error: err('too_many_with_friend', 'You already have ' + MAX_PER_FRIEND + ' games going with them.', 400) };
     }
     return { them, key: null, label: null, state: 'active', blocked: false, invited: false };
+  }
+  if (to.text === true) {
+    const r = await textInviteForChallenge(ctx);
+    if (r.error) return { error: r.error };
+    return { them: null, key: r.key, label: r.label, state: 'invited', blocked: false, invited: true, token: r.token };
   }
   if (typeof to.invite === 'string') {
     const r = await inviteForChallenge(ctx, to.invite);

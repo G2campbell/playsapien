@@ -124,15 +124,16 @@ $('timedList').addEventListener('click', function (e) {
 function createTimed() {
   if (DU.busy || !DU.to) return;
   DU.busy = true;
-  var to = DU.to.friend_id ? { friend_id: DU.to.friend_id } : { invite: DU.to.invite };
+  var to = DU.to.friend_id ? { friend_id: DU.to.friend_id } : DU.to.text ? { text: true } : { invite: DU.to.invite };
   duApi('POST', '/timed', { to: to }).then(function (r) {
     DU.busy = false;
     if (!r.ok) { PSUI.toast(duMsg(r.error)); return; }
     var who = DU.to.name, invited = !!DU.to.invite;
     PSUI.close();
     DU.to = null;
-    PSUI.toast(invited ? 'Invitation sent. Your challenge starts when they join and accept.'
-                       : 'Timed challenge sent to ' + who + '. Run yours whenever you like.');
+    if (r.data && r.data.token) duelLinkShow(r.data.token, 'timed');
+    else PSUI.toast(invited ? 'Invitation sent. Your challenge starts when they join and accept.'
+                            : 'Timed challenge sent to ' + who + '. Run yours whenever you like.');
     timedRefresh();
   });
 }

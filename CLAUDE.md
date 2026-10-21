@@ -142,7 +142,7 @@ editing.** A CRLF `build.sh` dies with `set: Illegal option -`.
 ## 4. Running and testing locally
 
 ```sh
-# Backend (needs Node 22). 198 tests (SDK: 43), no Cloudflare account needed.
+# Backend (needs Node 22). 205 tests (SDK: 43), no Cloudflare account needed.
 cd backend && npm install && npm test
 npx wrangler dev                      # local Worker + local D1 (optional)
 
@@ -458,6 +458,12 @@ the backend must be redeployed with it; until then the server answers 503
       never told.
     - **Stop link:** invitation emails carry a "stop invitation emails" link,
       because non-members can't use a block list.
+    - **By text message (21 Oct).** On a phone (`PSUI.canText()`: an Android or iOS user agent;
+      hidden on a computer) the Friends card has "Text an invite", which opens the phone's own
+      messages app with the invite and the `/?f=CODE` link already written (`sms:?&body=`).
+      PlaySapien never sees a phone number and sends no SMS itself. A paid SMS service (Twilio
+      etc.) was considered and left for later: a monthly cost, carrier registration, phone
+      numbers as personal data, and a way to text strangers. Challenges by text: §8 item 14.
     - **Friend groups** are **private lists owned by one player**; friends aren't
       told. Making a group or adding to one is **Sapien**; removing and deleting are
       open to everyone. Removing or blocking a friend un-groups them on both sides.
@@ -532,6 +538,19 @@ the backend must be redeployed with it; until then the server answers 503
       (slower). Rounded to the nearest second, and a non-draw is never shown as 0:00 (`tcGap` in
       the game, `gapText` on the server, `anDiff` in the Analytics card). `timedRecord` in
       `GET /api/player/analytics?game=wordchain`.
+    - **Challenges by text message (both 1v1 and timed).** In the friend picker, "Send a link
+      instead" makes the challenge with `to: { text: true }`; the server returns a one-time
+      `token` and the game shows a sheet (`duelLink`) with "Text it" (phones) and "Share or copy
+      the link" for `/wordchain/?c=TOKEN`. The buttons are tapped on that sheet because phones only
+      open their messages after a tap, not after a network wait. Only the keyed hash of the token
+      is stored (`invite_key`, like an email invite; `friends.js` `textKey`). **Whoever opens the
+      link first gets the challenge** (`POST /api/invites/claim`, `claimTextChallenge`): it is
+      attached to them, a friend request from the challenger arrives with it and the challenge
+      starts when they accept (at once if they were already friends). The game keeps the token
+      across sign-in (`wordchain:textchal`) and claims it when the player is signed in. A spent
+      link, or one between a blocked pair, answers the same way ("already been used"); you cannot
+      open your own. Counts against the invite-by-code limits (40 a day, 100 a month).
+      Known gap: a link forwarded on to someone else is claimed by whoever opens it first.
     - **Same rules as 1v1** for who can be challenged (Sapien to send, anyone to play), inviting
       with a challenge, blocks and un-friending (cancelled silently), a masked address, 25 going
       per player and 5 per friend. Cron: a challenge is cancelled after 30 days either way

@@ -179,7 +179,16 @@
     catch (e) { return ''; }
   }
 
+  /* Text a message: opens the phone's own messages app with the words already written, and the
+     player picks who gets it. PlaySapien never sees a phone number. Only offered on phones (a
+     computer has no messages app to open); elsewhere the link is shared or copied instead. */
+  function canText() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || ''); }
+  function textTo(message) { global.location.href = 'sms:?&body=' + encodeURIComponent(message); }
+
   var UI = {
+    /* Phones can text; see above. */
+    canText: canText,
+    textTo: textTo,
     /* Point the bar's brand link at the right place for this surface. Safe to
        call more than once and safe on a page with no bar. */
     bar: bar,
@@ -1494,6 +1503,16 @@
           .catch(function (err) { if (!err || err.name !== 'AbortError') copy(); });
       } else copy();
     });
+
+    /* Text: the same invite, straight into the messages app. */
+    if (canText()) {
+      $('frTextRow').hidden = false;
+      $('frText').addEventListener('click', function () {
+        var c = ($('frCode').textContent || '').trim();
+        if (!/^[A-Z0-9]{8}$/i.test(c)) { toast('Your code has not loaded yet'); return; }
+        textTo('Be my friend on PlaySapien. My invite code is ' + c + '. ' + location.origin + '/?f=' + c);
+      });
+    }
 
     var lists = $('frLists'), sentBox = $('frSent');
     /* Remember which lists are open, so a repaint does not snap them shut. */

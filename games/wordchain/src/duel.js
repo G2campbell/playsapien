@@ -30,6 +30,8 @@ var DU_ERR = {
   already_finished: 'You have already finished this one.',
   already_started: 'That has already started.',
   too_many_with_friend: 'You already have five games going with them.',
+  link_used: 'That challenge link has already been used.',
+  own_link: 'That is your own challenge link.',
   bad_chain: 'That puzzle cannot be used. A puzzle needs 4 to 12 words, letters only.',
   bad_invite: 'Type an email address or an 8-character invite code.',
   bad_code: 'That invite code does not work.',
@@ -175,6 +177,10 @@ function duelInviteNext() {
   if (DU.kind === 'timed') createTimed(); else duelWhich();
 }
 $('duelInviteGo').addEventListener('click', duelInviteNext);
+$('duelText').addEventListener('click', function () {
+  DU.to = { text: true, name: 'your friend' };
+  if (DU.kind === 'timed') createTimed(); else duelWhich();
+});
 $('duelInvite').addEventListener('keydown', function (e) {
   if (e.key === 'Enter') { e.preventDefault(); duelInviteNext(); }
 });
@@ -208,7 +214,7 @@ $('duelMineBody').addEventListener('click', function (e) {
 function createDuel(chain, fromComposer) {
   if (DU.busy || !DU.to) return;
   DU.busy = true;
-  var to = DU.to.friend_id ? { friend_id: DU.to.friend_id } : { invite: DU.to.invite };
+  var to = DU.to.friend_id ? { friend_id: DU.to.friend_id } : DU.to.text ? { text: true } : { invite: DU.to.invite };
   duApi('POST', '/duels', { to: to, chain: chain }).then(function (r) {
     DU.busy = false;
     if (!r.ok) { PSUI.toast(duMsg(r.error)); return; }
@@ -216,11 +222,80 @@ function createDuel(chain, fromComposer) {
     PSUI.close();
     if (fromComposer) composeClose();
     DU.to = null; DU.fromComposer = false;
-    PSUI.toast(invited ? 'Invitation sent. Your challenge starts when they join and accept.'
-                       : 'Challenge sent to ' + who + '.');
+    if (r.data && r.data.token) duelLinkShow(r.data.token, '1v1');
+    else PSUI.toast(invited ? 'Invitation sent. Your challenge starts when they join and accept.'
+                            : 'Challenge sent to ' + who + '.');
     duelRefresh();
   });
 }
+
+/* ------------------------------------------------------------------ challenges by text message */
+/* The server made a one-time token; the link goes out through the player's own messages app (or
+   any share target), so PlaySapien never sees a phone number. The buttons are tapped here, a
+   fresh tap, because phones only open their messages for a tap and not after a wait. */
+function duelLinkShow(token, kind) {
+  var link = location.origin + '/wordchain/?c=' + token;
+  var msg = 'I challenge you to a ' + kind + ' Word Chain on PlaySapien. ' + link;
+  DU.link = { url: link, msg: msg };
+  $('duelLinkText').hidden = !PSUI.canText();
+  PSUI.open('duelLink');
+}
+$('duelLinkText').addEventListener('click', function () { if (DU.link) PSUI.textTo(DU.link.msg); });
+$('duelLinkShare').addEventListener('click', function () {
+  if (!DU.link) return;
+  var copy = function () {
+    try { navigator.clipboard.writeText(DU.link.url).then(function () { PSUI.toast('Link copied'); },
+      function () { PSUI.toast(DU.link.url); }); }
+    catch (e) { PSUI.toast(DU.link.url); }
+  };
+  if (navigator.share) {
+    navigator.share({ title: 'PlaySapien', text: 'I challenge you to a Word Chain on PlaySapien.', url: DU.link.url })
+      .catch(function (err) { if (!err || err.name !== 'AbortError') copy(); });
+  } else copy();
+});
+
+/* Opening such a link: /wordchain/?c=TOKEN. The token is kept until the player is signed in
+   (and until it has been sent without a network error), then the server hands over the challenge. */
+(function () {
+  try {
+    var m = /[?&]c=([A-Za-z0-9_-]{16,64})/.exec(location.search);
+    if (!m) return;
+    store('textchal', m[1]);
+    var u = new URL(location.href);
+    u.searchParams.delete('c');
+    history.replaceState(null, '', u.pathname + u.search + u.hash);
+  } catch (e) {}
+})();
+
+function textClaim() {
+  var tok = store('textchal');
+  if (!tok || DU.claiming || DU.signedOut) return;
+  DU.claiming = true;
+  duApi('POST', '/invites/claim', { token: tok }).then(function (r) {
+    DU.claiming = false;
+    if (r.ok && r.data) {
+      drop('textchal');
+      var timed = r.data.kinds && r.data.kinds[0] === 'timed', from = r.data.from || 'A friend';
+      PSUI.toast(r.data.friends ? from + ' challenged you.'
+        : from + ' challenged you. Accept their friend request to play.');
+      duelRefresh(); timedRefresh();
+      PSUI.open(timed ? 'timedSheet' : 'duelSheet');
+    } else if (r.error === 'offline' || r.error === 'timeout' || !r.status || r.status >= 500) {
+      /* keep it: it is tried again when the game next opens */
+    } else {
+      drop('textchal');
+      PSUI.toast(r.error === 'link_used' ? 'That challenge link has already been used.' : duMsg(r.error));
+    }
+  });
+}
+/* Not signed in yet: ask, and the claim runs when they are (the ps:user listener below). */
+setTimeout(function () {
+  if (!store('textchal')) return;
+  PSUI.whenUser().then(function (u) {
+    if (u) textClaim();
+    else { PSUI.toast('Sign in to take the challenge.'); PSUI.open('profileSheet'); }
+  });
+}, 1500);
 
 /* A puzzle was just made for a challenge: what now? (called from the composer's save) */
 function duelSaved() {
@@ -371,7 +446,7 @@ function duelLeave() { goHome(); duelRefresh(); }
 /* ------------------------------------------------------------------ keeping the badge fresh */
 document.addEventListener('ps:user', function (e) {
   DU.signedOut = !e.detail;
-  if (e.detail) { duelRefresh(); timedRefresh(); } else { DU.games = []; TC.games = []; paintTurnBadge(0); paintTimedBadge(0); }
+  if (e.detail) { duelRefresh(); timedRefresh(); textClaim(); } else { DU.games = []; TC.games = []; paintTurnBadge(0); paintTimedBadge(0); }
 });
 window.addEventListener('focus', function () { duelRefresh(); timedRefresh(); });
 setInterval(function () { if (!document.hidden) { duelRefresh(); timedRefresh(); } }, 90000);

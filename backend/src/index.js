@@ -61,6 +61,7 @@ const ROUTES = [
   ['POST',   '/api/player/friends/:id/reject',   friends.rejectRequest],
   ['POST',   '/api/player/friends/:id/unblock',  friends.unblockFriend],
   ['GET',    '/api/invites/stop',                friends.stopInviteEmails],
+  ['POST',   '/api/invites/claim',               friends.claimTextChallenge],
   ['POST',   '/api/player/friends/:id/block',    friends.blockFriend],
   ['DELETE', '/api/player/friends/:id',          friends.removeFriend],
   ['GET',    '/api/player/groups',               groups.listGroups],

@@ -571,6 +571,11 @@
             <code id="frCode">&middot;&middot;&middot;&middot;&middot;&middot;&middot;&middot;</code></div>
           <button class="btn ghost" type="button" id="frCopy">Share invite link</button>
         </div>
+        <!-- Phones only: opens the messages app with the invite already written. -->
+        <div class="frtext" id="frTextRow" hidden>
+          <button class="btn ghost" type="button" id="frText">Text an invite</button>
+          <span class="sethint">Opens your messages with the invite written. Pick who gets it there.</span>
+        </div>
       </div>
 
       <div class="pfsec">
@@ -737,6 +742,22 @@
     <input id="duelInvite" type="text" placeholder="Email address or invite code" autocomplete="off"
            autocapitalize="off" spellcheck="false">
     <button class="btn small" id="duelInviteGo">Next</button>
+  </div>
+  <p class="sethint" style="margin:14px 0 9px">Or skip the typing: send them a link in a text message, or any app you like.
+    The first person to open it gets your challenge.</p>
+  <button class="btn ghost small" id="duelText">Send a link instead</button>
+</div></section>
+
+<!-- The challenge is made; this is where the link goes out. Its buttons are tapped by the player,
+     because a phone only opens its messages app for a tap, not after a wait. -->
+<section class="sheet" id="duelLink" role="dialog" aria-modal="true" aria-labelledby="duelLinkTitle" hidden><div class="sheet-in">
+  <div class="sh-head"><h2 id="duelLinkTitle">Send your challenge</h2>
+    <button class="donebtn" data-sheet-close>Done</button></div>
+  <p class="sethint" style="margin:0 0 12px">Your challenge is ready. Send them this link. It works once: the first person
+    to open it gets the challenge, and your friend request goes with it.</p>
+  <div class="btnrow" style="flex-wrap:wrap;gap:8px">
+    <button class="btn" id="duelLinkText" hidden>Text it</button>
+    <button class="btn ghost" id="duelLinkShare">Share or copy the link</button>
   </div>
 </div></section>
 

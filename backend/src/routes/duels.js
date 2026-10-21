@@ -106,7 +106,7 @@ export async function create(ctx) {
     `SELECT COUNT(*) AS n FROM duels WHERE state IN ('invited','active')
        AND ((a_id = ? AND b_id = ?) OR (a_id = ? AND b_id = ?))`, x, y, y, x)).n);
   if (t.error) return t.error;
-  const { them, key, label, state, blocked, invited } = t;
+  const { them, key, label, state, blocked, invited, token } = t;
 
   /* Whoever sent an invitation is told the same thing whatever happened to it: a challenge
      to someone who has blocked them simply never appears. */
@@ -143,7 +143,7 @@ export async function create(ctx) {
   await ctx.db.batch(writes);
   /* From an invitation the answer is always "invited": it must not say whether the address
      already had an account. The list says how things really stand. */
-  return ok({ id, state: invited ? 'invited' : state }, { status: 201 });
+  return ok(token ? { id, state: 'invited', token } : { id, state: invited ? 'invited' : state }, { status: 201 });
 }
 
 /* ----------------------------------------------------------------------- list */
