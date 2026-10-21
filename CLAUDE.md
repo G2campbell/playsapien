@@ -487,8 +487,7 @@ the backend must be redeployed with it; until then the server answers 503
       to be judged, so a 1v1 turn needs a connection and cannot be cheated by looking. The game
       only adds the flavour of a wrong guess (strong/weak/none) from its own pairs list.
     - **Who moves first.** The CHALLENGED player (`RECIPIENT_SIDE = 'a'` in `routes/duels.js`;
-      flip to 'b' to make the challenger go first). Assumed from "sends it to the friend... it is
-      their turn"; not explicitly confirmed by Kai.
+      flip to 'b' to make the challenger go first). Confirmed by Kai, 21 Oct.
     - **Making one (Sapien only; playing is free).** New 1v1 challenge -> pick a friend, or invite
       someone new (email or invite code) -> choose the puzzle: PlaySapien picks (from the practice
       pile, never the daily-only pool, and not a chain either player has had in a duel), share one
