@@ -534,8 +534,8 @@ the backend must be redeployed with it; until then the server answers 503
       `GET /api/player/analytics?game=wordchain`.
     - **Same rules as 1v1** for who can be challenged (Sapien to send, anyone to play), inviting
       with a challenge, blocks and un-friending (cancelled silently), a masked address, 25 going
-      per player and 5 per friend. Cron: unaccepted after 90 days, or nobody has run it in 30,
-      is cancelled. The badge on the Timed button counts challenges waiting on your run.
+      per player and 5 per friend. Cron: a challenge is cancelled after 30 days either way
+      (unaccepted, or nobody has run it; Kai, 21 Oct). The badge on the Timed button counts challenges waiting on your run.
     - **Offline.** A finished run that cannot be sent is kept (`wordchain:timedpending:<id>`) and
       retried when the game opens or the connection returns. A run in progress is held like a
       daily (`HELD.timed`); only one timed challenge can be in progress on a device.

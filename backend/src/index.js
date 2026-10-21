@@ -332,9 +332,9 @@ export default {
             .bind(now - 90 * DAY),
           env.DB.prepare("UPDATE duels SET state = 'cancelled' WHERE state = 'active' AND updated_at < ?")
             .bind(now - 45 * DAY),
-          /* The same for timed challenges: unaccepted after 90 days, or nobody has run it in 30. */
+          /* Timed challenges: 30 days either way, unaccepted or not run by anyone. */
           env.DB.prepare("UPDATE timed SET state = 'cancelled' WHERE state = 'invited' AND created_at < ?")
-            .bind(now - 90 * DAY),
+            .bind(now - 30 * DAY),
           env.DB.prepare("UPDATE timed SET state = 'cancelled' WHERE state = 'active' AND updated_at < ?")
             .bind(now - 30 * DAY),
           /* Practice counts older than about a year: the admin sizing view reads recent
