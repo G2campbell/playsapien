@@ -2054,8 +2054,36 @@ PSTheme.init('sj-game');
     });
     return s;
   }
+  /* "+4:10": faster by that much overall; "-4:10": slower. Whole seconds. */
+  function anDiff(ms) {
+    var t = Math.round(Math.abs(ms) / 1000);
+    return (ms < 0 ? '-' : '+') + Math.floor(t / 60) + ':' + ('0' + (t % 60)).slice(-2);
+  }
+  /* Timed challenges: wins-draws-losses and the time differential, overall and per friend. */
+  function anTimedRecord(rec) {
+    var t = rec.total, games = t.w + t.d + t.l;
+    if (!games) return '<p class="an-empty">No finished timed challenges yet.</p>';
+    var s = '<div class="an-big">' + t.w + '-' + t.d + '-' + t.l +
+      '<small>wins \u00b7 draws \u00b7 losses</small></div>' +
+      '<div class="an-cmp"><span>Time differential</span><b>' + anDiff(t.diff_ms) + '</b></div>';
+    rec.friends.forEach(function (f) {
+      s += '<div class="an-cmp"><span><span class="psav" style="width:22px;height:22px;display:inline-block;' +
+        'vertical-align:middle;margin-right:8px;border-radius:50%;overflow:hidden">' + avatar(f.friend) + '</span>' +
+        escapeAttr(f.friend.name) + '</span><b>' + f.w + '-' + f.d + '-' + f.l + ' \u00b7 ' + anDiff(f.diff_ms) + '</b></div>';
+    });
+    return s;
+  }
   function paintAnalyticsBody() {
     var d = AN.data;
+    var tb = document.getElementById('anTimedBlock'), tbody = document.getElementById('anTimed');
+    if (tb && tbody) {
+      var trec = d && d.timedRecord;
+      tb.hidden = !trec;
+      if (trec) {
+        tbody.innerHTML = anTimedRecord(trec);
+        tbody.classList.toggle('filled', trec.total.w + trec.total.d + trec.total.l > 0);
+      }
+    }
     var rb = document.getElementById('anRecordBlock'), rbody = document.getElementById('anRecord');
     if (rb && rbody) {
       var rec = d && d.record;

@@ -185,6 +185,12 @@
       <h3>1v1 record</h3>
       <div class="an-body" id="anRecord"></div>
     </div>
+    <!-- And the same for timed challenges, with the time differential: how much faster (+) or
+         slower (-) you have been than each friend, added up over the games you have played. -->
+    <div class="an-block" data-tier="timedrecord" id="anTimedBlock" hidden>
+      <h3>Timed challenges</h3>
+      <div class="an-body" id="anTimed"></div>
+    </div>
   </div>
 </section>
 
@@ -609,7 +615,8 @@
          needs only an account; STARTING a challenge needs Sapien, and that is
          gated on the button inside each sheet, not here -- a free player can
          always see and play what a friend has sent them. -->
-    <button class="btn ghost" id="timedBtn" data-gate="account">Timed Friend Challenges</button>
+    <button class="btn ghost chal" id="timedBtn" data-gate="account">Timed Friend Challenges<span
+      class="turnbadge" id="timedBadge" hidden aria-hidden="true">0</span></button>
     <button class="btn ghost chal" id="duelBtn" data-gate="account">1v1 Friend Challenges<span
       class="turnbadge" id="duelBadge" hidden aria-hidden="true">0</span></button>
   </div>

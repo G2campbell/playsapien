@@ -18,7 +18,7 @@ import { newId } from '../lib/id.js';
 import { asObject, utcDay } from '../lib/validate.js';
 import { consume } from '../middleware/ratelimit.js';
 import { noticeStatement } from './player.js';
-import { getFriendship, inviteForChallenge } from './friends.js';
+import { resolveTarget } from './challenge-target.js';
 import { play, viewFor, sideOf } from '../lib/duel.js';
 import { practiceBatch } from '../lib/wcpools.js';
 import Engine from '../../../packages/scoring/wordchain.cjs';
@@ -27,8 +27,7 @@ import Engine from '../../../packages/scoring/wordchain.cjs';
    Changing this one letter ('b') makes the challenger go first instead. */
 const RECIPIENT_SIDE = 'a';
 
-const MAX_ACTIVE = 25;           // games going at once, per player
-const MAX_PER_FRIEND = 5;        // ... with the same friend
+const MAX_ACTIVE = 25;           // games going at once, per player (and at most 5 with one friend)
 const FINISHED_DAYS = 30;        // how long a finished game stays in the list
 const MIN_WORDS = 4, MAX_WORDS = 12;
 const other = (side) => (side === 'a' ? 'b' : 'a');
@@ -102,30 +101,12 @@ export async function create(ctx) {
     return err('bad_chain', 'Choose a puzzle: practice or one of yours.', 400);
   }
 
-  /* Who it is for. */
-  let them = null, key = null, label = null, state = 'active', blocked = false;
-  if (to.friend_id) {
-    const f = await getFriendship(ctx.db, me, String(to.friend_id));
-    if (!f || f.state !== 'accepted') return err('not_friends', 'That player is not your friend.', 400);
-    them = String(to.friend_id);
-    const pairBusy = await first(ctx.db,
-      `SELECT COUNT(*) AS n FROM duels WHERE state IN ('invited','active')
-         AND ((a_id = ? AND b_id = ?) OR (a_id = ? AND b_id = ?))`, me, them, them, me);
-    if (pairBusy.n >= MAX_PER_FRIEND) {
-      return err('too_many_with_friend', 'You already have ' + MAX_PER_FRIEND + ' games going with them.', 400);
-    }
-  } else if (typeof to.invite === 'string') {
-    const r = await inviteForChallenge(ctx, to.invite);
-    if (r.error) return r.error;
-    state = 'invited'; label = r.label || null; blocked = !!r.blocked;
-    if (r.them) {
-      them = r.them;
-      const f = await getFriendship(ctx.db, me, them);
-      if (f && f.state === 'accepted') state = 'active';        // they were already a friend
-    } else key = r.key;
-  } else {
-    return ERRORS.invalid('Say who it is for.');
-  }
+  /* Who it is for: a friend, or an invite (routes/challenge-target.js). */
+  const t = await resolveTarget(ctx, to, async (x, y) => (await first(ctx.db,
+    `SELECT COUNT(*) AS n FROM duels WHERE state IN ('invited','active')
+       AND ((a_id = ? AND b_id = ?) OR (a_id = ? AND b_id = ?))`, x, y, y, x)).n);
+  if (t.error) return t.error;
+  const { them, key, label, state, blocked, invited } = t;
 
   /* Whoever sent an invitation is told the same thing whatever happened to it: a challenge
      to someone who has blocked them simply never appears. */
@@ -162,7 +143,7 @@ export async function create(ctx) {
   await ctx.db.batch(writes);
   /* From an invitation the answer is always "invited": it must not say whether the address
      already had an account. The list says how things really stand. */
-  return ok({ id, state: to.invite ? 'invited' : state }, { status: 201 });
+  return ok({ id, state: invited ? 'invited' : state }, { status: 201 });
 }
 
 /* ----------------------------------------------------------------------- list */

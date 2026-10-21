@@ -55,6 +55,7 @@ export const LIMITS = {
   /* 1v1 Word Chain (routes/duels.js). Challenges started, and moves made (a guess or a
      Lifeline): generous for a real game, a stop for a script. */
   duel_create: { limit: 20,   window: DAY, prefix: 'duelnew' },
+  timed_create: { limit: 20,  window: DAY, prefix: 'timednew' },
   duel_move:   { limit: 1500, window: DAY, prefix: 'duelmove' },
   /* Promotion codes. Ten tries an hour per player: plenty for typos, far too
      few to guess a code by working through variations of a known one. */

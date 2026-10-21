@@ -36,6 +36,7 @@ import { first } from '../lib/db.js';
 import { MAX_SCORE, GAMES, utcDay } from '../lib/validate.js';
 import { groupsFor } from './groups.js';
 import { recordFor } from './duels.js';
+import { recordFor as timedRecordFor } from './timed.js';
 
 export const DOZEN = 12;
 export const LIFETIME_FROM = 13;
@@ -195,6 +196,8 @@ export async function analytics(ctx) {
     day,
     /* Word Chain's card also carries the 1v1 record: wins, draws and losses against each friend. */
     record: game === 'wordchain' ? await recordFor(ctx.db, me) : undefined,
+    /* ...and the timed challenges': wins, draws, losses and the time differential. */
+    timedRecord: game === 'wordchain' ? await timedRecordFor(ctx.db, me) : undefined,
     plan: sapien ? 'sapien' : 'free',
     group: group ? { id: group.id, name: group.name } : null,
     daily,

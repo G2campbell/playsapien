@@ -29,6 +29,7 @@ import * as analytics from './routes/analytics.js';
 import * as wordchain from './routes/wordchain.js';
 import * as wcplay from './routes/wordchain-play.js';
 import * as duels from './routes/duels.js';
+import * as timed from './routes/timed.js';
 import * as admin from './routes/admin.js';
 
 /* ================================================================== router */
@@ -95,6 +96,11 @@ const ROUTES = [
   ['POST',   '/api/duels/:id/hint',              duels.hint],
   ['POST',   '/api/duels/:id/resign',            duels.resign],
   ['POST',   '/api/duels/:id/cancel',            duels.cancel],
+  ['POST',   '/api/timed',                       timed.create],
+  ['GET',    '/api/timed',                       timed.list],
+  ['POST',   '/api/timed/:id/start',             timed.start],
+  ['POST',   '/api/timed/:id/finish',            timed.finish],
+  ['POST',   '/api/timed/:id/cancel',            timed.cancel],
   ['POST',   '/api/wordchain/practice/played',   wcplay.practicePlayed],
 
   /* The legacy alias. partD.js:341 posts to SOJOURNER_API + '/score' already,
@@ -326,6 +332,11 @@ export default {
             .bind(now - 90 * DAY),
           env.DB.prepare("UPDATE duels SET state = 'cancelled' WHERE state = 'active' AND updated_at < ?")
             .bind(now - 45 * DAY),
+          /* The same for timed challenges: unaccepted after 90 days, or nobody has run it in 30. */
+          env.DB.prepare("UPDATE timed SET state = 'cancelled' WHERE state = 'invited' AND created_at < ?")
+            .bind(now - 90 * DAY),
+          env.DB.prepare("UPDATE timed SET state = 'cancelled' WHERE state = 'active' AND updated_at < ?")
+            .bind(now - 30 * DAY),
           /* Practice counts older than about a year: the admin sizing view reads recent
              weeks, and nothing in here names a person beyond their opaque id. */
           env.DB.prepare('DELETE FROM practice_stats WHERE day < ?').bind(utcDay(now - 400 * DAY)),

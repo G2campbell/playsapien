@@ -33,3 +33,27 @@ export function attachInvitedDuelsStmt(db, inviteKey, userId, now) {
       WHERE invite_key = ? AND state = 'invited' AND challenger_id != ?
         AND created_at > ?`, userId, userId, now, inviteKey, userId, now - 90 * 86400);
 }
+
+/* The same three, for timed challenges (routes/timed.js): they ride on friendships exactly as
+   1v1 games do. */
+export function activateTimedStmt(db, x, y, now) {
+  return stmt(db,
+    `UPDATE timed SET state = 'active', updated_at = ?
+      WHERE state = 'invited'
+        AND ((a_id = ? AND b_id = ?) OR (a_id = ? AND b_id = ?))`, now, x, y, y, x);
+}
+export function cancelTimedStmt(db, x, y, now) {
+  return stmt(db,
+    `UPDATE timed SET state = 'cancelled', updated_at = ?
+      WHERE state IN ('invited', 'active')
+        AND ((a_id = ? AND b_id = ?) OR (a_id = ? AND b_id = ?))`, now, x, y, y, x);
+}
+export function attachInvitedTimedStmt(db, inviteKey, userId, now) {
+  return stmt(db,
+    `UPDATE timed SET
+        a_id = CASE WHEN a_id IS NULL THEN ? ELSE a_id END,
+        b_id = CASE WHEN b_id IS NULL THEN ? ELSE b_id END,
+        invite_key = NULL, updated_at = ?
+      WHERE invite_key = ? AND state = 'invited' AND challenger_id != ?
+        AND created_at > ?`, userId, userId, now, inviteKey, userId, now - 90 * 86400);
+}

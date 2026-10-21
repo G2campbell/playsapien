@@ -476,7 +476,7 @@ function reportPractice(id) {
 
 /* ------------------------------------------------------------------ persistence */
 var S = null, tick = null, sampler = null, samplerTried = false;
-var HELD = { daily: null, practice: null, past: null };
+var HELD = { daily: null, practice: null, past: null, timed: null };
 var pauseAt = 0, typed = '';
 
 function baseMs() { return Date.now() - S.t0 - S.frozenMs; }
@@ -487,7 +487,8 @@ function save() {
     hintsThisWord: S.hintsThisWord, hintCount: S.hintCount, penaltyMs: S.penaltyMs,
     baseMs: baseMs(), tried: S.tried, wrongThisWord: S.wrongThisWord,
     perWord: S.perWord, wordMs: S.wordMs, day: S.mode === 'past' ? S.day : todayKey(),
-    finals: S.finals, run: S.run, utcDay: S.utcDay, chainId: S.chainId
+    finals: S.finals, run: S.run, utcDay: S.utcDay, chainId: S.chainId,
+    chalId: S.chalId, oppName: S.oppName                  /* a timed challenge (timed.js) */
   });
 }
 function loadHeld(mode) {
@@ -503,7 +504,8 @@ function loadHeld(mode) {
     tried: g.tried || [], wrongThisWord: g.wrongThisWord || 0,
     locked: false, done: false, pausedAt: 0, day: g.day,
     finals: g.finals || [], run: g.run || null, utcDay: g.utcDay || null,
-    chainId: g.chainId === undefined ? null : g.chainId
+    chainId: g.chainId === undefined ? null : g.chainId,
+    chalId: g.chalId === undefined ? null : g.chalId, oppName: g.oppName || null
   };
 }
 /* One circle per word, sized by that word's share of the total time, so the row
@@ -606,6 +608,11 @@ function startGame(mode, past) {
   if (starting) return;
   /* One past day can be held at a time; starting a different one drops it. */
   if (mode === 'past' && HELD.past && HELD.past.day !== past.key) { HELD.past = null; drop('game:past'); }
+  /* One timed challenge can be in progress on a device; finishing it comes first. */
+  if (mode === 'timed' && HELD.timed && HELD.timed.chalId !== past.id) {
+    PSUI.toast('Finish your other timed challenge first.');
+    return;
+  }
   if (HELD[mode]) {
     S = HELD[mode]; HELD[mode] = null;
     if (S.pausedAt) S.frozenMs += Date.now() - S.pausedAt;
@@ -614,6 +621,15 @@ function startGame(mode, past) {
     return;
   }
   if (mode === 'practice') { launch(mode, past, practiceChain()); return; }
+  if (mode === 'timed') {
+    starting = true;
+    duApi('POST', '/timed/' + past.id + '/start').then(function (r) {
+      starting = false;
+      if (!r.ok) { PSUI.toast(duMsg(r.error)); return; }
+      launch('timed', past, r.data.chain);
+    });
+    return;
+  }
   starting = true;
   chainFor(utcKey(mode === 'past' ? past.n : 0)).then(function (c) {
     starting = false;
@@ -636,11 +652,13 @@ function launch(mode, past, c) {
     utcDay: PSWordChain.dayKeyOf(dayIndex())      // the day the chain was drawn for
   };
   if (mode === 'daily') beginRun(S);
+  if (mode === 'timed') { S.chalId = past.id; S.oppName = past.opp || 'your friend'; }
   show(mode);
 }
 function show(mode) {
   typed = '';
-  $('mode').textContent = mode === 'daily' ? 'Daily' : mode === 'past' ? 'Daily \u00b7 ' + longDay(S.day) : 'Practice';
+  $('mode').textContent = mode === 'daily' ? 'Daily' : mode === 'past' ? 'Daily \u00b7 ' + longDay(S.day)
+    : mode === 'timed' ? 'Timed \u00b7 vs ' + S.oppName : 'Practice';
   /* A 1v1 has no clock: just who gets to the end first. */
   $('clock').style.display = mode === 'duel' ? 'none' : '';
   if (mode === 'duel') duelLabel();
@@ -887,6 +905,7 @@ function finish() {
   renderChain(); paintClock(); setInput(false); $('hintBtn').disabled = true;
   setMsg('', null);
   var total = elapsedMs(), base = total - S.penaltyMs;
+  if (S.mode === 'timed') { timedFinish(total, base); return; }       /* sent to the server, not kept here */
   var r = { day: S.mode === 'past' ? S.day : todayKey(), mode: S.mode, total: total, hints: S.hintCount,
             words: S.words, perWord: S.perWord, wordMs: S.wordMs };
   drop('game:' + S.mode);
@@ -1329,6 +1348,7 @@ document.addEventListener('keydown', function (e) {
 });
 
 setTimeout(resendUnsent, 4000);
+setTimeout(resendTimed, 5000);
 setTimeout(function () {
   if (!HELD.daily && !dailyDone()) chainFor(utcKey(0));                 // today's chain, ready before the tap
   if (practiceUnseen(practiceState()).length < PRACTICE_LOW + 4) topUpPractice();
@@ -1336,6 +1356,7 @@ setTimeout(function () {
 HELD.daily = loadHeld('daily');
 HELD.practice = loadHeld('practice');
 HELD.past = loadHeld('past');
+HELD.timed = loadHeld('timed');
 paintHome(); paintSettings();
 document.addEventListener('visibilitychange', function () { if (document.hidden) save(); });
 window.addEventListener('pagehide', save);

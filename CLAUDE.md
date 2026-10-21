@@ -142,7 +142,7 @@ editing.** A CRLF `build.sh` dies with `set: Illegal option -`.
 ## 4. Running and testing locally
 
 ```sh
-# Backend (needs Node 22). 184 tests, no Cloudflare account needed.
+# Backend (needs Node 22). 198 tests (SDK: 43), no Cloudflare account needed.
 cd backend && npm install && npm test
 npx wrangler dev                      # local Worker + local D1 (optional)
 
@@ -228,8 +228,9 @@ deployed**: `780d916` (friends see each other's uploaded avatars), `e09cb28`
 **migration 0008**) and option D stage 2 (Word Chain, ranked on server-kept time;
 no further migration) and the Word Chain **pools and server-served chains** (migration **0009**:
 practice counts). All of it deploys together with the steps below (`migrations apply` runs
-every pending migration, so 0008 to 0011 go in one go), the **HAVEN26** promo code (0010) and
-Word Chain **1v1 challenges** (migration **0011**, see §8 item 13).
+every pending migration, so 0008 to 0012 go in one go), the **HAVEN26** promo code (0010),
+Word Chain **1v1 challenges** (migration **0011**, see §8 item 13) and Word Chain **timed friend
+challenges** (migration **0012**, see §8 item 14).
 
 **Deploy order matters for option D.** Backend first, then `git push`:
 
@@ -512,6 +513,37 @@ the backend must be redeployed with it; until then the server answers 503
       can block); no automatic forfeit beyond the 45-day cleanup; no rematch button; Sojourner has
       no 1v1; the Word Chain clock/lifeline bank are hidden in a duel but the board is otherwise
       the ordinary one (`S.mode === 'duel'` hooks in `part-c-app.js`).
+14. **Word Chain timed friend challenges (built 21 Oct 2026; migration 0012, table `timed`).**
+    Server: `routes/timed.js`, `lib/timed.js`, shared target logic in `routes/challenge-target.js`
+    (also used by 1v1). Client: `games/wordchain/src/timed.js`; the friend picker is the 1v1's
+    (`duel.js`, `DU.kind`).
+    - **The idea.** Both players get the SAME chain (from the practice pool, not one either has
+      had in a challenge) and run it independently on the ordinary timed board, with the clock and
+      Lifelines. Lowest time wins. There is no puzzle step: the game deals it.
+    - **Time is the game's own clock** (a pause costs nothing). `start` stores each player's open
+      time once (`a_started` / `b_started`); `finish` replays the moves and works out
+      `baseMs + Lifeline penalty` on the server. `checkPlay`: under 10 s or over 2 h of play is
+      refused, and a claimed time is clamped to the wall time since `start`.
+    - **Hidden until both finish.** Neither sees the other's time until they have finished
+      themselves; then the card shows who won and by how much. Times equal to the whole second
+      are a draw (`judge`).
+    - **Record.** Its own W-D-L, separate from 1v1, plus a **time differential**: the sum over
+      finished challenges of (their time - my time), shown as `+4:10` (faster) or `-4:10`
+      (slower). Rounded to the nearest second, and a non-draw is never shown as 0:00 (`tcGap` in
+      the game, `gapText` on the server, `anDiff` in the Analytics card). `timedRecord` in
+      `GET /api/player/analytics?game=wordchain`.
+    - **Same rules as 1v1** for who can be challenged (Sapien to send, anyone to play), inviting
+      with a challenge, blocks and un-friending (cancelled silently), a masked address, 25 going
+      per player and 5 per friend. Cron: unaccepted after 90 days, or nobody has run it in 30,
+      is cancelled. The badge on the Timed button counts challenges waiting on your run.
+    - **Offline.** A finished run that cannot be sent is kept (`wordchain:timedpending:<id>`) and
+      retried when the game opens or the connection returns. A run in progress is held like a
+      daily (`HELD.timed`); only one timed challenge can be in progress on a device.
+    - **Known gaps.** A player can claim less time than they played (down to the wall clock the
+      server saw), and if the device loses its local state the clock could restart after the chain
+      was seen; the server keeps the first `start`, so the wall-clock clamp still holds. No rematch;
+      Sojourner has no timed challenge; not browser-tested: the invite-with-challenge path (server
+      tests cover it), resuming a held run, and the offline retry.
 
 ---
 
@@ -530,9 +562,8 @@ the backend must be redeployed with it; until then the server answers 503
   `SOJOURNER_API` hook is gone. Not yet tried by Kai on the live site. Word Chain's
   open items: the day key is still local (S1), and a daily played before this change has
   no stamp or moves, so it is not sent.
-- **Friend challenges:** Word Chain **1v1 is built** (§8 item 13). **Timed group challenges are
-  not**: the "New timed challenge" button (and Sojourner's challenge buttons) still show a
-  "coming soon" toast. A game that has built its challenge marks the button `data-live` and
+- **Friend challenges:** Word Chain **1v1 and timed challenges are built** (§8 items 13 and 14).
+  Sojourner's challenge buttons still show a "coming soon" toast. A game that has built its challenge marks the button `data-live` and
   the shared placeholder in `ui.js` stands aside.
 - **Payments** are not wired. There is no Paddle checkout and no webhook.
   `PATCH /api/player/me` still accepts `plan` from the browser (marked
@@ -577,10 +608,9 @@ the backend must be redeployed with it; until then the server answers 503
    - refund calculator on an Admin page.
 5. **Results pipeline (option D): built, both games (20 Oct).** Next: Kai checks it live; then
    friend challenges (item 6), which can reuse the run stamp for timed ones.
-6. **Friend challenges:** Word Chain 1v1 is built (§8 item 13). Left: **timed group challenges**
-   (need a server-stamped start and finish; the Word Chain run stamp is the model) and a 1v1 for
-   Sojourner. Ideas noted while building 1v1: a rematch button on the result card; a nudge when
-   a game has waited a few days; a "decline" that also tells the challenger.
+6. **Friend challenges:** Word Chain 1v1 and timed challenges are built (§8 items 13 and 14).
+   Left: challenges for Sojourner. Ideas noted while building: a rematch button on the result
+   card; a nudge when a game has waited a few days; a "decline" that also tells the challenger.
 7. Small open offer: shrink "Share your code" on the Friends card into one "Or share
    your invite link" button (Kai asked why it exists; no decision yet).
 8. LLC paperwork, then the legal-name updates.

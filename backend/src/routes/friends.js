@@ -25,7 +25,10 @@ import { hmacSign } from '../lib/crypto.js';
 import { normaliseTrialEmail } from '../lib/trial.js';
 import { DAY } from '../lib/db.js';
 import { groupsFor, unGroupStatements } from './groups.js';
-import { activateDuelsStmt, cancelDuelsStmt, attachInvitedDuelsStmt } from '../lib/duels-db.js';
+import {
+  activateDuelsStmt, cancelDuelsStmt, attachInvitedDuelsStmt,
+  activateTimedStmt, cancelTimedStmt, attachInvitedTimedStmt,
+} from '../lib/duels-db.js';
 
 /* How many pending invites a player sees at once. More can arrive, but they
    wait, unseen, until the player makes room by accepting, rejecting or
@@ -288,6 +291,7 @@ async function accept(ctx, them) {
       `UPDATE friendships SET state = 'accepted', responded_at = ?
         WHERE a_id = ? AND b_id = ? AND state = 'pending'`, ctx.now, a, b),
     activateDuelsStmt(ctx.db, ctx.user.id, them, ctx.now),     // a 1v1 sent with the invite can start
+    activateTimedStmt(ctx.db, ctx.user.id, them, ctx.now),     // and so can a timed challenge
     noticeStatement(ctx.db, {
       userId: them,
       kind: 'friend_accepted',
@@ -318,6 +322,7 @@ export async function removeFriend(ctx) {
   await ctx.db.batch([
     ...unGroupStatements(ctx.db, ctx.user.id, ctx.params.id),
     cancelDuelsStmt(ctx.db, ctx.user.id, ctx.params.id, ctx.now),
+    cancelTimedStmt(ctx.db, ctx.user.id, ctx.params.id, ctx.now),
   ]);
   return ok({ removed: ctx.params.id });
 }
@@ -359,6 +364,7 @@ export async function blockFriend(ctx) {
   await ctx.db.batch([
     ...unGroupStatements(ctx.db, ctx.user.id, them),
     cancelDuelsStmt(ctx.db, ctx.user.id, them, ctx.now),
+    cancelTimedStmt(ctx.db, ctx.user.id, them, ctx.now),
   ]);
 
   return ok({ state: 'blocked', id: them });
@@ -394,6 +400,7 @@ export async function rejectRequest(ctx) {
     stmt(ctx.db, 'INSERT INTO friend_rejections (sender_id, recipient_id, at) VALUES (?, ?, ?)',
       them, ctx.user.id, ctx.now),
     cancelDuelsStmt(ctx.db, ctx.user.id, them, ctx.now),
+    cancelTimedStmt(ctx.db, ctx.user.id, them, ctx.now),
   ]);
   return ok({ state: 'rejected', id: them });
 }
@@ -630,6 +637,7 @@ export async function claimEmailInvites(ctx, userId, email) {
       a, b, r.inviter_id, ctx.now));
   }
   stmts.push(attachInvitedDuelsStmt(ctx.db, key, userId, ctx.now));   // a 1v1 sent with the invite
+  stmts.push(attachInvitedTimedStmt(ctx.db, key, userId, ctx.now));   // or a timed challenge
   stmts.push(stmt(ctx.db, 'DELETE FROM email_invites WHERE email_key = ?', key));
   await ctx.db.batch(stmts);
 }

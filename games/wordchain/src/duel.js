@@ -17,11 +17,18 @@
        "send it / choose another / make another / cancel");
      - playing a turn, on the ordinary board, with the hooks in part-c-app.js (S.mode 'duel'). */
 
-var DU = { games: [], friends: [], to: null, busy: false, signedOut: false, fromComposer: false };
+var DU = { games: [], friends: [], to: null, busy: false, signedOut: false, fromComposer: false, kind: 'duel' };
 
 var DU_ERR = {
   sapien_required: 'Starting a challenge is part of Sapien.',
   too_many_games: 'You have a lot of games going. Finish a few first.',
+  too_fast: 'That time is not one this game can have taken.',
+  too_long: 'That time is not one this game can have taken.',
+  not_started: 'Open the chain first.',
+  not_solved: 'That chain was not solved.',
+  bad_moves: 'Those moves could not be checked.',
+  already_finished: 'You have already finished this one.',
+  already_started: 'That has already started.',
   too_many_with_friend: 'You already have five games going with them.',
   bad_chain: 'That puzzle cannot be used. A puzzle needs 4 to 12 words, letters only.',
   bad_invite: 'Type an email address or an 8-character invite code.',
@@ -136,7 +143,8 @@ $('duelList').addEventListener('click', function (e) {
 });
 
 /* ------------------------------------------------------------------ the way in */
-function duelStart() {
+function duelStart(kind) {
+  DU.kind = kind || 'duel';
   DU.to = null; DU.fromComposer = false;
   $('duelInvite').value = '';
   $('duelFriends').innerHTML = '<p class="sethint">Loading…</p>';
@@ -151,20 +159,20 @@ function duelStart() {
   });
 }
 $('duelNew').setAttribute('data-live', '1');          /* the shared "coming soon" stands aside */
-$('duelNew').addEventListener('click', duelStart);
+$('duelNew').addEventListener('click', function () { duelStart('duel'); });
 
 $('duelFriends').addEventListener('click', function (e) {
   var b = e.target.closest('.dl-friend'); if (!b) return;
   var f = DU.friends.filter(function (x) { return x.id === b.getAttribute('data-id'); })[0];
   if (!f) return;
   DU.to = { friend_id: f.id, name: f.display_name || f.handle || 'your friend' };
-  duelWhich();
+  if (DU.kind === 'timed') createTimed(); else duelWhich();
 });
 function duelInviteNext() {
   var v = ($('duelInvite').value || '').trim();
   if (!v) { PSUI.toast('Type an email address or invite code first.'); return; }
   DU.to = { invite: v, name: v };
-  duelWhich();
+  if (DU.kind === 'timed') createTimed(); else duelWhich();
 }
 $('duelInviteGo').addEventListener('click', duelInviteNext);
 $('duelInvite').addEventListener('keydown', function (e) {
@@ -363,8 +371,8 @@ function duelLeave() { goHome(); duelRefresh(); }
 /* ------------------------------------------------------------------ keeping the badge fresh */
 document.addEventListener('ps:user', function (e) {
   DU.signedOut = !e.detail;
-  if (e.detail) duelRefresh(); else { DU.games = []; paintTurnBadge(0); }
+  if (e.detail) { duelRefresh(); timedRefresh(); } else { DU.games = []; TC.games = []; paintTurnBadge(0); paintTimedBadge(0); }
 });
-window.addEventListener('focus', function () { duelRefresh(); });
-setInterval(function () { if (!document.hidden) duelRefresh(); }, 90000);
-setTimeout(duelRefresh, 3000);
+window.addEventListener('focus', function () { duelRefresh(); timedRefresh(); });
+setInterval(function () { if (!document.hidden) { duelRefresh(); timedRefresh(); } }, 90000);
+setTimeout(function () { duelRefresh(); timedRefresh(); }, 3000);
